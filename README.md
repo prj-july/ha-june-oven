@@ -1,8 +1,8 @@
 # June Oven for Home Assistant
 
-[![Release](https://img.shields.io/github/v/release/jclima/ha-june-oven)](https://github.com/jclima/ha-june-oven/releases)
-[![Validate](https://github.com/jclima/ha-june-oven/actions/workflows/validate.yml/badge.svg)](https://github.com/jclima/ha-june-oven/actions/workflows/validate.yml)
-[![License: MIT](https://img.shields.io/github/license/jclima/ha-june-oven)](LICENSE)
+[![Release](https://img.shields.io/github/v/release/Terablo/ha-june-oven)](https://github.com/Terablo/ha-june-oven/releases)
+[![Validate](https://github.com/Terablo/ha-june-oven/actions/workflows/validate.yml/badge.svg)](https://github.com/Terablo/ha-june-oven/actions/workflows/validate.yml)
+[![License: MIT](https://img.shields.io/github/license/Terablo/ha-june-oven)](LICENSE)
 [![Home Assistant 2025.1+](https://img.shields.io/badge/Home%20Assistant-2025.1%2B-41BDF5)](https://www.home-assistant.io/)
 
 An unofficial Home Assistant custom integration for pairing with, monitoring,
@@ -11,7 +11,7 @@ and controlling June ovens. It pairs as a companion with an oven running the
 with no Homebridge, Apple HomeKit, June account login, or extracted app
 credentials required.
 
-[![Open your Home Assistant instance and add this repository to HACS](https://my.home-assistant.io/badges/hacs_repository.svg)](https://my.home-assistant.io/redirect/hacs_repository/?owner=jclima&repository=ha-june-oven&category=integration)
+[![Open your Home Assistant instance and add this repository to HACS](https://my.home-assistant.io/badges/hacs_repository.svg)](https://my.home-assistant.io/redirect/hacs_repository/?owner=Terablo&repository=ha-june-oven&category=integration)
 
 > [!WARNING]
 > This integration can start a real heating appliance remotely. Begin testing
@@ -94,14 +94,14 @@ using the [official HACS instructions](https://hacs.xyz/docs/use/download/downlo
 
 Use the button below and follow the prompt:
 
-[![Open your Home Assistant instance and add this repository to HACS](https://my.home-assistant.io/badges/hacs_repository.svg)](https://my.home-assistant.io/redirect/hacs_repository/?owner=jclima&repository=ha-june-oven&category=integration)
+[![Open your Home Assistant instance and add this repository to HACS](https://my.home-assistant.io/badges/hacs_repository.svg)](https://my.home-assistant.io/redirect/hacs_repository/?owner=Terablo&repository=ha-june-oven&category=integration)
 
 Or add it manually:
 
 1. Open **HACS** in the Home Assistant sidebar.
 2. Open the three-dot menu in the upper-right corner.
 3. Select **Custom repositories**.
-4. Enter `https://github.com/jclima/ha-june-oven`.
+4. Enter `https://github.com/Terablo/ha-june-oven`.
 5. Select **Integration** as the category, then select **Add**.
 6. Search for **June Oven** and open its details page.
 7. Select **Download** and choose the latest release.
@@ -112,7 +112,7 @@ After restarting, continue with [Pairing the oven](#pairing-the-oven).
 ### Option 2: Manual installation
 
 1. Download the
-   [latest release](https://github.com/jclima/ha-june-oven/releases/latest).
+   [latest release](https://github.com/Terablo/ha-june-oven/releases/latest).
 2. Extract the release archive.
 3. Copy the extracted `custom_components/june_oven` directory into the
    `custom_components` directory inside your Home Assistant configuration.
@@ -442,7 +442,7 @@ whether they were verified on a physical oven.
 See [CONTRIBUTING.md](CONTRIBUTING.md) before opening a pull request.
 
 For bugs, use the
-[issue tracker](https://github.com/jclima/ha-june-oven/issues) and attach only
+[issue tracker](https://github.com/Terablo/ha-june-oven/issues) and attach only
 redacted diagnostics. This project is maintained independently; do not report
 integration bugs to HACS, Home Assistant, June, or the upstream Homebridge
 project.

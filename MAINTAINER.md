@@ -25,7 +25,7 @@ python3 -m venv .venv
 After signing in with `gh auth login -h github.com`, apply this rule to `main`:
 
 ```bash
-gh api --method PUT repos/jclima/ha-june-oven/branches/main/protection \
+gh api --method PUT repos/Terablo/ha-june-oven/branches/main/protection \
   -f required_status_checks='{"strict":true,"contexts":["validate"]}' \
   -f enforce_admins=true \
   -f required_pull_request_reviews='{"dismissal_restrictions":{},"dismiss_stale_reviews":true,"require_code_owner_reviews":true,"required_approving_review_count":1}' \
