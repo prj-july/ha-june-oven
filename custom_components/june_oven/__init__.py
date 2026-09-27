@@ -7,10 +7,10 @@ from typing import Any
 
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
-from homeassistant.exceptions import ConfigEntryNotReady
+from homeassistant.exceptions import ConfigEntryError, ConfigEntryNotReady
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
 
-from .api import JuneClient, JuneError, JuneIdentity
+from .api import JuneClient, JuneError, JuneIdentity, connection_settings
 from .const import PLATFORMS
 from .coordinator import JuneDataUpdateCoordinator
 
@@ -20,6 +20,15 @@ _LOGGER = logging.getLogger(__name__)
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     """Set up June Oven from a config entry."""
     identity = JuneIdentity.from_mapping(entry.data)
+    try:
+        endpoints, ssl_setting = await hass.async_add_executor_job(
+            connection_settings, {**entry.data, **entry.options}
+        )
+    except ValueError as err:
+        raise ConfigEntryError(
+            f"Invalid June oven connection settings: {err}. Fix them from the "
+            "integration's Configure menu."
+        ) from err
 
     def save_tokens(updated: JuneIdentity) -> None:
         data: dict[str, Any] = {**entry.data, **updated.as_dict()}
@@ -29,6 +38,8 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         async_get_clientsession(hass),
         identity,
         token_callback=save_tokens,
+        endpoints=endpoints,
+        ssl_setting=ssl_setting,
     )
     coordinator = JuneDataUpdateCoordinator(hass, client)
 

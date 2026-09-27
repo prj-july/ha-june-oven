@@ -11,6 +11,7 @@ from homeassistant.core import HomeAssistant
 
 from .const import (
     CONF_ACCESS_TOKEN,
+    CONF_CA_CERT,
     CONF_CLIENT_SECRET,
     CONF_ED25519_SEED_HEX,
     CONF_PASSWORD,
@@ -20,6 +21,7 @@ from .coordinator import JuneDataUpdateCoordinator
 
 TO_REDACT = {
     CONF_ACCESS_TOKEN,
+    CONF_CA_CERT,
     CONF_CLIENT_SECRET,
     CONF_ED25519_SEED_HEX,
     CONF_PASSWORD,
@@ -37,7 +39,8 @@ async def async_get_config_entry_diagnostics(
         state["snapshot_url"] = "**REDACTED**"
     return {
         "config_entry": async_redact_data(dict(entry.data), TO_REDACT),
-        "options": dict(entry.options),
+        "options": async_redact_data(dict(entry.options), TO_REDACT),
+        "endpoints": coordinator.client.endpoints._asdict(),
         "state": state,
         "last_update_success": coordinator.last_update_success,
     }

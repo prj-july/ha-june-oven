@@ -83,5 +83,63 @@ class ProtocolHelpersTest(unittest.TestCase):
         key.verify_key.verify(payload, signature[8:])
 
 
+class EndpointTest(unittest.TestCase):
+    """Verify the configurable oven host."""
+
+    def test_blank_host_uses_june_cloud(self) -> None:
+        for host in (None, "", "   "):
+            endpoints = protocol.JuneEndpoints.from_host(host)
+            self.assertTrue(endpoints.is_cloud)
+            self.assertEqual(endpoints.api_url, "https://api.junelife.com")
+            self.assertEqual(endpoints.messaging_url, "https://messaging.junelife.com")
+            self.assertEqual(
+                endpoints.ws_url,
+                "wss://messaging.junelife.com/1/messaging/websocket/companion",
+            )
+
+    def test_custom_host_serves_every_endpoint(self) -> None:
+        endpoints = protocol.JuneEndpoints.from_host("192.168.1.50")
+        self.assertFalse(endpoints.is_cloud)
+        self.assertEqual(endpoints.api_url, "https://192.168.1.50")
+        self.assertEqual(endpoints.messaging_url, "https://192.168.1.50")
+        self.assertEqual(
+            endpoints.ws_url,
+            "wss://192.168.1.50/1/messaging/websocket/companion",
+        )
+        self.assertEqual(endpoints.hostnames, frozenset({"192.168.1.50"}))
+
+    def test_host_normalization(self) -> None:
+        cases = {
+            "june.local": "https://june.local",
+            " June.Local:8443/ ": "https://june.local:8443",
+            "https://june.local": "https://june.local",
+            "http://10.0.0.2:8080": "http://10.0.0.2:8080",
+            "fe80::1": "https://[fe80::1]",
+            "[fe80::1]:443": "https://[fe80::1]:443",
+        }
+        for host, expected in cases.items():
+            with self.subTest(host=host):
+                self.assertEqual(protocol.normalize_host(host), expected)
+
+    def test_plain_http_uses_plain_websocket(self) -> None:
+        endpoints = protocol.JuneEndpoints.from_host("http://june.local:8080")
+        self.assertEqual(
+            endpoints.ws_url,
+            "ws://june.local:8080/1/messaging/websocket/companion",
+        )
+
+    def test_invalid_hosts_are_rejected(self) -> None:
+        for host in (
+            "ftp://june.local",
+            "june.local/path",
+            "june local",
+            "https://user:pass@june.local",
+            "june.local:99999",
+            "https://june.local?x=1",
+        ):
+            with self.subTest(host=host), self.assertRaises(ValueError):
+                protocol.normalize_host(host)
+
+
 if __name__ == "__main__":
     unittest.main()

@@ -9,16 +9,20 @@ from __future__ import annotations
 
 import base64
 import hashlib
+import ipaddress
 import json
 import re
 import secrets
 import time
 from collections.abc import Mapping
-from typing import Any, Final
+from contextlib import suppress
+from typing import Any, Final, NamedTuple
+from urllib.parse import urlsplit
 
 JUNE_API_URL: Final = "https://api.junelife.com"
 JUNE_MESSAGING_URL: Final = "https://messaging.junelife.com"
-JUNE_WS_URL: Final = "wss://messaging.junelife.com/1/messaging/websocket/companion"
+JUNE_WS_PATH: Final = "/1/messaging/websocket/companion"
+JUNE_WS_URL: Final = f"wss://messaging.junelife.com{JUNE_WS_PATH}"
 JUNE_USER_AGENT: Final = "okhttp/4.8.1"
 JUNE_APP_VERSION: Final = "1.24.1.11"
 JUNE_PLATFORM_VERSION: Final = "34"
@@ -42,6 +46,85 @@ MC_DEVICE_STATE: Final = 10018
 MC_ACK: Final = 10020
 MC_PAIRING_INFO: Final = 10026
 MC_PAIRING_INVALIDATED: Final = 10027
+
+
+class JuneEndpoints(NamedTuple):
+    """Base URLs for June's API, messaging REST, and messaging WebSocket.
+
+    June's cloud splits these across api.junelife.com and
+    messaging.junelife.com. A Project July oven answers all of them on its own
+    address, so a custom host serves every endpoint.
+    """
+
+    api_url: str = JUNE_API_URL
+    messaging_url: str = JUNE_MESSAGING_URL
+    ws_url: str = JUNE_WS_URL
+
+    @classmethod
+    def from_host(cls, host: str | None) -> JuneEndpoints:
+        """Build endpoints for a host, or June's cloud when the host is blank.
+
+        Accepts ``oven.local``, ``192.168.1.50``, ``192.168.1.50:8443``,
+        ``[fe80::1]:443``, or a URL such as ``https://oven.local``. HTTPS is
+        assumed when no scheme is given; ``http://`` uses a plain WebSocket.
+        """
+        base = normalize_host(host)
+        if base is None:
+            return cls()
+        ws_base = "ws" + base.removeprefix("http")
+        return cls(api_url=base, messaging_url=base, ws_url=f"{ws_base}{JUNE_WS_PATH}")
+
+    @property
+    def is_cloud(self) -> bool:
+        """Return whether these are June's own cloud endpoints."""
+        return self == JuneEndpoints()
+
+    @property
+    def hostnames(self) -> frozenset[str]:
+        """Return the hostnames these endpoints connect to."""
+        return frozenset(
+            name
+            for url in (self.api_url, self.messaging_url, self.ws_url)
+            if (name := urlsplit(url).hostname)
+        )
+
+
+def normalize_host(host: str | None) -> str | None:
+    """Return ``scheme://host[:port]`` for a user-entered host, or None if blank.
+
+    Raises ValueError for anything that is not a bare host or origin URL.
+    """
+    value = (host or "").strip().rstrip("/")
+    if not value:
+        return None
+    if "://" not in value:
+        with suppress(ValueError):
+            if ipaddress.ip_address(value).version == 6:
+                value = f"[{value}]"
+        value = f"https://{value}"
+    try:
+        parts = urlsplit(value)
+        port = parts.port
+    except ValueError as err:
+        raise ValueError(f"Invalid host: {host}") from err
+    scheme = parts.scheme.lower()
+    hostname = parts.hostname
+    if (
+        scheme not in ("https", "http")
+        or not hostname
+        or parts.path
+        or parts.query
+        or parts.fragment
+        or parts.username is not None
+        or parts.password is not None
+        or any(char.isspace() for char in hostname)
+    ):
+        raise ValueError(f"Invalid host: {host}")
+    netloc = f"[{hostname}]" if ":" in hostname else hostname
+    if port is not None:
+        netloc = f"{netloc}:{port}"
+    return f"{scheme}://{netloc}"
+
 
 # RFC 5054 8192-bit group used by the June app, with generator 19.
 SRP_N_HEX: Final = (

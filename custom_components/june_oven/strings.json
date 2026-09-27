@@ -5,7 +5,9 @@
       "pairing_lost": "The pairing session was lost. Start again."
     },
     "error": {
-      "cannot_connect": "Could not connect to June's cloud. Check Home Assistant's internet connection and try again.",
+      "cannot_connect": "Could not connect to the oven's server. Check the oven host, certificate settings, and Home Assistant's network connection, then try again.",
+      "invalid_ca_cert": "The CA certificate is not a valid PEM certificate.",
+      "invalid_host": "Enter a hostname or IP address, optionally with a port or an http:// or https:// prefix, and nothing else.",
       "not_paired_yet": "The oven has not finished pairing. Enter the code on the oven, wait a few seconds, and try again.",
       "pairing_failed": "The oven rejected or could not finish pairing. Confirm it is idle, closed, online, and try again."
     },
@@ -16,8 +18,17 @@
       },
       "user": {
         "data": {
+          "ca_cert": "Home CA certificate (PEM)",
           "default_mode": "Default cook mode",
-          "default_temp_f": "Default temperature"
+          "default_temp_f": "Default temperature",
+          "device_name": "Oven name",
+          "host": "Oven host",
+          "verify_ssl": "Verify the oven's certificate"
+        },
+        "data_description": {
+          "ca_cert": "Only applies to a custom host. Paste your home's CA certificate so Home Assistant trusts the oven's certificate. Leave empty to use the system's trusted certificates.",
+          "host": "Leave empty to use June's cloud (api.junelife.com and messaging.junelife.com). For a Project July oven, enter its hostname or IP address, such as 192.168.1.50 or june.local. Add :port or an http:// or https:// prefix if needed; HTTPS is assumed.",
+          "verify_ssl": "Only applies to a custom host. Turn off to accept the oven's certificate without checking it."
         },
         "description": "Home Assistant will create a private companion identity and pair directly with the oven. No June account login is needed.",
         "title": "Set up June Oven"
@@ -51,14 +62,26 @@
     }
   },
   "options": {
+    "error": {
+      "invalid_ca_cert": "The CA certificate is not a valid PEM certificate.",
+      "invalid_host": "Enter a hostname or IP address, optionally with a port or an http:// or https:// prefix, and nothing else."
+    },
     "step": {
       "init": {
         "data": {
+          "ca_cert": "Home CA certificate (PEM)",
           "default_mode": "Default cook mode",
           "default_temp_f": "Default temperature",
-          "device_name": "Oven name"
+          "device_name": "Oven name",
+          "host": "Oven host",
+          "verify_ssl": "Verify the oven's certificate"
         },
-        "description": "Choose the defaults used when the oven is turned on from Home Assistant.",
+        "data_description": {
+          "ca_cert": "Only applies to a custom host. Paste your home's CA certificate so Home Assistant trusts the oven's certificate. Leave empty to use the system's trusted certificates.",
+          "host": "Leave empty to use June's cloud (api.junelife.com and messaging.junelife.com). For a Project July oven, enter its hostname or IP address, such as 192.168.1.50 or june.local. Add :port or an http:// or https:// prefix if needed; HTTPS is assumed.",
+          "verify_ssl": "Only applies to a custom host. Turn off to accept the oven's certificate without checking it."
+        },
+        "description": "Choose where Home Assistant reaches the oven and the defaults used when the oven is turned on from Home Assistant. Changing the host reloads the integration.",
         "title": "June Oven options"
       }
     }

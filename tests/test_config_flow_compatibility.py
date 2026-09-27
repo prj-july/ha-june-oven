@@ -42,6 +42,20 @@ class ConfigFlowCompatibilityTest(unittest.IsolatedAsyncioTestCase):
                 self.assertEqual(result["type"], FlowResultType.FORM)
                 self.assertEqual(result["step_id"], "user")
                 self.assertFalse(result["errors"])
+
+                result = await hass.config_entries.flow.async_configure(
+                    result["flow_id"],
+                    {
+                        "device_name": "Kitchen June",
+                        "host": "june.local/not-a-host",
+                        "verify_ssl": True,
+                        "default_mode": "bake",
+                        "default_temp_f": 350,
+                    },
+                )
+                self.assertEqual(result["type"], FlowResultType.FORM)
+                self.assertEqual(result["step_id"], "user")
+                self.assertEqual(result["errors"], {"host": "invalid_host"})
             finally:
                 await hass.async_stop(force=True)
 

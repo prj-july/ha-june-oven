@@ -56,14 +56,16 @@ extracted app credentials required.
 | Requirement | Details |
 | --- | --- |
 | Home Assistant | Version 2025.1 or newer |
-| Oven | A June oven connected to Wi-Fi and June's cloud |
-| Network | Outbound internet access from Home Assistant |
+| Oven | A June oven connected to Wi-Fi and June's cloud, or a [Project July](https://project-july.org) oven on your network |
+| Network | Outbound internet access from Home Assistant, or a network path to a Project July oven |
 | Pairing access | Physical access to the oven's **Connect** screen |
 | Distribution | HACS custom repository or manual installation |
 
-This is a cloud-push integration, not local-LAN control. If June's cloud, the
-oven's internet connection, or Home Assistant's internet connection is
-unavailable, monitoring and control will be unavailable.
+By default this is a cloud-push integration that talks to June's cloud. If
+June's cloud, the oven's internet connection, or Home Assistant's internet
+connection is unavailable, monitoring and control will be unavailable. To talk
+to a Project July oven on your own network instead, set the
+[oven host](#oven-host-project-july).
 
 Additional behavior to know:
 
@@ -147,6 +149,8 @@ Pairing creates a private June companion identity for Home Assistant.
 3. Enter:
 
    - **Oven name**: the companion and device name, such as `Kitchen June`.
+   - **Oven host**: leave empty for June's cloud, or enter a Project July
+     oven's hostname or IP address. See [Oven host](#oven-host-project-july).
    - **Default cook mode**: the mode used when turning the climate entity on.
    - **Default temperature**: the initial target, from 100 °F to 500 °F.
 
@@ -165,15 +169,36 @@ companion identity and Home Assistant device.
 
 ## Configuration
 
-To change the default cook mode or temperature:
+To change the oven host, certificate settings, default cook mode, or default
+temperature:
 
 1. Open **Settings → Devices & services**.
 2. Find **June Oven**.
 3. Select **Configure**.
-4. Choose the new defaults and select **Submit**.
+4. Change the settings and select **Submit**.
+
+The integration reloads with the new settings; there is no need to remove and
+re-add it.
 
 The defaults are used when a cook does not already have a selected target or
 mode. They do not automatically start the oven.
+
+### Oven host (Project July)
+
+June's cloud serves the integration from `api.junelife.com` and
+`messaging.junelife.com`. A [Project July](https://project-july.org) oven
+answers those requests itself, so the integration can connect to the oven
+directly instead.
+
+| Setting | Details |
+| --- | --- |
+| **Oven host** | Empty uses June's cloud. Otherwise the oven's hostname or IP address, such as `192.168.1.50` or `june.local`. Every June endpoint (API, messaging, and WebSocket) is sent to this host. HTTPS is assumed; add `:port`, `https://`, or `http://` if your oven needs it. |
+| **Verify the oven's certificate** | On by default. Turn off only if you cannot provide the certificate authority that signed the oven's certificate. |
+| **Home CA certificate (PEM)** | Paste your home's CA certificate (`-----BEGIN CERTIFICATE-----` …) so Home Assistant trusts the oven's certificate. Empty uses the system's trusted certificates. |
+
+The certificate settings only apply to a custom host; June's cloud is always
+verified against the system's trusted certificates. Camera images served from
+the oven host are trusted in addition to June's own image hosts.
 
 ## Entities and controls
 
