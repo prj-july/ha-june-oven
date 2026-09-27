@@ -9,16 +9,20 @@ from __future__ import annotations
 
 import base64
 import hashlib
+import ipaddress
 import json
 import re
 import secrets
 import time
 from collections.abc import Mapping
+from dataclasses import dataclass
 from typing import Any, Final
+from urllib.parse import urlsplit
 
 JUNE_API_URL: Final = "https://api.junelife.com"
 JUNE_MESSAGING_URL: Final = "https://messaging.junelife.com"
-JUNE_WS_URL: Final = "wss://messaging.junelife.com/1/messaging/websocket/companion"
+JUNE_WS_PATH: Final = "/1/messaging/websocket/companion"
+JUNE_WS_URL: Final = f"wss://messaging.junelife.com{JUNE_WS_PATH}"
 JUNE_USER_AGENT: Final = "okhttp/4.8.1"
 JUNE_APP_VERSION: Final = "1.24.1.11"
 JUNE_PLATFORM_VERSION: Final = "34"
@@ -94,6 +98,111 @@ DAMM: Final = (
     (9, 4, 3, 8, 6, 1, 7, 2, 0, 5),
     (2, 5, 8, 1, 4, 3, 6, 7, 9, 0),
 )
+
+# Project July's june-local server serves the same routes over TLS on 443 and
+# over plain HTTP on this port.
+LOCAL_HTTP_PORT: Final = 8080
+
+_HOSTNAME = re.compile(
+    r"(?=.{1,253}$)[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?"
+    r"(?:\.[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?)*"
+)
+
+
+@dataclass(frozen=True, slots=True)
+class JuneEndpoints:
+    """Every URL the companion uses, derived from one configured endpoint."""
+
+    api_url: str
+    messaging_url: str
+    ws_url: str
+    local: bool
+
+    @property
+    def status_url(self) -> str:
+        """Return the local server's machine-readable status URL."""
+        return f"{self.api_url}/local/status"
+
+    def local_media_url(self, candidate: Any) -> str | None:
+        """Re-home a camera URL onto the configured local server.
+
+        The local server names api.junelife.com (or its --media-url) in camera
+        frames because the oven believes it is talking to June's cloud. Only the
+        path is kept, so images are only ever fetched from the configured server.
+        """
+        if not self.local or not isinstance(candidate, str):
+            return None
+        parsed = urlsplit(candidate)
+        if not parsed.path.startswith("/media/") or ".." in parsed.path.split("/"):
+            return None
+        query = f"?{parsed.query}" if parsed.query else ""
+        return f"{self.api_url}{parsed.path}{query}"
+
+
+def normalize_endpoint(value: str) -> str:
+    """Normalize a user-entered endpoint to ``scheme://host[:port]``.
+
+    Accepts a hostname or an IPv4/IPv6 address, optionally with a port and an
+    ``https://`` or ``http://`` prefix. HTTPS is assumed; plain HTTP defaults to
+    the local server's port-8080 listener. An empty value returns "" and selects
+    June's public cloud. Raises ValueError for anything else.
+    """
+    value = value.strip()
+    if not value:
+        return ""
+    try:
+        if ipaddress.ip_address(value).version == 6:
+            value = f"[{value}]"
+    except ValueError:
+        pass
+    if "://" not in value:
+        value = f"https://{value}"
+
+    parsed = urlsplit(value)
+    scheme = parsed.scheme.lower()
+    if scheme not in ("http", "https"):
+        raise ValueError(f"Unsupported scheme: {parsed.scheme}")
+    if parsed.username or parsed.password or parsed.path.strip("/"):
+        raise ValueError("Enter only a hostname or IP address and optional port")
+    host = parsed.hostname
+    port = parsed.port  # Raises ValueError for a malformed port.
+    if not host:
+        raise ValueError("Missing hostname")
+
+    try:
+        address = ipaddress.ip_address(host)
+    except ValueError:
+        host = host.rstrip(".")
+        if not _HOSTNAME.fullmatch(host):
+            raise ValueError(f"Invalid hostname: {host}") from None
+    else:
+        host = f"[{address.compressed}]" if address.version == 6 else str(address)
+
+    if scheme == "http" and port is None:
+        port = LOCAL_HTTP_PORT
+    if scheme == "https" and port == 443:
+        port = None
+    return f"{scheme}://{host}" + (f":{port}" if port is not None else "")
+
+
+def build_endpoints(endpoint: str = "") -> JuneEndpoints:
+    """Derive every service URL from one endpoint; empty means June's cloud."""
+    base = normalize_endpoint(endpoint)
+    if not base:
+        return JuneEndpoints(
+            api_url=JUNE_API_URL,
+            messaging_url=JUNE_MESSAGING_URL,
+            ws_url=JUNE_WS_URL,
+            local=False,
+        )
+    scheme, _, netloc = base.partition("://")
+    ws_scheme = "wss" if scheme == "https" else "ws"
+    return JuneEndpoints(
+        api_url=base,
+        messaging_url=base,
+        ws_url=f"{ws_scheme}://{netloc}{JUNE_WS_PATH}",
+        local=True,
+    )
 
 
 def fahrenheit_to_millic(fahrenheit: float) -> int:
