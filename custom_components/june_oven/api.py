@@ -8,6 +8,7 @@ import hashlib
 import json
 import logging
 import secrets
+import ssl
 from collections.abc import Callable, Mapping
 from dataclasses import asdict, dataclass
 from typing import Any
@@ -17,20 +18,18 @@ from aiohttp import (
     ClientError,
     ClientResponse,
     ClientSession,
+    ClientSSLError,
     ClientWebSocketResponse,
     WSMsgType,
     WSServerHandshakeError,
 )
 
 from .protocol import (
-    JUNE_API_URL,
     JUNE_APP_VERSION,
     JUNE_CLIENT_ID,
     JUNE_CLIENT_SECRET,
-    JUNE_MESSAGING_URL,
     JUNE_PLATFORM_VERSION,
     JUNE_USER_AGENT,
-    JUNE_WS_URL,
     MC_ACK,
     MC_CAMERA,
     MC_CANCEL,
@@ -44,8 +43,10 @@ from .protocol import (
     MC_SET_TIMER,
     MC_TELEMETRY,
     MC_TEMPERATURE,
+    JuneEndpoints,
     OrderGenerator,
     SrpServer,
+    build_endpoints,
     build_shown_code,
     build_signed_frame,
     fahrenheit_to_millic,
@@ -61,6 +62,10 @@ PAIRING_TIMEOUT = 5 * 60
 TRIGGER_PULSE_SECONDS = 30
 TRUSTED_CAMERA_HOSTS = {"api.junelife.com", "june-api.s3.amazonaws.com"}
 
+# aiohttp's per-request ``ssl`` value: True verifies against the system store,
+# False skips verification, and a context trusts a specific CA.
+SSLOption = ssl.SSLContext | bool
+
 
 class JuneError(Exception):
     """Base error for the June API."""
@@ -71,7 +76,15 @@ class JuneAuthenticationError(JuneError):
 
 
 class JuneConnectionError(JuneError):
-    """June's cloud could not be reached."""
+    """June's cloud or the local server could not be reached."""
+
+
+class JuneCertificateError(JuneConnectionError):
+    """The server's TLS certificate was not trusted."""
+
+
+class JuneNotLocalServerError(JuneError):
+    """The endpoint answered, but it is not a Project July local server."""
 
 
 class JuneCommandError(JuneError):
@@ -151,11 +164,15 @@ class JuneClient:
         session: ClientSession,
         identity: JuneIdentity,
         *,
+        endpoints: JuneEndpoints | None = None,
+        ssl_option: SSLOption = True,
         token_callback: TokenCallback | None = None,
         update_callback: UpdateCallback | None = None,
     ) -> None:
         self.session = session
         self.identity = identity
+        self.endpoints = endpoints or build_endpoints()
+        self._ssl = ssl_option
         self.state = JuneState()
         self.token_callback = token_callback
         self.update_callback = update_callback
@@ -191,13 +208,16 @@ class JuneClient:
         try:
             async with asyncio.timeout(REQUEST_TIMEOUT):
                 async with self.session.post(
-                    f"{JUNE_API_URL}/2/devices/register",
+                    f"{self.endpoints.api_url}/2/devices/register",
                     json=body,
                     headers={"User-Agent": JUNE_USER_AGENT},
+                    ssl=self._ssl,
                 ) as response:
                     payload = await self._checked_json(response, "Token refresh")
         except JuneError:
             raise
+        except ClientSSLError as err:
+            raise JuneCertificateError(f"Token refresh failed: {err}") from err
         except (TimeoutError, ClientError) as err:
             raise JuneConnectionError(f"Token refresh failed: {err}") from err
 
@@ -215,11 +235,14 @@ class JuneClient:
 
     async def async_fetch_status(self, *, retry_auth: bool = True) -> JuneState:
         """Fetch the oven's REST status snapshot."""
-        url = f"{JUNE_MESSAGING_URL}/1/messaging/device/{self.identity.oven_id}/status"
+        url = (
+            f"{self.endpoints.messaging_url}/1/messaging/device/"
+            f"{self.identity.oven_id}/status"
+        )
         try:
             async with asyncio.timeout(REQUEST_TIMEOUT):
                 async with self.session.get(
-                    url, headers=self._authorization_headers()
+                    url, headers=self._authorization_headers(), ssl=self._ssl
                 ) as response:
                     if response.status == 401 and retry_auth:
                         response.release()
@@ -326,12 +349,17 @@ class JuneClient:
 
     async def async_fetch_camera_image(self) -> bytes | None:
         """Fetch the most recent trusted camera image."""
-        url = self.state.snapshot_url
-        if not url or not self._is_trusted_camera_url(url):
+        url = self._camera_url(self.state.snapshot_url)
+        if not url:
             return None
+        # Local images come from the configured server; cloud images may come
+        # from S3, which must be verified against the system store.
+        ssl_option = self._ssl if self.endpoints.local else True
         try:
             async with asyncio.timeout(8):
-                async with self.session.get(url, allow_redirects=False) as response:
+                async with self.session.get(
+                    url, allow_redirects=False, ssl=ssl_option
+                ) as response:
                     if response.status != 200:
                         return None
                     try:
@@ -383,13 +411,14 @@ class JuneClient:
 
     async def _websocket_once(self) -> None:
         async with self.session.ws_connect(
-            JUNE_WS_URL,
+            self.endpoints.ws_url,
             headers={
                 **self._authorization_headers(),
                 "User-Agent": JUNE_USER_AGENT,
             },
             heartbeat=20,
             compress=0,
+            ssl=self._ssl,
         ) as websocket:
             self._ws = websocket
             self._connected.set()
@@ -479,8 +508,10 @@ class JuneClient:
         if code == MC_TELEMETRY:
             self._apply_telemetry(data)
         elif code == MC_CAMERA:
-            candidate = data.get("image_url") or data.get("signed_url")
-            if self._is_trusted_camera_url(candidate):
+            candidate = self._camera_url(
+                data.get("image_url") or data.get("signed_url")
+            )
+            if candidate:
                 self.state.snapshot_url = candidate
         elif code in (MC_PLAN, MC_TEMPERATURE):
             target = self._find_temperature(data)
@@ -629,12 +660,57 @@ class JuneClient:
                     return found
         return None
 
-    @staticmethod
-    def _is_trusted_camera_url(candidate: Any) -> bool:
+    def _camera_url(self, candidate: Any) -> str | None:
+        """Return a camera URL that is safe to fetch, or None."""
+        if self.endpoints.local:
+            return self.endpoints.local_media_url(candidate)
         if not isinstance(candidate, str):
-            return False
+            return None
         parsed = urlparse(candidate)
-        return parsed.scheme == "https" and parsed.hostname in TRUSTED_CAMERA_HOSTS
+        if parsed.scheme == "https" and parsed.hostname in TRUSTED_CAMERA_HOSTS:
+            return candidate
+        return None
+
+
+def create_ssl_option(verify_ssl: bool, ca_cert: str = "") -> SSLOption:
+    """Build the TLS setting for a server.
+
+    A pasted CA certificate trusts only that CA, such as a Project July
+    per-install CA. This loads certificates, so call it from an executor.
+    Raises ssl.SSLError or ValueError for an unusable certificate.
+    """
+    if not verify_ssl:
+        return False
+    if not ca_cert.strip():
+        return True
+    return ssl.create_default_context(cadata=ca_cert.strip())
+
+
+async def async_check_local_server(
+    session: ClientSession,
+    endpoints: JuneEndpoints,
+    ssl_option: SSLOption = True,
+) -> None:
+    """Confirm a local endpoint is a reachable, trusted Project July server."""
+    try:
+        async with asyncio.timeout(REQUEST_TIMEOUT):
+            async with session.get(endpoints.status_url, ssl=ssl_option) as response:
+                if response.status != 200:
+                    await response.read()
+                    raise JuneNotLocalServerError(
+                        f"Status check returned HTTP {response.status}"
+                    )
+                payload = await response.json(content_type=None)
+    except JuneError:
+        raise
+    except ClientSSLError as err:
+        raise JuneCertificateError(f"Status check failed: {err}") from err
+    except (TimeoutError, ClientError) as err:
+        raise JuneConnectionError(f"Status check failed: {err}") from err
+    except ValueError as err:
+        raise JuneNotLocalServerError("Status check returned invalid JSON") from err
+    if not isinstance(payload, dict) or payload.get("server") != "june-local":
+        raise JuneNotLocalServerError("The endpoint is not a june-local server")
 
 
 class JunePairingSession:
@@ -645,10 +721,15 @@ class JunePairingSession:
         session: ClientSession,
         device_name: str,
         timezone: str = "UTC",
+        *,
+        endpoints: JuneEndpoints | None = None,
+        ssl_option: SSLOption = True,
     ) -> None:
         self.session = session
         self.device_name = device_name
         self.timezone = timezone
+        self.endpoints = endpoints or build_endpoints()
+        self._ssl = ssl_option
         self.shown_code: str | None = None
         self.identity: JuneIdentity | None = None
         self.error: JuneError | None = None
@@ -673,14 +754,19 @@ class JunePairingSession:
         self._encryption_key = PrivateKey.generate()
         try:
             self._ws = await self.session.ws_connect(
-                JUNE_WS_URL,
+                self.endpoints.ws_url,
                 headers={
                     "Authorization": (f"Bearer {self._registration['access_token']}"),
                     "User-Agent": JUNE_USER_AGENT,
                 },
                 heartbeat=20,
                 compress=0,
+                ssl=self._ssl,
             )
+        except ClientSSLError as err:
+            raise JuneCertificateError(
+                f"Could not open June pairing socket: {err}"
+            ) from err
         except (TimeoutError, ClientError) as err:
             raise JuneConnectionError(
                 f"Could not open June pairing socket: {err}"
@@ -750,15 +836,18 @@ class JunePairingSession:
         try:
             async with asyncio.timeout(REQUEST_TIMEOUT):
                 async with self.session.post(
-                    f"{JUNE_API_URL}/2/devices/register",
+                    f"{self.endpoints.api_url}/2/devices/register",
                     json=body,
                     headers={"User-Agent": JUNE_USER_AGENT},
+                    ssl=self._ssl,
                 ) as response:
                     payload = await JuneClient._checked_json(
                         response, "Device registration"
                     )
         except JuneError:
             raise
+        except ClientSSLError as err:
+            raise JuneCertificateError(f"Device registration failed: {err}") from err
         except (TimeoutError, ClientError) as err:
             raise JuneConnectionError(f"Device registration failed: {err}") from err
         token = payload.get("token")
@@ -778,7 +867,8 @@ class JunePairingSession:
         try:
             async with asyncio.timeout(REQUEST_TIMEOUT):
                 async with self.session.post(
-                    f"{JUNE_API_URL}/2/devices/pairing",
+                    f"{self.endpoints.api_url}/2/devices/pairing",
+                    ssl=self._ssl,
                     headers={
                         "Authorization": (
                             f"Bearer {self._registration['access_token']}"
@@ -868,8 +958,12 @@ class JunePairingSession:
             }
             async with asyncio.timeout(REQUEST_TIMEOUT):
                 async with self.session.post(
-                    (f"{JUNE_API_URL}/2/devices/pairing/{self._server_code}/companion"),
+                    (
+                        f"{self.endpoints.api_url}/2/devices/pairing/"
+                        f"{self._server_code}/companion"
+                    ),
                     json=body,
+                    ssl=self._ssl,
                     headers={
                         "Authorization": (
                             f"Bearer {self._registration['access_token']}"
@@ -896,9 +990,10 @@ class JunePairingSession:
                 async with asyncio.timeout(REQUEST_TIMEOUT):
                     async with self.session.get(
                         (
-                            f"{JUNE_API_URL}/2/devices/"
+                            f"{self.endpoints.api_url}/2/devices/"
                             f"{self._registration['device_id']}/associated"
                         ),
+                        ssl=self._ssl,
                         headers={
                             "Authorization": (
                                 f"Bearer {self._registration['access_token']}"
