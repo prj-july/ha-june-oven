@@ -39,6 +39,10 @@ MIN_TEMP_F: Final = 100
 MAX_TEMP_F: Final = 500
 POLL_INTERVAL_SECONDS: Final = 60
 
+# The bundled Lovelace card, served by the integration (see www/).
+CARD_URL: Final = "/june_oven/july-oven-card.js"
+CARD_VERSION: Final = "0.3.0"
+
 PLATFORMS: Final[tuple[str, ...]] = (
     "binary_sensor",
     "camera",

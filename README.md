@@ -32,6 +32,7 @@ credentials required.
 - [Project July local server](#project-july-local-server)
 - [Configuration](#configuration)
 - [Entities and controls](#entities-and-controls)
+- [July Oven dashboard card](#july-oven-dashboard-card)
 - [Automations](#automations)
 - [Troubleshooting](#troubleshooting)
 - [Diagnostics, privacy, and security](#diagnostics-privacy-and-security)
@@ -48,6 +49,8 @@ credentials required.
 - Connectivity, preheat-ready, and cook-done binary sensors.
 - Food-probe temperature, cook-progress, cook-phase, and elapsed-time sensors.
 - Interior-camera snapshots while the oven is cooking.
+- A bundled dashboard card, **July Oven**, styled after the oven's own glass
+  screen. It needs no separate install.
 - Works with a Project July local server by oven hostname or IP address.
 - Live WebSocket telemetry with a periodic status fallback.
 - Signed command acknowledgements, automatic token renewal, and reconnects.
@@ -252,6 +255,9 @@ in Home Assistant instead of relying on the examples below.
 | Cook progress | Sensor | Progress reported by the oven, 0-100%: preheat progress while preheating |
 | Cook phase | Sensor | Idle, preheating, preheated (holding temperature for food), or cooking |
 | Cook time elapsed | Sensor | Cooking time reported by the oven; empty while preheating |
+| Time remaining | Sensor | Time left on the oven's timer; empty when no timer runs |
+| Food probe target | Sensor | The food temperature the current cook step is aiming for |
+| Last cook completed | Sensor | When the last cook finished on its own (not cancelled) |
 | Interior | Camera | Latest signed interior-camera still |
 
 ### Climate entity
@@ -271,6 +277,25 @@ While a program started on the oven's touchscreen runs, the climate entity
 shows it as the preset. **Heat** starts the configured default mode instead
 after such a program ends.
 
+### Adding time
+
+The **June Oven: Add cook time** action (`june_oven.add_cook_time`) extends a
+running timer by 1-60 minutes. It targets the oven's climate entity:
+
+```yaml
+action: june_oven.add_cook_time
+target:
+  entity_id: climate.kitchen_oven
+data:
+  minutes: 5
+```
+
+It sends the oven's timer command with the time left plus the extra minutes.
+The oven's reading of that command has not been verified on every firmware. If
+the oven treats it as the cook's total time, the cook gets shorter instead of
+longer, never longer than asked. Check the **Time remaining** sensor after the
+first use.
+
 ### Ready and done events
 
 **Preheat ready** turns on when the oven reports that preheating finished and
@@ -282,6 +307,76 @@ resets automatically.
 
 **Cook done** is not emitted when Home Assistant knows the cook was manually
 cancelled.
+
+## July Oven dashboard card
+
+The integration serves a dashboard card, **July Oven**, and loads it on every
+dashboard. There is no resource to add and nothing to install from HACS.
+After updating the integration, reload the browser tab once.
+
+Add it from the card picker (search for "July Oven"), or in YAML:
+
+```yaml
+type: custom:july-oven-card
+entity: climate.kitchen_oven
+```
+
+| Option | Default | What it does |
+| --- | --- | --- |
+| `entity` | required | The oven's climate entity |
+| `icon` | none | An icon shown next to the oven's name: one of `oven`, `kitchen`, `house`, `garage`, `basement`, `apartment`, `cabin`, `patio`, `office`, `camper`, `bread`, `star`, or any `mdi:` icon |
+| `entities` | none | More ovens for the same card, as entity IDs or as `{entity, icon, name}`. The oven that is heating gets the full card; other heating ovens get a row with their own Stop; ovens that are off share one row of small buttons |
+| `theme` | `auto` | `auto` follows your Home Assistant theme; `light`; or `dark`, the oven's own glass |
+| `display_mode` | `auto` | `auto` picks the layout from the card's size; or `standard`, `wall` (wall tablets read from across the room), `compact` (one row) |
+| `name` | device or area name | The name shown on the card |
+| `load_fonts` | `true` | Loads Barlow from Google Fonts; set `false` to use system fonts |
+
+Several ovens, each with its own icon:
+
+```yaml
+type: custom:july-oven-card
+entity: climate.kitchen_oven
+icon: kitchen
+entities:
+  - entity: climate.garage_oven
+    icon: garage
+  - entity: climate.studio_oven
+    icon: mdi:home-city
+    name: Studio
+```
+
+The visual editor offers up to four ovens, each with an icon, under **More
+ovens**. Tap another oven's row or button to show it in full. The card
+remembers the oven you picked in that browser. With more than one oven, Start
+and Stop always name the oven they act on.
+
+Sizes on a sections dashboard:
+
+- **Standard:** 12 × 6.
+- **Wall tablet:** full width × 8.
+- **Compact:** 12 × 1.
+- **Several ovens:** one extra row per oven.
+
+What the card does:
+
+- **Status:** shows the oven's state in words, with a mark and colour:
+  preheating, ready, cooking, done, or offline. The large number is the
+  temperature, or the time left while a timer runs.
+- **Stop:** the red **Stop** always sits at the top right and is never
+  confirmed.
+- **Add time:** **+1 / +5 / +10 min** appear only while a timer runs.
+- **Camera:** the camera still refreshes every 2 seconds while the oven is
+  heating. A corner label shows **LIVE**, or how old the picture is. Tap it for
+  the full camera view.
+- **Idle:** the card shows the oven's home screen: the clock and the cook
+  modes. A mode opens a review with the temperature. Nothing heats until you
+  press **Start preheating**, and the review closes itself after 5 minutes.
+  **Settings**, the last tile, opens the oven's device page.
+- **Refusals:** when the oven refuses a command, the card says why in plain
+  words. For example: remote start is off, or the door is open.
+
+Remote start must be allowed on the oven itself: on the oven, open
+**Settings › App permissions**.
 
 ## Automations
 
