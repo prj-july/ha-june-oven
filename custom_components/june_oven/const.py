@@ -24,13 +24,16 @@ CONF_VERIFY_SSL: Final = "verify_ssl"
 DEFAULT_DEVICE_NAME: Final = "Home Assistant"
 DEFAULT_MODE: Final = "bake"
 DEFAULT_TEMP_F: Final = 350
+# Cook primitives sent as 11002 ``primitive_type``; names match the June app.
 DEFAULT_MODES: Final[tuple[str, ...]] = (
     "bake",
     "roast",
     "broil",
-    "air-fry",
+    "airfry",
     "toast",
 )
+# Earlier releases stored air fry as "air-fry"; the June app sends "airfry".
+LEGACY_MODES: Final[dict[str, str]] = {"air-fry": "airfry"}
 
 MIN_TEMP_F: Final = 100
 MAX_TEMP_F: Final = 500
@@ -44,3 +47,9 @@ PLATFORMS: Final[tuple[str, ...]] = (
 )
 
 ATTRIBUTION: Final = "Data provided by June's unofficial cloud API via ha-june-oven"
+
+
+def normalize_mode(mode: object) -> str:
+    """Return a stored default cook mode as a current primitive."""
+    value = LEGACY_MODES.get(str(mode), str(mode))
+    return value if value in DEFAULT_MODES else DEFAULT_MODE
