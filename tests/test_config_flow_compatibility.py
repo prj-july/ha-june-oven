@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import importlib.util
 import shutil
+import sys
 import tempfile
 import unittest
 from collections.abc import AsyncIterator
@@ -24,6 +25,18 @@ USER_INPUT = {
 }
 
 
+def _forget_custom_components() -> None:
+    """Drop the cached custom_components package and its submodules.
+
+    Home Assistant imports custom_components once per process and then scans
+    the cached package's __path__, which would still point at an earlier
+    test's deleted config directory.
+    """
+    for name in list(sys.modules):
+        if name == "custom_components" or name.startswith("custom_components."):
+            del sys.modules[name]
+
+
 @unittest.skipUnless(HAS_HOME_ASSISTANT, "Home Assistant is not installed")
 class ConfigFlowCompatibilityTest(unittest.IsolatedAsyncioTestCase):
     """Exercise requirement installation and the first config-flow step."""
@@ -40,6 +53,7 @@ class ConfigFlowCompatibilityTest(unittest.IsolatedAsyncioTestCase):
             custom_components.mkdir()
             shutil.copytree(INTEGRATION, custom_components / "june_oven")
 
+            _forget_custom_components()
             hass = HomeAssistant(config_dir)
             async_setup_loader(hass)
             hass.config_entries = ConfigEntries(hass, {})
@@ -49,6 +63,7 @@ class ConfigFlowCompatibilityTest(unittest.IsolatedAsyncioTestCase):
                 yield hass
             finally:
                 await hass.async_stop(force=True)
+                _forget_custom_components()
 
     async def _start_user_flow(self, hass: Any) -> dict[str, Any]:
         from homeassistant.config_entries import SOURCE_USER
