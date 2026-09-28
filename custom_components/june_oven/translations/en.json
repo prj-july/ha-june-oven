@@ -54,7 +54,42 @@
         "name": "Interior"
       }
     },
+    "climate": {
+      "oven": {
+        "state_attributes": {
+          "preset_mode": {
+            "state": {
+              "airfry": "Air fry",
+              "bake": "Bake",
+              "broil": "Broil",
+              "dehydrate": "Dehydrate",
+              "grill": "Grill",
+              "pizzaiolo": "Pizza",
+              "proof": "Proof",
+              "reheat": "Reheat",
+              "roast": "Roast",
+              "slow_cook": "Slow cook",
+              "sous_vide": "Sous vide",
+              "toast": "Toast",
+              "warm": "Keep warm"
+            }
+          }
+        }
+      }
+    },
     "sensor": {
+      "cook_elapsed": {
+        "name": "Cook time elapsed"
+      },
+      "cook_phase": {
+        "name": "Cook phase",
+        "state": {
+          "cooking": "Cooking",
+          "idle": "Idle",
+          "preheated": "Preheated",
+          "preheating": "Preheating"
+        }
+      },
       "probe_temperature": {
         "name": "Food probe"
       },
@@ -88,6 +123,17 @@
         },
         "description": "Change the oven's address and the defaults used when the oven is turned on from Home Assistant.",
         "title": "June Oven options"
+      }
+    }
+  },
+  "selector": {
+    "cook_mode": {
+      "options": {
+        "airfry": "Air fry",
+        "bake": "Bake",
+        "broil": "Broil",
+        "roast": "Roast",
+        "toast": "Toast"
       }
     }
   }

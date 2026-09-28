@@ -46,7 +46,7 @@ credentials required.
 - Climate entity with current temperature, target temperature, on/off, and
   cook-mode presets.
 - Connectivity, preheat-ready, and cook-done binary sensors.
-- Food-probe temperature and cook-progress sensors.
+- Food-probe temperature, cook-progress, cook-phase, and elapsed-time sensors.
 - Interior-camera snapshots while the oven is cooking.
 - Works with a Project July local server by oven hostname or IP address.
 - Live WebSocket telemetry with a periodic status fallback.
@@ -74,10 +74,12 @@ Additional behavior to know:
 
 - Target temperatures range from 100 °F to 500 °F in 5 °F steps.
 - Supported cook presets are **Bake**, **Roast**, **Broil**, **Air fry**, and
-  **Toast**.
-- Changing the temperature or cook mode during an active cook cancels and
-  restarts that cook because the oven does not reliably apply those changes
-  in place.
+  **Toast**. A program started on the oven's touchscreen, such as **Proof**,
+  is shown as the preset while it runs.
+- Changing the temperature during an active cook is applied in place. If the
+  oven refuses, a cook started from one of the presets above is cancelled and
+  restarted at the new temperature; other programs are left running. Changing
+  the cook mode always cancels and restarts the cook.
 - The camera is June's native still-image feed, approximately one frame per
   second while cooking. It is not continuous video or recording.
 - The integration does not expose June's guided recipes or food-recognition
@@ -243,11 +245,13 @@ in Home Assistant instead of relying on the examples below.
 | Entity | Type | Purpose |
 | --- | --- | --- |
 | Oven | Climate | Start or cancel cooking, select a mode, and set target temperature |
-| Connectivity | Binary sensor | Reports whether June's cloud says the oven is online |
-| Preheat ready | Binary sensor | Pulses on for 30 seconds when the oven reaches temperature |
+| Connectivity | Binary sensor | Reports whether the server says the oven is connected |
+| Preheat ready | Binary sensor | Pulses on for 30 seconds when the oven finishes preheating |
 | Cook done | Binary sensor | Pulses on for 30 seconds after a cook ends without cancellation |
 | Food probe | Sensor | Latest connected probe temperature |
-| Cook progress | Sensor | Native cook progress reported by the oven |
+| Cook progress | Sensor | Progress reported by the oven, 0-100%: preheat progress while preheating |
+| Cook phase | Sensor | Idle, preheating, preheated (holding temperature for food), or cooking |
+| Cook time elapsed | Sensor | Cooking time reported by the oven; empty while preheating |
 | Interior | Camera | Latest signed interior-camera still |
 
 ### Climate entity
@@ -257,11 +261,20 @@ The climate entity provides two HVAC modes:
 - **Heat** starts the selected cook preset at the selected target temperature.
 - **Off** sends a cook-cancellation command.
 
-Changing the preset or target while the oven is active sends a cancellation,
-waits briefly, and starts a replacement cook. Any timer or progress associated
-with the original cook may be lost.
+Changing the target while the oven is active asks the oven to change the
+running cook, keeping its timer and progress. If the oven refuses, a cook
+started from a preset is cancelled and restarted at the new target, and any
+timer or progress associated with the original cook may be lost. Changing the
+preset while the oven is active always cancels and restarts the cook.
+
+While a program started on the oven's touchscreen runs, the climate entity
+shows it as the preset. **Heat** starts the configured default mode instead
+after such a program ends.
 
 ### Ready and done events
+
+**Preheat ready** turns on when the oven reports that preheating finished and
+it is holding temperature until food goes in. It fires once per cook.
 
 **Preheat ready** and **Cook done** are deliberately short-lived binary
 sensors. Each remains on for 30 seconds so it can trigger an automation, then
@@ -362,8 +375,8 @@ automation:
 
 ### A temperature or mode change restarted cooking
 
-This is expected. June does not reliably apply in-place changes to an active
-cook, so the integration cancels and restarts it with the new settings.
+A mode change always restarts the cook. A temperature change restarts it only
+when the oven refuses to change the running cook in place.
 
 ### The interior camera is blank
 

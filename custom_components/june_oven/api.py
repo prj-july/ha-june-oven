@@ -24,6 +24,7 @@ from aiohttp import (
     WSServerHandshakeError,
 )
 
+from .const import DEFAULT_MODES
 from .protocol import (
     JUNE_APP_VERSION,
     JUNE_CLIENT_ID,
@@ -36,22 +37,33 @@ from .protocol import (
     MC_CANCELLED,
     MC_DEVICE_STATE,
     MC_KEEPALIVE,
+    MC_NOTIFICATION,
     MC_PAIRING_INFO,
     MC_PAIRING_INVALIDATED,
     MC_PLAN,
+    MC_PLAN_STARTED,
     MC_PREHEAT,
+    MC_SET_TEMPERATURE,
     MC_SET_TIMER,
     MC_TELEMETRY,
     MC_TEMPERATURE,
+    PHASE_IDLE,
+    CookPlan,
     JuneEndpoints,
     OrderGenerator,
+    PreheatWatch,
     SrpServer,
     build_endpoints,
     build_shown_code,
     build_signed_frame,
+    cook_phase,
+    fahrenheit_to_celsius,
     fahrenheit_to_millic,
     find_long_base64,
     millic_to_celsius,
+    parse_cook_plan,
+    parse_cook_progress,
+    parse_status,
 )
 
 _LOGGER = logging.getLogger(__name__)
@@ -133,12 +145,17 @@ class JuneIdentity:
 class JuneState:
     """Latest state retained in memory for Home Assistant entities."""
 
+    # Normalized to "online", "offline", or "unknown".
     connection_state: str = "unknown"
     active: bool = False
     current_temp_c: float | None = None
     target_temp_c: float | None = None
-    cook_mode: str = "bake"
+    # The primitive or program name the oven reports, such as "bake" or "proof".
+    cook_mode: str | None = None
+    plan_id: int = 0
+    cook_phase: str = PHASE_IDLE
     progress_percent: float | None = None
+    cook_elapsed_s: float | None = None
     probe_temp_c: float | None = None
     probe_present: bool | None = None
     ready: bool = False
@@ -184,8 +201,10 @@ class JuneClient:
         self._pending: dict[int, asyncio.Future[str | None]] = {}
         self._connected = asyncio.Event()
         self._stopped = False
-        self._last_active = False
         self._last_cancelled = False
+        self._presentation: str | None = None
+        self._label_type: str | None = None
+        self._preheat = PreheatWatch()
         self._command_lock = asyncio.Lock()
 
     def set_update_callback(self, callback: UpdateCallback) -> None:
@@ -307,24 +326,41 @@ class JuneClient:
         )
         self._require_success(status, "start cook")
         self.state.cook_mode = mode
-        self.state.target_temp_c = (temperature_f - 32) * 5 / 9
+        self.state.target_temp_c = fahrenheit_to_celsius(temperature_f)
         self.state.done = False
         self._notify()
 
     async def async_cancel(self) -> None:
         """Cancel the active cook."""
         self._last_cancelled = True
-        status = await self._async_send_command(MC_CANCEL, {"plan_id": 0})
+        status = await self._async_send_command(
+            MC_CANCEL, {"plan_id": self.state.plan_id}
+        )
         if status not in ("success", "not-allowed"):
             self._last_cancelled = False
             self._require_success(status, "cancel cook")
 
     async def async_set_target_f(self, temperature_f: float, mode: str) -> None:
-        """Set a target, restarting an active cook when necessary."""
-        self.state.target_temp_c = (temperature_f - 32) * 5 / 9
-        self._notify()
+        """Set a target, changing an active cook in place when the oven allows."""
         if not self.state.active:
+            self.state.target_temp_c = fahrenheit_to_celsius(temperature_f)
+            self._notify()
             return
+        status = await self._async_send_command(
+            MC_SET_TEMPERATURE,
+            {
+                "plan_id": self.state.plan_id,
+                "temperature_cavity": fahrenheit_to_millic(temperature_f),
+            },
+        )
+        if status == "success":
+            self.state.target_temp_c = fahrenheit_to_celsius(temperature_f)
+            self._notify()
+            return
+        # Restart only after a definite refusal, and only for a primitive the
+        # oven can start again; a timeout may still have applied the change.
+        if status is None or mode not in DEFAULT_MODES:
+            self._require_success(status, "change the temperature")
         await self.async_cancel()
         await asyncio.sleep(0.4)
         await self.async_preheat(mode, temperature_f)
@@ -343,7 +379,7 @@ class JuneClient:
         """Set the oven's native cook timer."""
         status = await self._async_send_command(
             MC_SET_TIMER,
-            {"plan_id": 0, "duration": round(minutes * 60_000)},
+            {"plan_id": self.state.plan_id, "duration": round(minutes * 60_000)},
         )
         self._require_success(status, "set timer")
 
@@ -505,6 +541,8 @@ class JuneClient:
                 future.set_result(self.state.last_ack_status)
             return
 
+        # Frames are applied in receive order. Their "time" is the oven's clock,
+        # which can read 2022 until it syncs, so it is never used for timing.
         if code == MC_TELEMETRY:
             self._apply_telemetry(data)
         elif code == MC_CAMERA:
@@ -513,40 +551,43 @@ class JuneClient:
             )
             if candidate:
                 self.state.snapshot_url = candidate
-        elif code in (MC_PLAN, MC_TEMPERATURE):
-            target = self._find_temperature(data)
-            if target is not None:
-                self.state.target_temp_c = millic_to_celsius(target)
-            food = data.get("food")
-            if isinstance(food, dict) and isinstance(food.get("name"), str):
-                self.state.cook_mode = food["name"]
-        elif code == MC_CANCELLED and data.get("type") == "cancelled":
-            self._last_cancelled = True
+        elif code in (MC_PLAN_STARTED, MC_PLAN, MC_TEMPERATURE):
+            self._apply_plan(parse_cook_plan(data))
+        elif code == MC_NOTIFICATION:
+            if self._preheat.notification(data):
+                self._start_pulse("ready")
+        elif code == MC_CANCELLED:
+            if data.get("type") == "cancelled":
+                self._last_cancelled = True
         elif code == MC_DEVICE_STATE:
             self._apply_active(data.get("state") == "active")
         else:
             return
+        # Every frame handled above comes from the oven, so it is connected.
+        self.state.connection_state = "online"
         self._notify()
 
     def _apply_status(self, payload: Mapping[str, Any]) -> None:
-        connection = payload.get("connection_state")
-        if isinstance(connection, str):
-            self.state.connection_state = connection
-        device_state = payload.get("device_state")
-        if isinstance(device_state, dict):
-            state_data = device_state.get("data")
-            if isinstance(state_data, dict):
-                self._apply_active(state_data.get("state") == "active")
-        cook_plan = payload.get("cook_plan")
-        if isinstance(cook_plan, dict):
-            plan_data = cook_plan.get("data")
-            if isinstance(plan_data, dict):
-                target = self._find_temperature(plan_data)
-                if target is not None:
-                    self.state.target_temp_c = millic_to_celsius(target)
-                food = plan_data.get("food")
-                if isinstance(food, dict) and isinstance(food.get("name"), str):
-                    self.state.cook_mode = food["name"]
+        status = parse_status(payload)
+        if status.online is not None:
+            self.state.connection_state = "online" if status.online else "offline"
+        if status.device_state is not None:
+            self._apply_active(status.device_state == "active")
+        self._apply_plan(status.cook_plan)
+
+    def _apply_plan(self, plan: CookPlan | None) -> None:
+        # june-local keeps serving the last plan after a cook ends.
+        if plan is None or not self.state.active:
+            return
+        if plan.plan_id is not None:
+            self.state.plan_id = plan.plan_id
+        if plan.name is not None:
+            self.state.cook_mode = plan.name
+        if plan.target_millic is not None:
+            self.state.target_temp_c = millic_to_celsius(plan.target_millic)
+        self._presentation = plan.presentation_type
+        if self._preheat.plan(plan):
+            self._start_pulse("ready")
 
     def _apply_telemetry(self, data: Mapping[str, Any]) -> None:
         sensor_data = data.get("sensor_data")
@@ -570,32 +611,35 @@ class JuneClient:
                     millic_to_celsius(reading) if reading is not None else None
                 )
 
-        cook_state = data.get("cook_state_data")
-        if isinstance(cook_state, dict):
-            progress = cook_state.get("progress")
-            if isinstance(progress, (int, float)):
-                normalized = float(progress)
-                self.state.progress_percent = (
-                    normalized * 100 if normalized <= 1 else normalized
-                )
-                is_ready = (
-                    normalized >= 0.995
-                    and self.state.current_temp_c is not None
-                    and self.state.target_temp_c is not None
-                    and self.state.current_temp_c + 0.6 >= self.state.target_temp_c
-                )
-                if is_ready and not self.state.ready:
-                    self._start_pulse("ready")
+        progress = parse_cook_progress(data.get("cook_state_data"))
+        if progress is not None and self.state.active:
+            self.state.progress_percent = progress.percent
+            self.state.cook_elapsed_s = (
+                progress.elapsed_ms / 1000 if progress.elapsed_ms is not None else None
+            )
+            self._label_type = progress.label_type
+        self._apply_plan(parse_cook_plan(data.get("cook_plan_data")))
 
     def _apply_active(self, active: bool) -> None:
-        if self._last_active and not active and not self._last_cancelled:
-            self._start_pulse("done")
+        was_active = self.state.active
         self.state.active = active
-        self._last_active = active
-        if active:
+        if active and not was_active:
             self._last_cancelled = False
             self.state.done = False
             self.state.ready = False
+        elif was_active and not active:
+            if not self._last_cancelled:
+                self._start_pulse("done")
+            self.state.plan_id = 0
+            self.state.progress_percent = None
+            self.state.cook_elapsed_s = None
+            self._presentation = None
+            self._label_type = None
+            # Oven-screen programs cannot be restarted by name; let the climate
+            # entity fall back to its configured defaults.
+            if self.state.cook_mode not in DEFAULT_MODES:
+                self.state.cook_mode = None
+                self.state.target_temp_c = None
 
     def _start_pulse(self, field: str) -> None:
         setattr(self.state, field, True)
@@ -618,6 +662,9 @@ class JuneClient:
                 self._pulse_tasks.pop(field, None)
 
     def _notify(self) -> None:
+        self.state.cook_phase = cook_phase(
+            self.state.active, self._presentation, self._label_type
+        )
         if self.update_callback:
             self.update_callback(self.state)
 
@@ -642,23 +689,6 @@ class JuneClient:
             raise JuneCommandError(
                 f"June could not {operation}: {status or 'no acknowledgement'}"
             )
-
-    @staticmethod
-    def _find_temperature(value: Any) -> int | float | None:
-        if isinstance(value, dict):
-            direct = value.get("temperature_cavity")
-            if isinstance(direct, (int, float)):
-                return direct
-            for child in value.values():
-                found = JuneClient._find_temperature(child)
-                if found is not None:
-                    return found
-        elif isinstance(value, list):
-            for child in value:
-                found = JuneClient._find_temperature(child)
-                if found is not None:
-                    return found
-        return None
 
     def _camera_url(self, candidate: Any) -> str | None:
         """Return a camera URL that is safe to fetch, or None."""

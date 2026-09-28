@@ -50,6 +50,7 @@ from .const import (
     DOMAIN,
     MAX_TEMP_F,
     MIN_TEMP_F,
+    normalize_mode,
 )
 from .protocol import JuneEndpoints, build_endpoints, normalize_endpoint
 
@@ -57,6 +58,7 @@ MODE_SELECTOR = SelectSelector(
     SelectSelectorConfig(
         options=list(DEFAULT_MODES),
         mode=SelectSelectorMode.DROPDOWN,
+        translation_key="cook_mode",
     )
 )
 TEMP_SELECTOR = NumberSelector(
@@ -289,7 +291,7 @@ class JuneOvenOptionsFlow(OptionsFlow):
         return self.async_show_form(
             step_id="init",
             data_schema=_options_schema(
-                default_mode=str(values.get(CONF_DEFAULT_MODE, DEFAULT_MODE)),
+                default_mode=normalize_mode(values.get(CONF_DEFAULT_MODE)),
                 default_temp_f=float(values.get(CONF_DEFAULT_TEMP_F, DEFAULT_TEMP_F)),
                 endpoint=str(values.get(CONF_ENDPOINT, "")),
                 verify_ssl=bool(values.get(CONF_VERIFY_SSL, True)),

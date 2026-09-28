@@ -34,11 +34,14 @@ JUNE_CLIENT_SECRET: Final = "tmoSUwt3OOZCcfMaIadAGD7-x-qPht85HkCgdvuhTKk1yFtfMcf
 
 MC_PREHEAT: Final = 11002
 MC_CANCEL: Final = 11004
+MC_SET_TEMPERATURE: Final = 11005
 MC_SET_TIMER: Final = 11006
 MC_KEEPALIVE: Final = 11011
 
 MC_CAMERA: Final = 10011
+MC_NOTIFICATION: Final = 10012
 MC_TELEMETRY: Final = 10013
+MC_PLAN_STARTED: Final = 10014
 MC_PLAN: Final = 10015
 MC_TEMPERATURE: Final = 10016
 MC_CANCELLED: Final = 10017
@@ -46,6 +49,18 @@ MC_DEVICE_STATE: Final = 10018
 MC_ACK: Final = 10020
 MC_PAIRING_INFO: Final = 10026
 MC_PAIRING_INVALIDATED: Final = 10027
+
+NOTIFICATION_PREHEAT_COMPLETE: Final = "NOTIFICATION_PREHEAT_COMPLETE"
+# The cook-plan step the oven holds at temperature until food goes in.
+PRESENTATION_PREHEAT: Final = "preheat"
+PRESENTATION_PREHEAT_AND_HOLD: Final = "preheat_and_hold"
+PRESENTATION_COOKING: Final = frozenset({"cook_bound", "cook_unbound"})
+
+PHASE_IDLE: Final = "idle"
+PHASE_PREHEATING: Final = "preheating"
+PHASE_PREHEATED: Final = "preheated"
+PHASE_COOKING: Final = "cooking"
+COOK_PHASES: Final = (PHASE_IDLE, PHASE_PREHEATING, PHASE_PREHEATED, PHASE_COOKING)
 
 # RFC 5054 8192-bit group used by the June app, with generator 19.
 SRP_N_HEX: Final = (
@@ -223,6 +238,210 @@ def celsius_to_fahrenheit(celsius: float) -> float:
 def fahrenheit_to_celsius(fahrenheit: float) -> float:
     """Convert degrees Fahrenheit to degrees Celsius."""
     return (fahrenheit - 32) * 5 / 9
+
+
+def _number(value: Any) -> int | float | None:
+    if isinstance(value, bool) or not isinstance(value, (int, float)):
+        return None
+    return value
+
+
+def _mapping(value: Any) -> Mapping[str, Any] | None:
+    return value if isinstance(value, Mapping) else None
+
+
+def _string(value: Any) -> str | None:
+    return value if isinstance(value, str) and value else None
+
+
+@dataclass(frozen=True, slots=True)
+class CookPlan:
+    """The parts of an oven cook plan the integration tracks."""
+
+    plan_id: int | None
+    name: str | None
+    session_id: str | None
+    presentation_type: str | None
+    target_millic: int | None
+
+
+def parse_cook_plan(value: Any) -> CookPlan | None:
+    """Parse a cook plan.
+
+    Plans arrive as the data of 10014/10015/10016, as ``cook_plan_data`` in every
+    10013, and as the REST status ``cook_plan``. The target and presentation come
+    from the current step, ``food.plan.steps[step_state.step_index]``: after a
+    temperature change the first step still holds the original target.
+    """
+    plan_data = _mapping(value)
+    if plan_data is None:
+        return None
+    food = _mapping(plan_data.get("food"))
+    if food is None:
+        return None
+    plan = _mapping(food.get("plan")) or {}
+    steps = plan.get("steps")
+    steps = steps if isinstance(steps, list) else []
+    step_state = _mapping(plan_data.get("step_state"))
+    index = _number(step_state.get("step_index")) if step_state else 0
+    step: Mapping[str, Any] = {}
+    if isinstance(index, int) and 0 <= index < len(steps):
+        step = _mapping(steps[index]) or {}
+    plan_id = _number(plan.get("id"))
+    target = _number(step.get("temperature_cavity"))
+    return CookPlan(
+        plan_id=int(plan_id) if plan_id is not None else None,
+        name=_string(food.get("name")),
+        session_id=_string(plan_data.get("session_id")),
+        presentation_type=_string(step.get("presentation_type")),
+        target_millic=int(target) if target is not None and target > 0 else None,
+    )
+
+
+@dataclass(frozen=True, slots=True)
+class CookProgress:
+    """Progress reported in a 10013 ``cook_state_data``."""
+
+    label_type: str | None
+    percent: float | None
+    elapsed_ms: int | None
+
+
+def parse_cook_progress(value: Any) -> CookProgress | None:
+    """Parse ``cook_state_data``.
+
+    ``progress`` is ``{"label_type", "label_value", "percentage"}``. The
+    percentage is already 0-100: 0.99 means 1% of the preheat gap is covered.
+    ``label_type`` is "temperature" while preheating (``label_value`` is the
+    cavity in milli-Celsius) and "time" while cooking (``label_value`` is the
+    elapsed milliseconds, also sent as ``cook_time_elapsed``).
+    """
+    cook_state = _mapping(value)
+    if cook_state is None:
+        return None
+    progress = _mapping(cook_state.get("progress")) or {}
+    label_type = _string(progress.get("label_type"))
+    percent = _number(progress.get("percentage"))
+    elapsed = _number(cook_state.get("cook_time_elapsed"))
+    if elapsed is None and label_type == "time":
+        elapsed = _number(progress.get("label_value"))
+    return CookProgress(
+        label_type=label_type,
+        percent=min(100.0, max(0.0, float(percent))) if percent is not None else None,
+        elapsed_ms=int(elapsed) if elapsed is not None else None,
+    )
+
+
+def cook_phase(
+    active: bool, presentation_type: str | None, label_type: str | None
+) -> str:
+    """Summarize what an active cook is doing."""
+    if not active:
+        return PHASE_IDLE
+    if presentation_type == PRESENTATION_PREHEAT:
+        return PHASE_PREHEATING
+    if presentation_type == PRESENTATION_PREHEAT_AND_HOLD:
+        return PHASE_PREHEATED
+    if presentation_type not in PRESENTATION_COOKING and label_type == "temperature":
+        return PHASE_PREHEATING
+    return PHASE_COOKING
+
+
+def connection_online(value: Any) -> bool | None:
+    """Map a connection state to online, offline, or unknown."""
+    if value in ("online", "connected"):
+        return True
+    if value in ("offline", "disconnected"):
+        return False
+    return None
+
+
+def _unwrap(value: Any) -> Mapping[str, Any] | None:
+    mapping = _mapping(value)
+    if mapping is not None and _mapping(mapping.get("data")) is not None:
+        return mapping["data"]
+    return mapping
+
+
+@dataclass(frozen=True, slots=True)
+class StatusSnapshot:
+    """A parsed REST status response."""
+
+    online: bool | None
+    device_state: str | None
+    cook_plan: CookPlan | None
+
+
+def parse_status(payload: Mapping[str, Any]) -> StatusSnapshot:
+    """Parse ``/1/messaging/device/{id}/status``.
+
+    june-local returns ``ha_connection_state`` "online"/"offline" beside
+    ``connection_state`` "connected"/"disconnected", and the raw
+    ``device_state`` and ``cook_plan`` beside ``{"data": ...}``-wrapped copies
+    under ``device_state_data`` and ``cook_plan_data``. June's cloud sent only
+    ``connection_state``, ``device_state`` and ``cook_plan``. The ``ha_`` and
+    ``_data`` aliases win; any field may be wrapped or bare.
+    """
+    online = connection_online(payload.get("ha_connection_state"))
+    if online is None:
+        online = connection_online(payload.get("connection_state"))
+    if online is None and isinstance(payload.get("online"), bool):
+        online = payload["online"]
+    device_state = None
+    for key in ("device_state_data", "device_state"):
+        device = _unwrap(payload.get(key))
+        device_state = _string(device.get("state")) if device else None
+        if device_state is not None:
+            break
+    cook_plan = parse_cook_plan(
+        _unwrap(payload.get("cook_plan_data"))
+    ) or parse_cook_plan(_unwrap(payload.get("cook_plan")))
+    return StatusSnapshot(
+        online=online,
+        device_state=device_state,
+        cook_plan=cook_plan,
+    )
+
+
+class PreheatWatch:
+    """Decide when a cook has just finished preheating.
+
+    The oven says so twice: the current step becomes preheat_and_hold, and it
+    sends a 10012 NOTIFICATION_PREHEAT_COMPLETE. Frames are not strictly
+    ordered (a 10015 can repeat the previous step after a 10016 moved on) and
+    REST snapshots lag the socket, so each cook session fires at most once. A
+    plan first seen already holding, such as after a restart, does not fire.
+    """
+
+    def __init__(self) -> None:
+        self._session: str | None = None
+        self._presentation: str | None = None
+        self._fired: str | None = None
+
+    def plan(self, plan: CookPlan) -> bool:
+        """Track a cook plan; return True when preheating just finished."""
+        if plan.session_id != self._session:
+            self._session = plan.session_id
+            self._presentation = None
+        previous, self._presentation = self._presentation, plan.presentation_type
+        if plan.presentation_type != PRESENTATION_PREHEAT_AND_HOLD or previous in (
+            None,
+            PRESENTATION_PREHEAT_AND_HOLD,
+        ):
+            return False
+        return self._fire(plan.session_id)
+
+    def notification(self, data: Mapping[str, Any]) -> bool:
+        """Track a 10012; return True when preheating just finished."""
+        if data.get("notification_id") != NOTIFICATION_PREHEAT_COMPLETE:
+            return False
+        return self._fire(_string(data.get("session_id")))
+
+    def _fire(self, session: str | None) -> bool:
+        if session is not None and session == self._fired:
+            return False
+        self._fired = session
+        return True
 
 
 def damm(input_value: str) -> int:
