@@ -271,6 +271,47 @@ class CookProgressTest(unittest.TestCase):
         self.assertIsNone(protocol.parse_cook_progress([1]))
 
 
+class TimerAndEstimateTest(unittest.TestCase):
+    """Parse the timer and estimate fields of 10013 (layout from the decoded app)."""
+
+    def test_remaining_time(self) -> None:
+        progress = protocol.parse_cook_progress(
+            {
+                "progress": {"label_type": "time", "label_value": 60000},
+                "cook_time_elapsed": 60000,
+                "cook_time_remaining": 750000,
+            }
+        )
+        self.assertEqual(progress.elapsed_ms, 60000)
+        self.assertEqual(progress.remaining_ms, 750000)
+
+    def test_remaining_time_absent_or_invalid(self) -> None:
+        for data in ({}, {"cook_time_remaining": -5}, {"cook_time_remaining": "1"}):
+            with self.subTest(data=data):
+                self.assertIsNone(protocol.parse_cook_progress(data).remaining_ms)
+
+    def test_eta_status(self) -> None:
+        self.assertEqual(protocol.parse_eta_status({"status": "acquired"}), "acquired")
+        for value in (None, {}, {"status": "soon"}, "acquired"):
+            with self.subTest(value=value):
+                self.assertIsNone(protocol.parse_eta_status(value))
+
+    def test_probe_target_from_exit_criteria(self) -> None:
+        data = frame_at("bake-timer-temperature.jsonl", 250)["data"]
+        self.assertIsNone(protocol.parse_cook_plan(data).probe_target_millic)
+        step = {
+            "presentation_type": "cook_bound",
+            "exit_criteria": [
+                {"type": "duration"},
+                {"type": "probe", "target": {"id": "left", "value": 62778}},
+            ],
+        }
+        plan = protocol.parse_cook_plan(
+            {"food": {"name": "roast", "plan": {"steps": [step]}}}
+        )
+        self.assertEqual(plan.probe_target_millic, 62778)
+
+
 class CookPlanTest(unittest.TestCase):
     """Parse cook plans from 10013-10016 frames."""
 

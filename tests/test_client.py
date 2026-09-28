@@ -199,6 +199,40 @@ class ClientReplayTest(unittest.IsolatedAsyncioTestCase):
         self.assertIsNone(state.cook_mode)
         self.assertIsNone(state.target_temp_c)
 
+    async def test_add_cook_time_extends_the_time_left(self) -> None:
+        state = self.client.state
+        self.replay("oven-screen-proof.jsonl", until=345)
+        with self.assertRaises(api.JuneCommandError):
+            await self.client.async_add_cook_time(5)
+        self.assertEqual(self.sent, [])
+
+        self.client._apply_telemetry(
+            {"cook_state_data": {"cook_time_elapsed": 60000, "cook_time_remaining": 750000},
+             "eta": {"status": "acquired"}}
+        )
+        self.assertEqual(state.cook_time_remaining_s, 750.0)
+        self.assertEqual(state.eta_status, "acquired")
+        await self.client.async_add_cook_time(5)
+        self.assertEqual(
+            self.sent, [(api.MC_SET_TIMER, {"plan_id": 114, "duration": 1_050_000})]
+        )
+
+        self.client._handle_message(
+            json.dumps({"message_code": 10018, "data": {"state": "idle"}})
+        )
+        self.assertIsNone(state.cook_time_remaining_s)
+        self.assertIsNone(state.eta_status)
+        # The cook ended on its own, so it counts as completed.
+        self.assertIsNotNone(state.last_cook_completed)
+
+    async def test_cancelled_cook_is_not_completed(self) -> None:
+        self.replay("oven-screen-proof.jsonl", until=345)
+        await self.client.async_cancel()
+        self.client._handle_message(
+            json.dumps({"message_code": 10018, "data": {"state": "idle"}})
+        )
+        self.assertIsNone(self.client.state.last_cook_completed)
+
     async def test_refused_temperature_change_restarts_a_primitive(self) -> None:
         self.replay("bake-timer-temperature.jsonl", until=250)
         self.statuses = ["not-allowed", "success", "success"]

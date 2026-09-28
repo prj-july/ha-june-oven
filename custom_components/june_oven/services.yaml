@@ -1,0 +1,15 @@
+add_cook_time:
+  target:
+    entity:
+      integration: june_oven
+      domain: climate
+  fields:
+    minutes:
+      required: true
+      default: 5
+      selector:
+        number:
+          min: 1
+          max: 60
+          step: 1
+          unit_of_measurement: min
