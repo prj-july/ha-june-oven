@@ -11,6 +11,7 @@ import secrets
 import ssl
 from collections.abc import Callable, Mapping
 from dataclasses import asdict, dataclass
+from datetime import UTC, datetime
 from typing import Any
 from urllib.parse import urlparse
 
@@ -63,6 +64,7 @@ from .protocol import (
     millic_to_celsius,
     parse_cook_plan,
     parse_cook_progress,
+    parse_eta_status,
     parse_status,
 )
 
@@ -158,6 +160,12 @@ class JuneState:
     cook_elapsed_s: float | None = None
     probe_temp_c: float | None = None
     probe_present: bool | None = None
+    probe_target_c: float | None = None
+    # Time left on the oven's timer, and whether its estimate has settled.
+    cook_time_remaining_s: float | None = None
+    eta_status: str | None = None
+    # When the last cook finished on its own (not cancelled).
+    last_cook_completed: datetime | None = None
     ready: bool = False
     done: bool = False
     snapshot_url: str | None = None
@@ -383,6 +391,25 @@ class JuneClient:
         )
         self._require_success(status, "set timer")
 
+    async def async_add_cook_time(self, minutes: float) -> None:
+        """Extend a running timer by ``minutes``.
+
+        Sends 11006 with the time left plus the extra time. Whether the oven
+        reads ``duration`` as time left or as the step's total is unverified;
+        read as a total, this shortens the cook rather than lengthening it.
+        """
+        remaining = self.state.cook_time_remaining_s
+        if not self.state.active or remaining is None:
+            raise JuneCommandError("No timer is running")
+        status = await self._async_send_command(
+            MC_SET_TIMER,
+            {
+                "plan_id": self.state.plan_id,
+                "duration": round(remaining * 1000 + minutes * 60_000),
+            },
+        )
+        self._require_success(status, "add cook time")
+
     async def async_fetch_camera_image(self) -> bytes | None:
         """Fetch the most recent trusted camera image."""
         url = self._camera_url(self.state.snapshot_url)
@@ -585,6 +612,11 @@ class JuneClient:
             self.state.cook_mode = plan.name
         if plan.target_millic is not None:
             self.state.target_temp_c = millic_to_celsius(plan.target_millic)
+        self.state.probe_target_c = (
+            millic_to_celsius(plan.probe_target_millic)
+            if plan.probe_target_millic is not None
+            else None
+        )
         self._presentation = plan.presentation_type
         if self._preheat.plan(plan):
             self._start_pulse("ready")
@@ -617,7 +649,14 @@ class JuneClient:
             self.state.cook_elapsed_s = (
                 progress.elapsed_ms / 1000 if progress.elapsed_ms is not None else None
             )
+            self.state.cook_time_remaining_s = (
+                progress.remaining_ms / 1000
+                if progress.remaining_ms is not None
+                else None
+            )
             self._label_type = progress.label_type
+        if self.state.active and "eta" in data:
+            self.state.eta_status = parse_eta_status(data.get("eta"))
         self._apply_plan(parse_cook_plan(data.get("cook_plan_data")))
 
     def _apply_active(self, active: bool) -> None:
@@ -629,10 +668,14 @@ class JuneClient:
             self.state.ready = False
         elif was_active and not active:
             if not self._last_cancelled:
+                self.state.last_cook_completed = datetime.now(UTC)
                 self._start_pulse("done")
             self.state.plan_id = 0
             self.state.progress_percent = None
             self.state.cook_elapsed_s = None
+            self.state.cook_time_remaining_s = None
+            self.state.eta_status = None
+            self.state.probe_target_c = None
             self._presentation = None
             self._label_type = None
             # Oven-screen programs cannot be restarted by name; let the climate

@@ -95,6 +95,15 @@
       },
       "progress": {
         "name": "Cook progress"
+      },
+      "time_remaining": {
+        "name": "Time remaining"
+      },
+      "probe_target": {
+        "name": "Food probe target"
+      },
+      "last_cook_completed": {
+        "name": "Last cook completed"
       }
     }
   },
@@ -136,5 +145,18 @@
         "toast": "Toast"
       }
     }
-  }
+  },
+  "services": {
+    "add_cook_time": {
+      "name": "Add cook time",
+      "description": "Extends the oven's running timer.",
+      "fields": {
+        "minutes": {
+          "name": "Minutes",
+          "description": "How many minutes to add."
+        }
+      }
+    }
+  },
+  "exceptions": {}
 }

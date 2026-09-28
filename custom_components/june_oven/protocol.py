@@ -263,6 +263,8 @@ class CookPlan:
     session_id: str | None
     presentation_type: str | None
     target_millic: int | None
+    # The food probe target from the current step's exit criteria, if any.
+    probe_target_millic: int | None = None
 
 
 def parse_cook_plan(value: Any) -> CookPlan | None:
@@ -295,7 +297,23 @@ def parse_cook_plan(value: Any) -> CookPlan | None:
         session_id=_string(plan_data.get("session_id")),
         presentation_type=_string(step.get("presentation_type")),
         target_millic=int(target) if target is not None and target > 0 else None,
+        probe_target_millic=_probe_target(step.get("exit_criteria")),
     )
+
+
+def _probe_target(criteria: Any) -> int | None:
+    """Return the probe target of ``exit_criteria``: ``[{"type": "probe",
+    "target": {"id": "left", "value": <milli-C>}}]``."""
+    if not isinstance(criteria, list):
+        return None
+    for criterion in criteria:
+        criterion = _mapping(criterion) or {}
+        if criterion.get("type") != "probe":
+            continue
+        value = _number((_mapping(criterion.get("target")) or {}).get("value"))
+        if value is not None and value > 0:
+            return int(value)
+    return None
 
 
 @dataclass(frozen=True, slots=True)
@@ -305,6 +323,8 @@ class CookProgress:
     label_type: str | None
     percent: float | None
     elapsed_ms: int | None
+    # Time left on the oven's timer; absent when no timer is running.
+    remaining_ms: int | None = None
 
 
 def parse_cook_progress(value: Any) -> CookProgress | None:
@@ -314,7 +334,8 @@ def parse_cook_progress(value: Any) -> CookProgress | None:
     percentage is already 0-100: 0.99 means 1% of the preheat gap is covered.
     ``label_type`` is "temperature" while preheating (``label_value`` is the
     cavity in milli-Celsius) and "time" while cooking (``label_value`` is the
-    elapsed milliseconds, also sent as ``cook_time_elapsed``).
+    elapsed milliseconds, also sent as ``cook_time_elapsed``). A running timer
+    adds ``cook_time_remaining`` in milliseconds.
     """
     cook_state = _mapping(value)
     if cook_state is None:
@@ -325,11 +346,22 @@ def parse_cook_progress(value: Any) -> CookProgress | None:
     elapsed = _number(cook_state.get("cook_time_elapsed"))
     if elapsed is None and label_type == "time":
         elapsed = _number(progress.get("label_value"))
+    remaining = _number(cook_state.get("cook_time_remaining"))
     return CookProgress(
         label_type=label_type,
         percent=min(100.0, max(0.0, float(percent))) if percent is not None else None,
         elapsed_ms=int(elapsed) if elapsed is not None else None,
+        remaining_ms=int(remaining) if remaining is not None and remaining >= 0 else None,
     )
+
+
+ETA_STATUSES: Final = ("unknown", "calculating", "acquired", "fallback")
+
+
+def parse_eta_status(value: Any) -> str | None:
+    """Return the 10013 ``eta.status``: whether the oven's estimate is settled."""
+    status = _string((_mapping(value) or {}).get("status"))
+    return status if status in ETA_STATUSES else None
 
 
 def cook_phase(

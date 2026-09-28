@@ -4,6 +4,8 @@ from __future__ import annotations
 
 from typing import Any
 
+import voluptuous as vol
+
 from homeassistant.components.climate import (
     ATTR_TEMPERATURE,
     ClimateEntity,
@@ -15,6 +17,7 @@ from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import UnitOfTemperature
 from homeassistant.core import HomeAssistant
 from homeassistant.exceptions import HomeAssistantError
+from homeassistant.helpers import entity_platform
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
 from .api import JuneError
@@ -31,6 +34,8 @@ from .coordinator import JuneDataUpdateCoordinator
 from .entity import JuneEntity
 from .protocol import celsius_to_fahrenheit
 
+SERVICE_ADD_COOK_TIME = "add_cook_time"
+
 
 async def async_setup_entry(
     hass: HomeAssistant,
@@ -40,6 +45,11 @@ async def async_setup_entry(
     """Set up the June climate entity."""
     coordinator: JuneDataUpdateCoordinator = entry.runtime_data
     async_add_entities([JuneOvenClimate(coordinator, entry)])
+    entity_platform.async_get_current_platform().async_register_entity_service(
+        SERVICE_ADD_COOK_TIME,
+        {vol.Required("minutes"): vol.All(vol.Coerce(float), vol.Range(min=1, max=60))},
+        "async_add_cook_time",
+    )
 
 
 class JuneOvenClimate(JuneEntity, ClimateEntity):
@@ -152,6 +162,10 @@ class JuneOvenClimate(JuneEntity, ClimateEntity):
         await self._run(
             self.coordinator.client.async_set_mode(preset_mode, self.target_temperature)
         )
+
+    async def async_add_cook_time(self, minutes: float) -> None:
+        """Extend the running timer (the card's +1 / +5 / +10)."""
+        await self._run(self.coordinator.client.async_add_cook_time(minutes))
 
     @staticmethod
     async def _run(operation: Any) -> None:

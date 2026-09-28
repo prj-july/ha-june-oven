@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from collections.abc import Callable
 from dataclasses import dataclass
+from datetime import datetime
 
 from homeassistant.components.sensor import (
     SensorDeviceClass,
@@ -26,7 +27,7 @@ from .protocol import COOK_PHASES
 class JuneSensorDescription(SensorEntityDescription):
     """Describe a June sensor."""
 
-    value_fn: Callable[[JuneState], float | str | None]
+    value_fn: Callable[[JuneState], float | str | datetime | None]
 
 
 SENSORS = (
@@ -62,6 +63,28 @@ SENSORS = (
         suggested_display_precision=0,
         value_fn=lambda state: state.cook_elapsed_s,
     ),
+    JuneSensorDescription(
+        key="time_remaining",
+        translation_key="time_remaining",
+        device_class=SensorDeviceClass.DURATION,
+        native_unit_of_measurement=UnitOfTime.SECONDS,
+        suggested_display_precision=0,
+        value_fn=lambda state: state.cook_time_remaining_s,
+    ),
+    JuneSensorDescription(
+        key="probe_target",
+        translation_key="probe_target",
+        device_class=SensorDeviceClass.TEMPERATURE,
+        native_unit_of_measurement=UnitOfTemperature.CELSIUS,
+        suggested_display_precision=0,
+        value_fn=lambda state: state.probe_target_c,
+    ),
+    JuneSensorDescription(
+        key="last_cook_completed",
+        translation_key="last_cook_completed",
+        device_class=SensorDeviceClass.TIMESTAMP,
+        value_fn=lambda state: state.last_cook_completed,
+    ),
 )
 
 
@@ -91,6 +114,6 @@ class JuneOvenSensor(JuneEntity, SensorEntity):
         self.entity_description = description
 
     @property
-    def native_value(self) -> float | str | None:
+    def native_value(self) -> float | str | datetime | None:
         """Return the current value."""
         return self.entity_description.value_fn(self.coordinator.data)
