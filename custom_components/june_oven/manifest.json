@@ -1,6 +1,10 @@
 {
   "domain": "june_oven",
   "name": "June Oven",
+  "after_dependencies": [
+    "frontend",
+    "http"
+  ],
   "codeowners": [
     "@jclima"
   ],
@@ -13,5 +17,5 @@
     "PyNaCl==1.5.0;python_version<'3.14'",
     "PyNaCl==1.6.2;python_version>='3.14'"
   ],
-  "version": "0.2.0"
+  "version": "0.3.0"
 }

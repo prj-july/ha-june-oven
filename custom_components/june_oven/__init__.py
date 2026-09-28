@@ -4,19 +4,49 @@ from __future__ import annotations
 
 import logging
 import ssl
+from pathlib import Path
 from typing import Any
 
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
 from homeassistant.exceptions import ConfigEntryError, ConfigEntryNotReady
+from homeassistant.helpers import config_validation as cv
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
+from homeassistant.helpers.typing import ConfigType
 
 from .api import JuneClient, JuneError, JuneIdentity, create_ssl_option
-from .const import CONF_CA_CERT, CONF_ENDPOINT, CONF_VERIFY_SSL, PLATFORMS
+from .const import (
+    CARD_URL,
+    CARD_VERSION,
+    CONF_CA_CERT,
+    CONF_ENDPOINT,
+    CONF_VERIFY_SSL,
+    DOMAIN,
+    PLATFORMS,
+)
 from .coordinator import JuneDataUpdateCoordinator
 from .protocol import build_endpoints
 
 _LOGGER = logging.getLogger(__name__)
+
+CONFIG_SCHEMA = cv.config_entry_only_config_schema(DOMAIN)
+
+
+async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
+    """Serve the July Oven card and load it on every dashboard."""
+    if hass.http is None:
+        # No web server (scripts, some tests): there is no dashboard to serve.
+        return True
+    from homeassistant.components.frontend import add_extra_js_url
+    from homeassistant.components.http import StaticPathConfig
+
+    card = Path(__file__).parent / "www" / "july-oven-card.js"
+    await hass.http.async_register_static_paths(
+        [StaticPathConfig(CARD_URL, str(card), True)]
+    )
+    if "frontend" in hass.config.components:
+        add_extra_js_url(hass, f"{CARD_URL}?v={CARD_VERSION}")
+    return True
 
 
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
