@@ -24,7 +24,7 @@
  */
 (() => {
   "use strict";
-  const VERSION = "0.3.0";
+  const VERSION = "0.3.1";
   const DOMAIN = "june_oven";
   const TAG = "july-oven-card";
   if (customElements.get(TAG)) return;
@@ -957,7 +957,20 @@ ha-card{height:100%;overflow:hidden;background:none;border:none;box-shadow:none;
 .c-d2.d2-wall .d2-go{height:64px;font-size:22px}
 `;
 
-  customElements.define(TAG, JulyOvenCard);
+  // Some dashboards load a scoped custom-element registry polyfill (in browsers without native support,
+  // such as Firefox) that replaces window.customElements after this file has run. A definition made on the
+  // old registry is then invisible to Home Assistant ("Custom element doesn't exist"). Keep checking, and
+  // register again on whatever registry the page uses now. Each check is one Map lookup.
+  function ensureDefined() {
+    try {
+      if (!customElements.get(TAG)) customElements.define(TAG, JulyOvenCard);
+    } catch (err) {
+      /* defined meanwhile */
+    }
+  }
+  ensureDefined();
+  setInterval(ensureDefined, 2000);
+  window.addEventListener("location-changed", ensureDefined);
   window.customCards = window.customCards || [];
   window.customCards.push({
     type: TAG,
