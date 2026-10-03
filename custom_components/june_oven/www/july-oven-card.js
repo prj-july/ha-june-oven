@@ -977,7 +977,7 @@ ha-card{height:100%;overflow:hidden;background:none;border:none;box-shadow:none;
     name: "July Oven",
     description: "The June oven's glass screen for your dashboard: status, camera, Stop, and a reviewed start.",
     preview: false,
-    documentationURL: "https://github.com/Terablo/ha-june-oven"
+    documentationURL: "https://github.com/prj-july/ha-june-oven"
   });
   console.info(`%c JULY-OVEN-CARD %c ${VERSION} `, "color:#fff;background:#c62828;font-weight:700", "color:#c62828");
 })();
