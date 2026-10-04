@@ -1,11 +1,15 @@
 /* July Oven card: the "Still Glass" design for the June oven, served by the june_oven integration.
  *
  * One job per oven state, fixed places, nothing that heats on one tap:
- *   top left the oven's name, top right one red Stop exactly as wide as the camera window;
+ *   top left the oven's icon and name, top right one red Stop exactly as wide as the camera window;
  *   one large number with its status mark under it; the progress bar; two short lines;
  *   +1 / +5 / +10 min only while a timer runs.
+ * The oven's icon is its lamp: orange while it heats, white (the text colour) while it is off. The
+ * name tucks into the icon 5 s after the home screen (the mode tiles) appears and comes back on
+ * hover; during a cook it always shows. The icon opens a menu of every June oven in Home Assistant.
  * Idle shows the oven's home screen: a clock and pages of mode tiles. A tile opens a review that
- * must be confirmed within 5 minutes (UL 1026). Settings is the last tile.
+ * must be confirmed within 5 minutes (UL 1026). Camera and Settings are the last tiles; both open
+ * in the card: a floating camera window, and settings saved in this browser.
  *
  * Plain web component, no build step. Config:
  *   type: custom:july-oven-card
@@ -21,24 +25,36 @@
  *   display_mode: auto | standard | wall | compact
  *   name: Kitchen                       # optional; defaults to the device or area name
  *   load_fonts: true                    # Barlow fonts from Google Fonts (system fonts if off)
+ *   camera_fps: 1                       # camera pictures per second (0.5, 1, 2 or 5)
+ *   hide_name: true                     # tuck the name into the icon after 5 s
+ *   clock: auto | 12 | 24               # the idle clock
+ *   mode_order: oven | used             # cook mode tiles in the oven's order, or most used first
+ * theme, camera_fps, hide_name, clock, mode_order and each oven's icon can also be changed in the card's own
+ * Settings; those choices are kept in this browser and the config above is the starting point.
  */
 (() => {
   "use strict";
-  const VERSION = "0.3.2";
+  const VERSION = "0.4.0";
   const DOMAIN = "june_oven";
   const TAG = "july-oven-card";
   if (customElements.get(TAG)) return;
 
   // Cook primitives the integration can start (const.DEFAULT_MODES), in the oven's order.
   const STARTABLE = [["bake", "Bake"], ["roast", "Roast"], ["broil", "Broil"], ["airfry", "Air fry"], ["toast", "Toast"]];
-  const TILES = [...STARTABLE, ["settings", "Settings"]];
+  const TILES = [...STARTABLE, ["camera", "Camera"], ["settings", "Settings"]];
+  const UTIL = ["camera", "settings"];
+  const ORDERS = [["oven", "Oven's order"], ["used", "Most used first"]];
+  const USES_KEY = "july-oven-card:uses";
   const MODE_LABEL = {
     bake: "Bake", roast: "Roast", broil: "Broil", airfry: "Air fry", toast: "Toast", reheat: "Reheat", warm: "Keep warm",
     slow_cook: "Slow cook", dehydrate: "Dehydrate", proof: "Proof", pizzaiolo: "Pizza", sous_vide: "Sous vide", grill: "Grill"
   };
   const DONE_WINDOW_MS = 30 * 60 * 1000;
   const REVIEW_MS = 5 * 60 * 1000;
-  const CAMERA_REFRESH_MS = 2000;
+  const TUCK_MS = 5000;
+  const FPS_OPTIONS = [0.5, 1, 2, 5];
+  const THEMES = [["auto", "Match Home Assistant"], ["light", "Light"], ["dark", "Dark"]];
+  const CLOCKS = [["auto", "Automatic"], ["12", "12-hour"], ["24", "24-hour"]];
   // Entities of one oven, matched on the device by translation key (entity id suffix as a fallback).
   const KEYS = {
     phase: ["sensor", "cook_phase"], progress: ["sensor", "progress"], remaining: ["sensor", "time_remaining"],
@@ -79,6 +95,7 @@
     bake: g("M10 37h28"), broil: g("M10 11h28"), roast: g("M10 11h28M10 37h28"),
     toast: g("M10 11h7M20.5 11h7M31 11h7M10 37h7M20.5 37h7M31 37h7"),
     airfry: '<circle cx="24" cy="24" r="12.5" class="thin"/>' + [0, 120, 240].map((a) => `<path class="fill" transform="rotate(${a} 24 24)" d="M24 24c-1.5-5.5 1-9.5 5-9.2 2.6.3 2.8 4.4-5 9.2z"/>`).join(""),
+    camera: '<path class="thin" d="M9 16.5h6.5l3-4h11l3 4H39a2.5 2.5 0 0 1 2.5 2.5v15a2.5 2.5 0 0 1-2.5 2.5H9A2.5 2.5 0 0 1 6.5 34V19A2.5 2.5 0 0 1 9 16.5z"/><circle class="thin" cx="24" cy="26.5" r="6.5"/>',
     settings: '<circle cx="24" cy="24" r="9" class="thin"/><circle cx="24" cy="24" r="3.5" class="thin"/>' + [0, 45, 90, 135, 180, 225, 270, 315].map((a) => `<path transform="rotate(${a} 24 24)" d="M24 11.5v3.5"/>`).join("")
   };
   const glyph = (k) => `<svg class="d2-glyph" viewBox="0 0 48 48" aria-hidden="true" focusable="false">${GLYPH[k] || ""}</svg>`;
@@ -98,12 +115,13 @@
     bread: ["Bread", '<path d="M5 11.2A3.8 3.8 0 0 1 7 4.5h10a3.8 3.8 0 0 1 2 6.7v7.3a1 1 0 0 1-1 1H6a1 1 0 0 1-1-1z"/><path d="M10 8.5l-1.5 2.2M14.5 8.5 13 10.7"/>'],
     star: ["Star", '<path d="M12 3.8l2.5 5.1 5.6.8-4.1 3.9 1 5.6-5-2.7-5 2.7 1-5.6-4.1-3.9 5.6-.8z"/>']
   };
-  const ICON_OPTIONS = [{ value: "", label: "No icon" }].concat(Object.entries(OVEN_ICONS).map(([value, [label]]) => ({ value, label })));
+  const ICON_OPTIONS = [{ value: "", label: "Oven (default)" }].concat(Object.entries(OVEN_ICONS).map(([value, [label]]) => ({ value, label })));
+  // Every oven has an icon: it is the oven's lamp and opens the oven menu.
   function ovenIcon(icon) {
-    if (!icon) return "";
+    if (!icon) icon = "oven";
     if (String(icon).startsWith("mdi:")) return `<ha-icon class="d2-oic" icon="${esc(icon)}"></ha-icon>`;
-    const hit = OVEN_ICONS[icon];
-    return hit ? `<svg class="d2-oic" viewBox="0 0 24 24" aria-hidden="true" focusable="false">${hit[1]}</svg>` : "";
+    const hit = OVEN_ICONS[icon] || OVEN_ICONS.oven;
+    return `<svg class="d2-oic" viewBox="0 0 24 24" aria-hidden="true" focusable="false">${hit[1]}</svg>`;
   }
 
   // ---- helpers -----------------------------------------------------------------------------------
@@ -258,6 +276,13 @@
   const status = (m, cls = "") => `<span class="d2-st t-${m.tone} ${cls}">${svg("0 0 20 20", ST[m.icon], "d2-sti")}<b>${m.word}</b></span>`;
   const bar = (m) => `<div class="d2-bar k-${m.bar[1]}" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="${Math.round(m.bar[0] * 100)}" style="--p:${Math.max(0.001, m.bar[0]).toFixed(3)}"><i></i></div>`;
 
+  // The oven's lamp: orange while it heats, the text colour (white on the glass) while it is off.
+  const lamp = (m) => (m.key === "offline" ? "lost" : m.heating ? "on" : "off");
+  const lampWord = (m) => (m.key === "offline" ? "offline" : m.heating ? m.word.toLowerCase() : "off");
+  function ovenButton(m, o = {}) {
+    return `<button class="d2-name d2-ovb l-${lamp(m)}${o.tucked ? " is-tucked" : ""}${o.open ? " is-open" : ""}${o.cls || ""}" data-act="menu" aria-haspopup="menu" aria-expanded="${o.open ? "true" : "false"}" aria-label="${esc(m.name)}, ${lampWord(m)}. Choose an oven"><span class="d2-lamp">${m.oic}</span><span class="d2-nm">${esc(m.name)}</span></button>`;
+  }
+
   function cam(m, o = {}) {
     if (m.camera === "off") {
       return `<button class="d2-cam is-off" data-act="camera" data-oven="${esc(m.ids.climate)}" aria-label="Camera off. It runs while the oven cooks">${I.camOff}${o.compact ? "" : "<span>Camera off</span>"}</button>`;
@@ -282,31 +307,31 @@
   }
 
   // Two rows of tiles, as on the oven. Six tiles fit one page: 3 × 2 on a standard card, one row on a wall.
-  function idle(m, clock, date, page, size) {
-    const cols = size === "wall" ? Math.min(7, TILES.length) : TILES.length <= 6 ? 3 : 4;
-    const rows = Math.min(2, Math.ceil(TILES.length / cols));
+  function idle(m, clock, date, page, size, nb, tiles = TILES) {
+    const cols = size === "wall" ? Math.min(7, tiles.length) : tiles.length <= 6 ? 3 : 4;
+    const rows = Math.min(2, Math.ceil(tiles.length / cols));
     const pages = [];
-    for (let i = 0; i < TILES.length; i += cols * rows) pages.push(TILES.slice(i, i + cols * rows));
+    for (let i = 0; i < tiles.length; i += cols * rows) pages.push(tiles.slice(i, i + cols * rows));
     const n = pages.length;
     const tile = ([k, label]) => {
-      const util = k === "settings";
-      return `<button class="d2-tile${util ? " is-util" : ""}" data-act="${util ? "settings" : "tile"}" data-mode="${k}" data-oven="${esc(m.ids.climate)}" aria-label="${util ? `Settings for ${esc(m.name)}` : `${label}: review and start`}"><span class="d2-face">${glyph(k)}</span><span class="d2-lab">${label}</span></button>`;
+      const util = UTIL.includes(k);
+      return `<button class="d2-tile${util ? " is-util" : ""}" data-act="${util ? k : "tile"}" data-mode="${k}" data-oven="${esc(m.ids.climate)}" aria-label="${util ? `${label} for ${esc(m.name)}` : `${label}: review and start`}"><span class="d2-face">${glyph(k)}</span><span class="d2-lab">${label}</span></button>`;
     };
     return `<div class="d2-idle${n > 1 ? "" : " no-dots"}">
       <div class="d2-top">
-        <div class="d2-id"><div class="d2-name" data-act="more" data-oven="${esc(m.ids.climate)}">${m.oic}${esc(m.name)}</div>${status(m)}</div>
+        <div class="d2-id">${ovenButton(m, nb)}</div>
         <div class="d2-clock" role="timer" aria-label="Time ${clock}, ${date}"><div class="d2-time">${clock}</div><div class="d2-date">${date}</div></div>
-        <div class="d2-camslot">${cam(m)}</div>
+        <div class="d2-topr" aria-hidden="true"></div>
       </div>
       <div class="d2-pager" aria-label="Cook modes${n > 1 ? `, ${n} pages` : ""}">${pages.map((p, i) => `<div class="d2-page" style="--cols:${cols};--rows:${rows}" role="group" aria-label="Page ${i + 1} of ${n}">${p.map(tile).join("")}</div>`).join("")}</div>
       ${n > 1 ? `<div class="d2-dots">${pages.map((_, i) => `<button class="d2-dot" data-act="page" data-i="${i}" aria-label="Show page ${i + 1} of ${n}"${i === page ? ' aria-current="true"' : ""}><i></i></button>`).join("")}</div>` : ""}
     </div>`;
   }
 
-  function run(m, o, busy) {
+  function run(m, o, busy, nb) {
     const cls = m.heroText ? " is-texthero" : String(m.hero).includes("°") ? " has-deg" : "";
     return `<div class="d2-run${cls}">
-      <div class="d2-name d2-title" data-act="more" data-oven="${esc(m.ids.climate)}">${m.oic}${esc(m.name)}</div>
+      ${ovenButton(m, { ...nb, cls: " d2-title" })}
       <div class="d2-foot">${action(m, o, busy)}</div>
       <div class="d2-up" data-act="more" data-oven="${esc(m.ids.climate)}">
         <div class="d2-hero${m.heroText ? " is-text" : ""}${!m.heroText && String(m.hero).length > 5 ? " is-long" : ""}${m.stale ? " is-stale" : ""}">${deg(esc(m.hero))}</div>
@@ -336,19 +361,70 @@
     </div>`;
   }
 
+  const snap = (r, v) => Math.max(r.min, Math.min(r.max, Math.round(v / r.step) * r.step));
+  const fill = (r) => ((r.temp - r.min) / Math.max(1, r.max - r.min)).toFixed(4);
+
   function review(r, name, unit, now, multi) {
     const left = Math.max(0, r.until - now);
     return `<div class="d2-sheet" role="dialog" aria-modal="true" aria-label="Review before starting">
       <div class="d2-sh-head"><div><div class="d2-sh-t">${esc(MODE_LABEL[r.mode])} · ${esc(name)}</div><div class="d2-sh-s">Step 2 of 2 · Review</div></div>
-        <button class="d2-icbtn" data-act="rv-cancel" aria-label="Cancel">${I.close}</button></div>
+        <button class="d2-icbtn" data-act="sheet-close" aria-label="Cancel">${I.close}</button></div>
       <div class="d2-sh-row"><span class="d2-face d2-sh-face">${glyph(r.mode)}</span>
-        <div class="d2-sh-temp"><button class="d2-round" data-act="rv-dec" aria-label="Lower the temperature">${I.minus}</button>
-          <div class="d2-sh-v"><b>${r.temp}</b> ${esc(unit)}</div>
-          <button class="d2-round" data-act="rv-inc" aria-label="Raise the temperature">${I.plus}</button></div></div>
-      <div class="d2-sh-note">Make sure the oven is empty and the door is closed. Nothing heats until you press Start. This closes in <b>${duration(left / 1000)}</b>.</div>
-      <div class="d2-sh-acts"><button class="d2-ghost" data-act="rv-cancel">Not now</button>
+        <div class="d2-sh-temp"><button class="d2-round" data-act="rv-dec" aria-label="Lower the temperature"${r.temp <= r.min ? " disabled" : ""}>${I.minus}</button>
+          <label class="d2-sh-v"><input class="d2-sh-in" type="text" inputmode="numeric" maxlength="3" autocomplete="off" value="${r.temp}" aria-label="Temperature in ${esc(unit)}: type a number from ${r.min} to ${r.max}"><span>${esc(unit)}</span></label>
+          <button class="d2-round" data-act="rv-inc" aria-label="Raise the temperature"${r.temp >= r.max ? " disabled" : ""}>${I.plus}</button></div></div>
+      <div class="d2-sh-slide"><input class="d2-range" type="range" min="${r.min}" max="${r.max}" step="${r.step}" value="${r.temp}" style="--p:${fill(r)}" aria-label="Temperature in ${esc(unit)}">
+        <div class="d2-sh-ends" aria-hidden="true"><span>${r.min}°</span><span>${r.max}°</span></div></div>
+      <div class="d2-sh-note">Make sure the oven is empty and the door is closed. Nothing heats until you press Start. This closes in <b class="d2-sh-left">${duration(left / 1000)}</b>.</div>
+      <div class="d2-sh-acts"><button class="d2-ghost" data-act="sheet-close">Not now</button>
         <button class="d2-go" data-act="rv-start"${r.busy ? " disabled" : ""}>${r.busy ? "Starting…" : multi ? `Start preheating ${esc(name)}` : "Start preheating"}</button></div>
     </div>`;
+  }
+
+  const seg = (k, opts, cur, label) => `<div class="d2-seg" role="radiogroup" aria-label="${esc(label)}">${opts.map(([v, l]) => `<button role="radio" aria-checked="${String(v) === String(cur)}" data-act="set" data-k="${k}" data-v="${esc(v)}">${esc(l)}</button>`).join("")}</div>`;
+  const setRow = (label, help, body) => `<div class="d2-set-row"><div class="d2-set-l">${esc(label)}</div>${body}${help ? `<div class="d2-set-h">${esc(help)}</div>` : ""}</div>`;
+
+  // One row per oven (every June oven in Home Assistant); the open row shows the icon choices.
+  function iconRows(ovens, open) {
+    return ovens.map(({ m, icon }) => {
+      const id = esc(m.ids.climate), isOpen = m.ids.climate === open, cur = icon || "oven";
+      const mdi = String(cur).startsWith("mdi:") ? cur : "";
+      const choices = isOpen ? `<div class="d2-ic-pick"><div class="d2-icons" role="radiogroup" aria-label="Icon for ${esc(m.name)}">${Object.entries(OVEN_ICONS).map(([k, [label]]) => `<button class="d2-ici" role="radio" aria-checked="${k === cur}" data-act="set" data-k="icon" data-oven="${id}" data-v="${k}" aria-label="${label}" title="${label}">${ovenIcon(k)}</button>`).join("")}</div>
+        <input class="d2-mdi" type="text" data-oven="${id}" value="${esc(mdi)}" placeholder="Or any mdi: icon, such as mdi:stove" autocomplete="off" spellcheck="false" aria-label="Any mdi: icon for ${esc(m.name)}"></div>` : "";
+      return `<div class="d2-ic-row${isOpen ? " is-open" : ""}"><button class="d2-ic-head" data-act="set-iconfor" data-oven="${id}" aria-expanded="${isOpen}"><span class="d2-ic-cur">${ovenIcon(cur)}</span><span class="d2-ic-n">${esc(m.name)}</span><span class="d2-ic-chev" aria-hidden="true">${isOpen ? "−" : "+"}</span></button>${choices}</div>`;
+    }).join("");
+  }
+
+  function settingsSheet(p, m, ovens, open) {
+    return `<div class="d2-sheet d2-set" role="dialog" aria-modal="true" aria-label="Card settings">
+      <div class="d2-sh-head"><div><div class="d2-sh-t">Settings</div><div class="d2-sh-s">This card, in this browser</div></div>
+        <button class="d2-icbtn" data-act="sheet-close" aria-label="Close settings">${I.close}</button></div>
+      <div class="d2-set-list">
+        ${setRow("Appearance", "", seg("theme", THEMES, p.theme, "Appearance"))}
+        ${setRow("Camera frame rate", "Pictures per second in the camera window. Higher rates load more pictures from Home Assistant.", seg("camera_fps", FPS_OPTIONS.map((v) => [v, `${v} fps`]), p.camera_fps, "Camera frame rate"))}
+        ${setRow("Oven name", "", seg("hide_name", [["true", "Tuck into the icon"], ["false", "Always show"]], String(p.hide_name), "Oven name"))}
+        ${setRow("Cook modes", "Most used first counts the cooks started from this card, per oven, in this browser.", seg("mode_order", ORDERS, p.mode_order, "Cook mode order"))}
+        ${setRow("Clock", "", seg("clock", CLOCKS, p.clock, "Clock"))}
+        ${setRow(ovens.length > 1 ? "Oven icons" : "Oven icon", "", `<div class="d2-ic-list">${iconRows(ovens, open)}</div>`)}
+        <div class="d2-set-acts"><button class="d2-ghost" data-act="set-ha" data-oven="${esc(m.ids.climate)}">Oven in Home Assistant</button><button class="d2-ghost" data-act="set-reset">Reset</button></div>
+      </div>
+    </div>`;
+  }
+
+  function cameraSheet(m) {
+    return `<div class="d2-cv-back" data-act="sheet-close"></div>
+      <div class="d2-cv" role="dialog" aria-modal="true" aria-label="${esc(m.name)} camera">
+        <div class="d2-cv-win"><img class="d2-cv-img" alt="">
+          <div class="d2-cv-msg" hidden>${I.camOff}<b></b><span></span></div></div>
+        <div class="d2-cv-bar"><span class="d2-cv-t"><span class="d2-pill d2-cv-pill" hidden></span>${esc(m.name)}</span>
+          <button class="d2-icbtn d2-cv-x" data-act="sheet-close" aria-label="Close the camera">${I.close}</button></div>
+      </div>`;
+  }
+
+  function menuSheet(models, focus, pos) {
+    const items = models.map((m) => `<button class="d2-mi l-${lamp(m)}" role="menuitemradio" aria-checked="${m.ids.climate === focus}" data-act="pick" data-oven="${esc(m.ids.climate)}"><span class="d2-lamp">${m.oic}</span><span class="d2-mi-n">${esc(m.name)}</span><span class="d2-mi-s">${esc(m.key === "offline" ? "Offline" : m.heating ? m.word : "Off")}</span>${m.ids.climate === focus ? I.check : ""}</button>`).join("");
+    return `<div class="d2-menu-back" data-act="sheet-close"></div>
+      <div class="d2-menu" role="menu" aria-label="Ovens" style="left:${pos.x}px;top:${pos.y}px;max-height:${pos.h}px">${items}</div>`;
   }
 
   // ---- the card ------------------------------------------------------------------------------------
@@ -357,12 +433,17 @@
       super();
       this.attachShadow({ mode: "open" });
       // The stylesheet is attached once, so :host sizing applies before the first measurement.
-      this.shadowRoot.innerHTML = `<style>${CSS}</style><div class="jo-root"></div>`;
+      // Sheets (review, settings, camera, oven menu) live in their own layer over the card, so the
+      // card's re-renders never interrupt a slider drag or typing.
+      this.shadowRoot.innerHTML = `<style>${CSS}</style><div class="jo-root"></div><div class="jo-over" hidden></div>`;
       this._root = this.shadowRoot.querySelector(".jo-root");
+      this._overEl = this.shadowRoot.querySelector(".jo-over");
       this._busy = {};
       this._dismissed = {};
       this._page = 0;
-      this._review = null;
+      this._sheet = null;
+      this._tucked = false;
+      this._prefs = { icons: {} };
       this._size = "standard";
       this._imgs = {};
       this._html = "";
@@ -412,15 +493,19 @@
       for (const item of config.entities || []) add(typeof item === "string" ? { entity: item } : item);
       for (const n of [2, 3, 4]) add({ entity: config[`entity_${n}`], icon: config[`icon_${n}`], name: config[`name_${n}`] });
       for (const o of ovens) if (!String(o.entity).startsWith("climate.")) throw new Error(`${o.entity} is not a climate entity. Choose the oven itself.`);
-      this._config = { theme: "auto", display_mode: "auto", load_fonts: true, ...config };
+      this._config = { theme: "auto", display_mode: "auto", load_fonts: true, camera_fps: 1, hide_name: true, clock: "auto", mode_order: "oven", ...config };
       this._ovenConf = ovens;
       this._ovens = ovens.map((o) => o.entity);
-      // The oven last picked in this card is remembered in this browser.
+      // The oven last picked in this card, and the card's own settings, are remembered in this browser.
       this._focusKey = `july-oven-card:focus:${this._ovens.join(",")}`;
+      this._prefsKey = `july-oven-card:prefs:${this._ovens.join(",")}`;
       try { this._focus = localStorage.getItem(this._focusKey) || undefined; } catch (e) { this._focus = undefined; }
+      try { this._prefs = JSON.parse(localStorage.getItem(this._prefsKey)) || {}; } catch (e) { this._prefs = {}; }
+      if (!this._prefs.icons || typeof this._prefs.icons !== "object") this._prefs.icons = {};
       if (this._config.load_fonts !== false) loadFonts();
       this._html = "";
       this._render();
+      this._renderOver();
     }
 
     getCardSize() {
@@ -456,8 +541,13 @@
       this._ro = new ResizeObserver(() => { this._measure(); this._syncRows(); });
       this._ro.observe(this);
       this._tick = setInterval(() => this._render(), 15000);
-      this._camTimer = setInterval(() => this._refreshCameras(), CAMERA_REFRESH_MS);
+      this._restartCamTimer();
       this.shadowRoot.addEventListener("click", this._onClick = (e) => this._handleClick(e));
+      this.shadowRoot.addEventListener("input", this._onInput = (e) => this._handleInput(e));
+      this.shadowRoot.addEventListener("change", this._onChange = (e) => this._handleChange(e));
+      // On the window, so Escape closes a sheet even when nothing in the card has focus.
+      window.addEventListener("keydown", this._onKey = (e) => this._handleKey(e));
+      this._showName();
       // Resize observers pause in background tabs; measure now as well.
       this._measure();
       setTimeout(() => this._measure(), 0);
@@ -469,7 +559,13 @@
       clearInterval(this._tick);
       clearInterval(this._camTimer);
       clearTimeout(this._reviewTimer);
+      clearTimeout(this._cvTimer);
+      clearTimeout(this._tuckTimer);
       if (this._onClick) this.shadowRoot.removeEventListener("click", this._onClick);
+      if (this._onInput) this.shadowRoot.removeEventListener("input", this._onInput);
+      if (this._onChange) this.shadowRoot.removeEventListener("change", this._onChange);
+      if (this._onKey) window.removeEventListener("keydown", this._onKey);
+      this._sheet = null;
     }
 
     _measure() {
@@ -514,25 +610,33 @@
       if (!this._config || !this._hass || !this.isConnected) return;
       const hass = this._hass, now = Date.now();
       const lang = (hass.locale && hass.locale.language) || hass.language || undefined;
-      const models = this._ovenConf.map((o) => {
-        const ids = ovenEntities(hass, o.entity);
-        return ovenModel(hass, ids, ovenName(hass, ids, o), now, this._dismissed[o.entity], o.icon);
-      });
+      // An oven picked from the menu that this card does not list takes the first oven's place.
+      let conf = this._ovenConf;
+      if (this._focus && !this._ovens.includes(this._focus) && hass.states[this._focus]) conf = [{ entity: this._focus }, ...conf.slice(1)];
+      const models = conf.map((o) => this._model(o, now));
       for (const m of models) if (this._busy[m.ids.climate] && !m.heating) delete this._busy[m.ids.climate];
       const f = this._focusIndex(models);
       const focus = models[f];
       const multi = models.length > 1;
-      const theme = ["light", "dark"].includes(this._config.theme) ? this._config.theme : "auto";
+      const theme = this._theme();
       const size = this._size;
       // The oven's clock shows the time without AM/PM.
-      const clock = new Intl.DateTimeFormat(lang, { hour: "numeric", minute: "2-digit" }).formatToParts(new Date(now))
+      const cl = String(this._pref("clock"));
+      const clock = new Intl.DateTimeFormat(lang, { hour: "numeric", minute: "2-digit", hour12: cl === "12" ? true : cl === "24" ? false : undefined }).formatToParts(new Date(now))
         .filter((part) => part.type !== "dayPeriod").map((part) => part.value).join("").trim();
       const date = new Date(now).toLocaleDateString(lang, { weekday: "long", month: "long", day: "numeric" });
 
+      // The name tucks only on the home screen (the mode tiles); in a cook it always shows. Coming back
+      // home shows it again for 5 s.
+      const home = focus.key === "off" && size !== "compact";
+      if (home && this._wasHome === false) this._tuckLater();
+      this._wasHome = home;
+      const nb = { tucked: home && this._tucked && this._hideName(), open: !!(this._sheet && this._sheet.kind === "menu") };
       let body;
       if (size === "compact") body = compact(focus, { multi: false }, this._busy[focus.ids.climate]);
-      else body = focus.key === "off" ? idle(focus, clock, date, this._page, size) : run(focus, { size, multi }, this._busy[focus.ids.climate]);
-      const sheet = this._review && this._review.oven === focus.ids.climate && size !== "compact" ? review(this._review, focus.name, focus.unit, now, multi) : "";
+      else body = focus.key === "off" ? idle(focus, clock, date, this._page, size, nb, this._tiles(focus.ids.climate)) : run(focus, { size, multi }, this._busy[focus.ids.climate], nb);
+      this._multi = multi;
+      this._focusId = focus.ids.climate;
 
       let rows = "";
       if (multi && size !== "compact") {
@@ -543,7 +647,8 @@
           (quiet.length ? `<div class="d2-other is-quiet" role="group" aria-label="Ovens that are off">${quiet.map((m) => `<button class="d2-quiet" data-act="focus" data-oven="${esc(m.ids.climate)}" aria-label="Show ${esc(m.name)}, off">${m.oic || svg("0 0 20 20", ST.off, "d2-sti")}<span class="d2-qn">${esc(m.name)}</span><span class="d2-qs">Off</span></button>`).join("")}</div>` : "");
       }
       const autoH = this._collapsed ? ` style="height:${size === "compact" ? 56 : size === "wall" ? 504 : 376 + (multi ? 64 * (models.length - 1) : 0)}px"` : "";
-      const html = `<ha-card${autoH}><div class="c-d2 d2-${theme} d2-${size}${focus.key === "off" ? " is-rest" : ""}${multi ? " d2-multi" : ""}"><div class="d2-pane">${body}${sheet}</div>${rows}</div></ha-card>`;
+      const html = `<ha-card${autoH}><div class="c-d2 d2-${theme} d2-${size}${focus.key === "off" ? " is-rest" : ""}${multi ? " d2-multi" : ""}"><div class="d2-pane">${body}</div>${rows}</div></ha-card>`;
+      this._syncOver(theme, size);
       if (html === this._html) return;
       const pager = this.shadowRoot.querySelector(".d2-pager");
       const scroll = pager ? pager.scrollLeft : 0;
@@ -591,8 +696,196 @@
     }
 
     _refreshCameras() {
-      if (document.hidden || !this._liveCams) return;
+      if (document.hidden || !this._liveCams || (this._sheet && this._sheet.kind === "camera")) return;
       for (const id of Object.keys(this._imgs)) this._loadStill(id, false);
+    }
+
+    // ---- settings ----
+    _pref(k) {
+      return this._prefs[k] !== undefined ? this._prefs[k] : this._config[k];
+    }
+
+    _theme() {
+      const t = this._pref("theme");
+      return ["light", "dark"].includes(t) ? t : "auto";
+    }
+
+    _hideName() {
+      const v = this._pref("hide_name");
+      return v !== false && v !== "false";
+    }
+
+    _fps() {
+      const v = +this._pref("camera_fps");
+      return Number.isFinite(v) && v > 0 ? Math.min(10, Math.max(0.1, v)) : 1;
+    }
+
+    // Cooks started from the card, per oven and mode. Kept apart from the settings, so Reset keeps them.
+    _uses() {
+      try { const u = JSON.parse(localStorage.getItem(USES_KEY)); return u && typeof u === "object" ? u : {}; } catch (e) { return {}; }
+    }
+
+    _countUse(oven, mode) {
+      const u = this._uses();
+      u[oven] = u[oven] || {};
+      u[oven][mode] = (u[oven][mode] || 0) + 1;
+      try { localStorage.setItem(USES_KEY, JSON.stringify(u)); } catch (e) { /* private window: not counted */ }
+    }
+
+    // Mode tiles: the oven's order, or most used first (ties keep the oven's order). Camera and Settings stay last.
+    _tiles(oven) {
+      if (this._pref("mode_order") !== "used") return TILES;
+      const n = this._uses()[oven] || {};
+      const modes = STARTABLE.map((t, i) => [t, i]).sort((a, b) => (n[b[0][0]] || 0) - (n[a[0][0]] || 0) || a[1] - b[1]).map(([t]) => t);
+      return [...modes, ...TILES.filter(([k]) => UTIL.includes(k))];
+    }
+
+    _savePrefs() {
+      try { localStorage.setItem(this._prefsKey, JSON.stringify(this._prefs)); } catch (e) { /* private window: not remembered */ }
+    }
+
+    _restartCamTimer() {
+      clearInterval(this._camTimer);
+      this._camTimer = setInterval(() => this._refreshCameras(), Math.max(200, 1000 / this._fps()));
+    }
+
+    // ---- ovens ----
+    _conf(entity) {
+      return this._ovenConf.find((o) => o.entity === entity) || { entity };
+    }
+
+    _model(o, now = Date.now()) {
+      const hass = this._hass;
+      const ids = ovenEntities(hass, o.entity);
+      return ovenModel(hass, ids, ovenName(hass, ids, o), now, this._dismissed[o.entity], this._prefs.icons[o.entity] || o.icon);
+    }
+
+    // Every June oven in Home Assistant: the card's own first, then the rest.
+    _allOvens() {
+      const found = Object.values(this._hass.entities || {})
+        .filter((e) => e.platform === DOMAIN && e.entity_id.startsWith("climate.") && this._hass.states[e.entity_id])
+        .map((e) => e.entity_id).sort();
+      return [...this._ovens, ...found.filter((id) => !this._ovens.includes(id))].map((id) => this._conf(id));
+    }
+
+    _focusedOven() {
+      return this._focusId || this._ovens[0];
+    }
+
+    // The name shows for 5 s, then tucks into the icon (it comes back on hover, focus, or with the menu).
+    _showName() {
+      const was = this._tucked;
+      this._tuckLater();
+      if (was) { this._html = ""; this._render(); }
+    }
+
+    _tuckLater() {
+      clearTimeout(this._tuckTimer);
+      this._tucked = false;
+      this._tuckTimer = setTimeout(() => {
+        this._tucked = true;
+        // Tuck the home screen's button in place so it animates; the next render carries the same class.
+        if (this._hideName()) this.shadowRoot.querySelectorAll(".d2-idle .d2-ovb").forEach((b) => b.classList.add("is-tucked"));
+      }, TUCK_MS);
+    }
+
+    // ---- sheets ----
+    _openSheet(sheet) {
+      this._closeSheet(true);
+      this._sheet = sheet;
+      this._html = "";
+      this._render();
+      this._renderOver();
+    }
+
+    _closeSheet(quiet) {
+      const was = this._sheet;
+      clearTimeout(this._reviewTimer);
+      clearTimeout(this._cvTimer);
+      this._sheet = null;
+      if (quiet) return;
+      this._html = "";
+      this._render();
+      this._renderOver();
+      // Back to what opened the sheet, for keyboards.
+      const back = was && this.shadowRoot.querySelector(was.kind === "menu" ? ".d2-ovb" : was.kind === "review" ? `.d2-tile[data-mode="${was.mode}"]` : `.d2-tile[data-act="${was.kind}"], .d2-cam`);
+      if (back && was.byKey) back.focus();
+    }
+
+    _syncOver(theme, size) {
+      const el = this._overEl;
+      el.className = `jo-over c-d2 d2-${theme} d2-${size}`;
+      if (this._sheet && (size === "compact" || !this._hass.states[this._sheet.oven])) { this._sheet = null; this._renderOver(); }
+    }
+
+    _renderOver() {
+      const el = this._overEl, s = this._sheet;
+      if (!s || !this._hass || !this._config) { el.hidden = true; el.innerHTML = ""; return; }
+      el.className = `jo-over c-d2 d2-${this._theme()} d2-${this._size}`;
+      el.dataset.kind = s.kind;
+      el.hidden = false;
+      const now = Date.now();
+      const m = this._model(this._conf(s.oven), now);
+      if (s.kind === "review") el.innerHTML = review(s, m.name, m.unit, now, this._multi);
+      else if (s.kind === "settings") el.innerHTML = settingsSheet({ theme: this._theme(), camera_fps: this._fps(), hide_name: this._hideName(), clock: String(this._pref("clock")), mode_order: this._pref("mode_order") === "used" ? "used" : "oven", }, m,
+        this._allOvens().map((o) => ({ m: this._model(o, now), icon: this._prefs.icons[o.entity] || o.icon })), s.iconFor || s.oven);
+      else if (s.kind === "camera") el.innerHTML = cameraSheet(m);
+      else if (s.kind === "menu") el.innerHTML = menuSheet(this._allOvens().map((o) => this._model(o, now)), s.oven, s.pos);
+      const first = el.querySelector(s.kind === "menu" ? '.d2-mi[aria-checked="true"]' : ".d2-icbtn");
+      if (first && s.byKey) first.focus();
+      if (s.kind === "camera") this._cvFrame();
+    }
+
+    _openMenu(btn, byKey) {
+      const host = this.getBoundingClientRect(), r = btn.getBoundingClientRect();
+      const x = Math.max(8, Math.min(r.left - host.left - 4, host.width - 268));
+      const y = r.bottom - host.top + 6;
+      this._openSheet({ kind: "menu", oven: this._focusedOven(), byKey, pos: { x: Math.round(x), y: Math.round(y), h: Math.max(96, Math.round(host.height - y - 8)) } });
+    }
+
+    // Camera window: pictures from Home Assistant's camera proxy at the chosen frame rate.
+    _cvFrame() {
+      const s = this._sheet;
+      if (!s || s.kind !== "camera") return;
+      clearTimeout(this._cvTimer);
+      const el = this._overEl;
+      // A failed picture is retried every 5 s, not at the frame rate.
+      const next = (wait = 1000 / this._fps()) => { if (this._sheet === s) this._cvTimer = setTimeout(() => this._cvFrame(), Math.max(0, wait - (Date.now() - t0))); };
+      const t0 = Date.now();
+      const m = this._model(this._conf(s.oven), t0);
+      const st = m.ids.camera && this._hass.states[m.ids.camera];
+      const show = (title, text) => {
+        const msg = el.querySelector(".d2-cv-msg"), pill = el.querySelector(".d2-cv-pill");
+        if (!msg) return;
+        msg.hidden = !title;
+        if (title) { msg.querySelector("b").textContent = title; msg.querySelector("span").textContent = text; }
+        if (pill) {
+          pill.hidden = !s.shown;
+          pill.textContent = s.ok ? "LIVE" : s.shown ? `Picture from ${new Date(s.shown).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}` : "";
+          pill.classList.toggle("is-old", !s.ok);
+        }
+      };
+      if (!st || !st.attributes.entity_picture) { show("No camera", "This oven has no camera in Home Assistant."); return; }
+      if (document.hidden) return next();
+      const base = st.attributes.entity_picture;
+      const img = new Image();
+      img.onload = () => {
+        if (this._sheet !== s) return;
+        const view = el.querySelector(".d2-cv-img");
+        if (view) view.src = img.src;
+        s.ok = true; s.shown = Date.now();
+        show("", "");
+        next();
+      };
+      img.onerror = () => {
+        if (this._sheet !== s) return;
+        s.ok = false;
+        // Home Assistant answers 503 while the camera is off and 500 when the oven has no picture.
+        if (!s.shown) show(m.heating ? "Waiting for a picture" : "Camera off", m.heating ? "The oven hasn't sent a picture yet." : "The oven's camera runs while it heats.");
+        else show("", "");
+        next(Math.max(5000, 1000 / this._fps()));
+      };
+      img.src = `${base}${base.includes("?") ? "&" : "?"}_t=${t0}`;
     }
 
     _handleClick(e) {
@@ -600,17 +893,25 @@
       if (!el || el.disabled) return;
       const act = el.dataset.act, oven = el.dataset.oven;
       const hass = this._hass;
+      const byKey = e.detail === 0;
       if (act === "stop") return this._stop(oven);
       if (act === "add") return this._call("june_oven", "add_cook_time", { minutes: +el.dataset.min }, oven, `Added ${el.dataset.min} min`);
       if (act === "dismiss") { this._dismissed[oven] = +el.dataset.completed; this._html = ""; return this._render(); }
-      if (act === "focus") {
+      if (act === "focus" || act === "pick") {
         this._focus = oven;
-        try { localStorage.setItem(this._focusKey, oven); } catch (e) { /* private window: not remembered */ }
+        try { localStorage.setItem(this._focusKey, oven); } catch (err) { /* private window: not remembered */ }
+        if (act === "pick") { this._closeSheet(true); this._renderOver(); this._showName(); }
         this._html = "";
         return this._render();
       }
+      if (act === "menu") return this._sheet && this._sheet.kind === "menu" ? this._closeSheet() : this._openMenu(el, byKey);
+      if (act === "sheet-close") return this._closeSheet();
       if (act === "more") return this._moreInfo(oven);
-      if (act === "camera") { const ids = ovenEntities(hass, oven); return this._moreInfo(ids.camera || oven); }
+      if (act === "camera") {
+        // The one-row card is too small for a window: Home Assistant's camera dialog instead.
+        if (this._size === "compact") { const ids = ovenEntities(hass, oven); return this._moreInfo(ids.camera || oven); }
+        return this._openSheet({ kind: "camera", oven, byKey });
+      }
       if (act === "page") {
         const pager = this.shadowRoot.querySelector(".d2-pager");
         this._page = +el.dataset.i;
@@ -618,17 +919,81 @@
         this.shadowRoot.querySelectorAll(".d2-dot").forEach((d, j) => (j === this._page ? d.setAttribute("aria-current", "true") : d.removeAttribute("aria-current")));
         return;
       }
-      if (act === "settings") {
+      if (act === "settings") return this._openSheet({ kind: "settings", oven, byKey });
+      if (act === "set") return this._setPref(el.dataset.k, el.dataset.v, oven);
+      if (act === "set-iconfor") { this._sheet.iconFor = this._sheet.iconFor === oven || (!this._sheet.iconFor && this._sheet.oven === oven) ? "-" : oven; return this._prefsChanged(true); }
+      if (act === "set-reset") { this._prefs = { icons: {} }; return this._prefsChanged(); }
+      if (act === "set-ha") {
         const ids = ovenEntities(hass, oven);
+        this._closeSheet();
         if (!ids.deviceId) return this._moreInfo(oven);
         history.pushState(null, "", `/config/devices/device/${ids.deviceId}`);
         window.dispatchEvent(new CustomEvent("location-changed", { detail: { replace: false } }));
         return;
       }
-      if (act === "tile") return this._openReview(oven, el.dataset.mode);
-      if (act === "rv-cancel") return this._closeReview();
-      if (act === "rv-dec" || act === "rv-inc") return this._stepReview(act === "rv-inc" ? 1 : -1);
+      if (act === "tile") return this._openReview(oven, el.dataset.mode, byKey);
+      if (act === "rv-dec" || act === "rv-inc") return this._setTemp(this._sheet && this._sheet.temp + (act === "rv-inc" ? 1 : -1) * this._sheet.step);
       if (act === "rv-start") return this._start();
+    }
+
+    _handleInput(e) {
+      const r = this._sheet;
+      if (!r || r.kind !== "review") return;
+      if (e.target.matches(".d2-range")) return this._setTemp(+e.target.value);
+      if (e.target.matches(".d2-sh-in")) {
+        // Digits only while typing; the slider follows any value in range, the number snaps on Enter or leaving.
+        const t = e.target.value.replace(/\D/g, "").slice(0, 3);
+        if (t !== e.target.value) e.target.value = t;
+        const v = parseInt(t, 10);
+        if (v >= r.min && v <= r.max) this._setTemp(v, true);
+      }
+    }
+
+    _handleChange(e) {
+      if (e.target.matches(".d2-sh-in")) this._commitTyped(e.target);
+      if (e.target.matches(".d2-mdi")) {
+        const v = e.target.value.trim().toLowerCase();
+        if (/^mdi:[a-z0-9-]+$/.test(v)) this._setPref("icon", v, e.target.dataset.oven);
+        else if (!v) this._setPref("icon", "oven", e.target.dataset.oven);
+        else e.target.value = e.target.defaultValue;
+      }
+    }
+
+    _handleKey(e) {
+      if (!this._sheet) return;
+      const t = e.composedPath()[0];
+      if (t && t.matches && t.matches(".d2-sh-in") && this._overEl.contains(t)) {
+        if (e.key === "Enter") { this._commitTyped(t); t.blur(); }
+        if (e.key === "Escape") { t.value = this._sheet.temp; t.blur(); }
+        return;
+      }
+      if (t && t.matches && t.matches(".d2-mdi") && e.key === "Enter") return t.blur();
+      if (e.key === "Escape") { this._sheet.byKey = this.shadowRoot.activeElement !== null; this._closeSheet(); }
+    }
+
+    _setPref(k, v, oven) {
+      if (k === "icon") {
+        if (oven) this._prefs.icons[oven] = v;
+      } else if (k === "camera_fps") this._prefs[k] = +v;
+      else if (k === "hide_name") this._prefs[k] = v === "true";
+      else this._prefs[k] = v;
+      this._prefsChanged();
+    }
+
+    _prefsChanged(viewOnly) {
+      if (!viewOnly) {
+        this._savePrefs();
+        this._restartCamTimer();
+        if (this._hideName()) this._showName(); else { clearTimeout(this._tuckTimer); this._tucked = false; }
+        this._html = "";
+        this._render();
+      }
+      const sheet = this._sheet;
+      const scroll = this._overEl.querySelector(".d2-set-list");
+      const top = scroll ? scroll.scrollTop : 0;
+      this._renderOver();
+      const again = this._overEl.querySelector(".d2-set-list");
+      if (again && sheet) again.scrollTop = top;
     }
 
     _moreInfo(entityId) {
@@ -659,52 +1024,59 @@
       setTimeout(() => { delete this._busy[oven]; this._html = ""; this._render(); }, ok ? 10000 : 0);
     }
 
-    _openReview(oven, mode) {
+    _openReview(oven, mode, byKey) {
       const c = this._hass.states[oven];
-      const step = (c && c.attributes.target_temp_step) || 5;
-      const def = c && Number.isFinite(+c.attributes.temperature) ? Math.round(+c.attributes.temperature / step) * step : 350;
-      this._review = { oven, mode, temp: def, step, min: (c && c.attributes.min_temp) || 100, max: (c && c.attributes.max_temp) || 500, until: Date.now() + REVIEW_MS };
-      clearTimeout(this._reviewTimer);
+      const step = (c && +c.attributes.target_temp_step) || 5;
+      const min = (c && +c.attributes.min_temp) || 100, max = (c && +c.attributes.max_temp) || 500;
+      const r = { kind: "review", oven, mode, step, min, max, temp: 350, until: Date.now() + REVIEW_MS, byKey };
+      r.temp = snap(r, c && Number.isFinite(+c.attributes.temperature) && c.attributes.temperature !== null ? +c.attributes.temperature : 350);
+      this._openSheet(r);
+      this._setTemp(r.temp);
       const tick = () => {
-        if (!this._review) return;
-        if (Date.now() >= this._review.until) return this._closeReview();
-        this._html = "";
-        this._render();
-        this._reviewTimer = setTimeout(tick, 1000);
+        if (this._sheet !== r) return;
+        const left = r.until - Date.now();
+        if (left <= 0) return this._closeSheet();
+        const el = this._overEl.querySelector(".d2-sh-left");
+        if (el) el.textContent = duration(left / 1000);
+        this._reviewTimer = setTimeout(tick, 1000 - (left % 1000) + 5);
       };
       tick();
     }
 
-    _stepReview(dir) {
-      const r = this._review;
-      if (!r) return;
-      r.temp = Math.max(r.min, Math.min(r.max, r.temp + dir * r.step));
-      this._html = "";
-      this._render();
+    // Number, slider and − / + stay in step; updated in place so a drag or typing is never interrupted.
+    _setTemp(v, typing) {
+      const r = this._sheet;
+      if (!r || r.kind !== "review" || !Number.isFinite(v)) return;
+      r.temp = snap(r, v);
+      const range = this._overEl.querySelector(".d2-range"), input = this._overEl.querySelector(".d2-sh-in");
+      if (range) { range.value = r.temp; range.style.setProperty("--p", fill(r)); }
+      if (input && !typing) input.value = r.temp;
+      this._overEl.querySelectorAll(".d2-round").forEach((b) => { b.disabled = b.dataset.act === "rv-dec" ? r.temp <= r.min : r.temp >= r.max; });
     }
 
-    _closeReview() {
-      this._review = null;
-      clearTimeout(this._reviewTimer);
-      this._html = "";
-      this._render();
+    _commitTyped(input) {
+      const v = parseInt(input.value, 10);
+      if (Number.isFinite(v)) this._setTemp(v);
+      input.value = this._sheet ? this._sheet.temp : input.value;
     }
 
     async _start() {
-      const r = this._review;
-      if (!r || r.busy) return;
+      const r = this._sheet;
+      if (!r || r.kind !== "review" || r.busy) return;
+      const input = this._overEl.querySelector(".d2-sh-in");
+      if (input) this._commitTyped(input);
       r.busy = true;
-      this._html = "";
-      this._render();
+      this._renderOver();
       const c = this._hass.states[r.oven];
       const steps = [];
       if (!c || c.attributes.preset_mode !== r.mode) steps.push(["set_preset_mode", { preset_mode: r.mode }]);
       steps.push(["set_temperature", { temperature: r.temp }], ["turn_on", {}]);
       for (const [service, data] of steps) {
-        if (!(await this._call("climate", service, data, r.oven))) { r.busy = false; this._html = ""; this._render(); return; }
+        if (!(await this._call("climate", service, data, r.oven))) { r.busy = false; if (this._sheet === r) this._renderOver(); return; }
       }
+      this._countUse(r.oven, r.mode);
       this._toast(`Preheating to ${r.temp}°`);
-      this._closeReview();
+      if (this._sheet === r) this._closeSheet();
     }
   }
 
@@ -731,8 +1103,8 @@
   --uA:color-mix(in srgb,var(--primary-text-color,#212121) 5%,transparent);--uB:color-mix(in srgb,var(--primary-text-color,#212121) 9%,transparent);--uRim:var(--divider-color,rgba(0,0,0,.12));--uGlyph:var(--secondary-text-color,#727272);--dlg:var(--ha-card-background,var(--card-background-color,#fff))}
 /* ---- Sizes (all measures from the pane box: container query units) ---- */
 .c-d2 .d2-pane{position:relative;width:100%;height:100%;container-type:size}
-.c-d2.d2-standard{--lift:8cqh;--slh:26px;--px:16px;--py:14px;--camw:34cqw;--cg:16px;--rg:12px;--hs:min(26cqw,27cqh);--hts:min(9.5cqw,14cqh);--clock:min(15cqw,19cqh);--camoff:max(64px,16cqw);--tgap:clamp(10px,3.4cqw,20px);--tmax:88px}
-.c-d2.d2-wall{--lift:0px;--slh:36px;--px:28px;--py:26px;--camw:30cqw;--cg:40px;--rg:20px;--hs:min(15cqw,25cqh);--hts:min(9cqw,16cqh);--clock:min(12cqw,19cqh);--camoff:min(11cqw,120px);--tgap:clamp(16px,3.4cqw,28px);--tmax:132px}
+.c-d2.d2-standard{--lift:8cqh;--slh:26px;--px:16px;--py:16px;--camw:34cqw;--cg:16px;--rg:12px;--hs:min(26cqw,27cqh);--hts:min(9.5cqw,14cqh);--clock:min(15cqw,19cqh);--camoff:max(64px,16cqw);--tgap:clamp(10px,3.4cqw,20px);--tmax:104px}
+.c-d2.d2-wall{--lift:0px;--slh:36px;--px:28px;--py:28px;--camw:30cqw;--cg:40px;--rg:20px;--hs:min(15cqw,25cqh);--hts:min(9cqw,16cqh);--clock:min(12cqw,19cqh);--camoff:min(11cqw,120px);--tgap:clamp(16px,3.4cqw,28px);--tmax:132px}
 /* ---- Status mark: shape + colour + word ---- */
 .c-d2 .d2-name{font:500 15px/20px var(--f);color:var(--fg);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .c-d2 .d2-st{display:flex;align-items:center;gap:6px;min-width:0;font:600 13px/20px var(--f);letter-spacing:.07em;text-transform:uppercase;color:var(--fg);white-space:nowrap}
@@ -937,8 +1309,9 @@
 @media (forced-colors:active){.c-d2 .d2-bar i{background:CanvasText}.c-d2 .d2-stop{border:2px solid ButtonText}}
 
 /* ---- In Home Assistant ---- */
-:host{display:block;height:100%}
+:host{display:block;height:100%;position:relative}
 .jo-root{height:100%}
+@container (max-width:400px){.c-d2.d2-standard .d2-idle .d2-name{font-size:19px;line-height:24px}}
 @container (max-width:340px){.c-d2.d2-standard .d2-idle .d2-name{font-size:18px;line-height:24px}}
 ha-card{height:100%;overflow:hidden;background:none;border:none;box-shadow:none;border-radius:var(--ha-card-border-radius,12px);padding:0}
 .c-d2 .d2-win img{display:block;width:100%;height:100%;object-fit:contain}
@@ -975,6 +1348,108 @@ ha-card{height:100%;overflow:hidden;background:none;border:none;box-shadow:none;
 .c-d2.d2-wall .d2-sh-note{font-size:19px;line-height:26px}
 .c-d2.d2-wall .d2-sh-v b{font-size:72px}
 .c-d2.d2-wall .d2-go{height:64px;font-size:22px}
+/* ---- The oven button: icon (the oven's lamp) and a name that tucks into it ---- */
+.c-d2 .d2-ovb{display:flex;align-items:center;justify-self:start;align-self:start;max-width:100%;min-width:0;min-height:44px;margin:-8px 0 -8px calc(-6px - .175em);padding:0 6px;border-radius:12px;text-align:left;transition:background-color .2s}
+.c-d2 .d2-ovb:hover,.c-d2 .d2-ovb.is-open{background:color-mix(in srgb,var(--fg) 7%,transparent)}
+.c-d2 .d2-lamp{display:flex;flex:none}
+.c-d2 .d2-ovb .d2-oic,.c-d2 .d2-mi .d2-oic{width:1.2em;height:1.2em;margin:0;vertical-align:0;color:var(--fg);--mdc-icon-size:1.2em;transition:color .3s,filter .3s}
+.c-d2 .l-on .d2-oic{color:var(--ember);filter:drop-shadow(0 0 3px var(--glow)) drop-shadow(0 0 9px var(--glow))}
+.c-d2 .l-lost .d2-oic{color:var(--grey);opacity:.75}
+.c-d2 .d2-nm{min-width:0;max-width:80cqw;padding-left:.4em;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;transition:max-width .5s ease,padding .5s ease,opacity .35s ease}
+.c-d2 .d2-ovb.is-tucked .d2-nm{max-width:0;padding-left:0;opacity:0}
+.c-d2 .d2-ovb.is-tucked:hover .d2-nm,.c-d2 .d2-ovb.is-tucked:focus-visible .d2-nm,.c-d2 .d2-ovb.is-tucked.is-open .d2-nm{max-width:80cqw;padding-left:.4em;opacity:1}
+.c-d2 .d2-idle .d2-top{align-items:start}
+/* Equal margins, measured to the ink: the icon's drawing and the clock's digits start at the
+   card's padding, like the tiles (the icon's grid has a 3.5/24 inset, the digits sit .15em down). */
+.c-d2 .d2-idle .d2-ovb{margin-top:calc(.4em - 22px)}
+.c-d2 .d2-idle .d2-time{margin-top:-.15em}
+/* Equal margins: the tiles reach the card's side padding and sit on its bottom padding, the same
+   distance as the name and clock from the top; spare height goes between the clock and the tiles. */
+.c-d2 .d2-page{justify-content:space-between;align-content:end}
+/* A wall tablet's single row leaves too much height for one gap: there the tiles sit midway. */
+.c-d2.d2-wall .d2-page{align-content:center}
+.c-d2 .d2-idle.no-dots .d2-pager{padding-top:var(--py)}
+/* ---- Sheets layer ---- */
+.jo-over[hidden]{display:none!important}
+.c-d2.jo-over{position:absolute;inset:0;z-index:10;background:none;box-shadow:none;container-type:size}
+.c-d2 .d2-sheet{box-shadow:inset 0 0 0 1px var(--rim)}
+/* Review: number you can type in, slider, − and + */
+.c-d2 .d2-sh-v{display:flex;align-items:baseline;gap:2px;cursor:text}
+.c-d2 .d2-sh-in{width:1.75em;padding:0 0 2px;border:0;border-bottom:2px dashed var(--chipb);border-radius:0;background:none;font-family:var(--fn);font-weight:300;font-size:46px;line-height:1;color:var(--fg);text-align:center;font-variant-numeric:tabular-nums;outline:none;caret-color:var(--ember)}
+.c-d2 .d2-sh-in:hover{border-bottom-color:var(--fg2)}
+.c-d2 .d2-sh-in:focus{border-bottom:2px solid var(--ember)}
+.c-d2.d2-wall .d2-sh-in{font-size:72px}
+.c-d2 .d2-round[disabled]{opacity:.35;cursor:default}
+.c-d2 .d2-sh-slide{padding:0 2px}
+.c-d2 .d2-range{-webkit-appearance:none;appearance:none;display:block;width:100%;height:32px;margin:0;background:none;cursor:pointer;--trk:linear-gradient(90deg,var(--ember2),var(--ember)) 0/calc(var(--p) * 100%) 100% no-repeat,var(--track)}
+.c-d2 .d2-range::-webkit-slider-runnable-track{height:6px;border-radius:3px;background:var(--trk)}
+.c-d2 .d2-range::-moz-range-track{height:6px;border-radius:3px;background:var(--trk)}
+.c-d2 .d2-range::-webkit-slider-thumb{-webkit-appearance:none;width:26px;height:26px;margin-top:-10px;border-radius:50%;background:#fff;box-shadow:0 0 0 3px var(--ember),0 2px 6px rgba(0,0,0,.35)}
+.c-d2 .d2-range::-moz-range-thumb{width:22px;height:22px;border:0;border-radius:50%;background:#fff;box-shadow:0 0 0 3px var(--ember),0 2px 6px rgba(0,0,0,.35)}
+.c-d2 .d2-range:focus-visible{outline:2px solid var(--focus);outline-offset:2px;border-radius:6px}
+.c-d2 .d2-sh-ends{display:flex;justify-content:space-between;font:400 12px/14px var(--f);color:var(--fg2)}
+.c-d2.d2-wall .d2-sh-ends{font-size:16px;line-height:20px}
+/* Settings */
+.c-d2 .d2-set{gap:6px;padding-bottom:0}
+.c-d2 .d2-set-list{flex:1 1 auto;min-height:0;overflow-y:auto;overscroll-behavior:contain;scrollbar-width:thin;margin:0 calc(var(--px) * -1);padding:0 var(--px) var(--py)}
+.c-d2 .d2-set-row{padding:10px 0;border-top:1px solid var(--line)}
+.c-d2 .d2-set-row:first-child{border-top:0;padding-top:4px}
+.c-d2 .d2-set-l{font:600 13px/18px var(--f);letter-spacing:.06em;text-transform:uppercase;color:var(--fg2);margin-bottom:8px}
+.c-d2 .d2-set-h{font:400 13px/17px var(--f);color:var(--fg2);margin-top:6px}
+.c-d2 .d2-seg{display:flex;flex-wrap:wrap;gap:6px}
+.c-d2 .d2-seg button{flex:1 1 auto;min-height:40px;padding:0 12px;border-radius:10px;box-shadow:inset 0 0 0 1px var(--chipb);font:500 15px/1 var(--f);color:var(--fg);white-space:nowrap}
+.c-d2 .d2-seg button[aria-checked="true"],.c-d2 .d2-ici[aria-checked="true"]{background:color-mix(in srgb,var(--ember) 16%,transparent);box-shadow:inset 0 0 0 1.5px var(--ember)}
+.c-d2 .d2-icons{display:grid;grid-template-columns:repeat(auto-fill,minmax(44px,1fr));gap:6px}
+.c-d2 .d2-ici{height:44px;display:flex;align-items:center;justify-content:center;border-radius:10px;box-shadow:inset 0 0 0 1px var(--chipb);color:var(--fg)}
+.c-d2 .d2-ici .d2-oic{width:24px;height:24px;margin:0;color:inherit}
+.c-d2 .d2-ic-list{display:flex;flex-direction:column;gap:6px}
+.c-d2 .d2-ic-row{border-radius:12px;box-shadow:inset 0 0 0 1px var(--line)}
+.c-d2 .d2-ic-row.is-open{box-shadow:inset 0 0 0 1px var(--chipb)}
+.c-d2 .d2-ic-head{display:flex;align-items:center;gap:10px;width:100%;min-height:48px;padding:0 12px;font:500 16px/20px var(--f);color:var(--fg);text-align:left}
+.c-d2 .d2-ic-cur .d2-oic{width:24px;height:24px;margin:0;color:var(--fg)}
+.c-d2 .d2-ic-n{flex:1 1 auto;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.c-d2 .d2-ic-chev{flex:none;width:20px;text-align:center;font:400 20px/1 var(--f);color:var(--fg2)}
+.c-d2 .d2-ic-pick{padding:0 10px 10px}
+.c-d2 .d2-mdi{display:block;width:100%;height:40px;margin-top:8px;padding:0 12px;border:0;border-radius:10px;box-shadow:inset 0 0 0 1px var(--chipb);background:none;font:400 15px/1 var(--f);color:var(--fg);outline:none}
+.c-d2 .d2-mdi:focus{box-shadow:inset 0 0 0 1.5px var(--ember)}
+.c-d2 .d2-mdi::placeholder{color:var(--fg2)}
+.c-d2.d2-wall .d2-ic-head{min-height:60px;font-size:20px}
+.c-d2 .d2-set-acts{display:flex;flex-wrap:wrap;gap:8px;padding-top:10px;border-top:1px solid var(--line)}
+.c-d2 .d2-set-acts .d2-ghost{flex:1 1 auto;height:44px}
+.c-d2.d2-wall .d2-seg button{min-height:52px;font-size:19px}
+.c-d2.d2-wall .d2-set-l{font-size:16px;line-height:22px}
+.c-d2.d2-wall .d2-set-h{font-size:16px;line-height:22px}
+/* Camera window: floats over the card, the picture uncropped, X to close */
+.c-d2 .d2-cv-back{position:absolute;inset:0;background:rgba(0,0,0,.55)}
+.c-d2 .d2-cv{position:absolute;inset:calc(var(--px) / 2);display:flex;flex-direction:column;border-radius:14px;overflow:hidden;background:#000;box-shadow:0 0 0 1px rgba(255,255,255,.12),0 10px 34px rgba(0,0,0,.55)}
+.c-d2 .d2-cv-win{position:relative;flex:1 1 auto;min-height:0}
+.c-d2 .d2-cv-img{position:absolute;inset:0;width:100%;height:100%;object-fit:contain}
+.c-d2 .d2-cv-img:not([src]){visibility:hidden}
+.c-d2 .d2-cv-msg{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;padding:0 24px;text-align:center;color:#d4d4d8;font:400 14px/19px var(--f)}
+.c-d2 .d2-cv-msg[hidden]{display:none}
+.c-d2 .d2-cv-msg .d2-ic{width:30px;height:30px;color:#a1a1aa}
+.c-d2 .d2-cv-msg b{font:600 17px/22px var(--f);color:#f4f4f5}
+.c-d2 .d2-cv-bar{position:absolute;left:0;right:0;top:0;display:flex;align-items:center;justify-content:space-between;gap:8px;padding:6px 6px 18px 14px;background:linear-gradient(180deg,rgba(0,0,0,.7),transparent);color:#fff;font:600 16px/20px var(--f)}
+.c-d2 .d2-cv-t{display:flex;align-items:center;gap:8px;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.c-d2 .d2-cv-pill{position:static;font-size:11px;padding:3px 6px;border-radius:5px;background:#c62828;color:#fff}
+.c-d2 .d2-cv-pill.is-old{background:rgba(0,0,0,.66);color:#fbbf24}
+.c-d2 .d2-cv-pill[hidden]{display:none}
+.c-d2 .d2-cv-x{background:rgba(0,0,0,.45);color:#fff}
+.c-d2.d2-wall .d2-cv-bar{font-size:22px;line-height:28px;padding:10px 10px 26px 20px}
+.c-d2.d2-wall .d2-cv-pill{font-size:15px;padding:5px 9px}
+/* Oven menu */
+.c-d2 .d2-menu-back{position:absolute;inset:0}
+.c-d2 .d2-menu{position:absolute;width:min(260px,calc(100cqw - 16px));overflow-y:auto;padding:6px;border-radius:14px;background:var(--dlg);box-shadow:0 0 0 1px var(--line),0 12px 32px rgba(0,0,0,.4);animation:d2-drop .16s ease-out}
+@keyframes d2-drop{from{opacity:0;transform:translateY(-6px)}}
+.c-d2 .d2-mi{display:flex;align-items:center;gap:10px;width:100%;min-height:48px;padding:0 10px;border-radius:10px;font:500 16px/20px var(--f);color:var(--fg);text-align:left}
+.c-d2 .d2-mi:hover,.c-d2 .d2-mi:focus-visible{background:color-mix(in srgb,var(--fg) 7%,transparent)}
+.c-d2 .d2-mi .d2-oic{font-size:18px}
+.c-d2 .d2-mi-n{flex:1 1 auto;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.c-d2 .d2-mi-s{flex:none;font:600 12px/16px var(--f);letter-spacing:.07em;text-transform:uppercase;color:var(--fg2)}
+.c-d2 .d2-mi.l-on .d2-mi-s{color:var(--ember)}
+.c-d2 .d2-mi>.d2-ic{flex:none;width:18px;height:18px;color:var(--fg2)}
+.c-d2.d2-wall .d2-mi{min-height:60px;font-size:22px}
+.c-d2.d2-wall .d2-menu{width:min(340px,calc(100cqw - 16px))}
 `;
 
   // Some dashboards load a scoped custom-element registry polyfill (in browsers without native support,
