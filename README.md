@@ -378,6 +378,9 @@ What the card does:
 Remote start must be allowed on the oven itself: on the oven, open
 **Settings › App permissions**.
 
+The card's design, the study behind it, and the reasons for each choice are in
+[docs/july-oven-card](docs/july-oven-card/README.md).
+
 ## Automations
 
 Notification-only automations are the safest place to start. Replace the
@@ -546,6 +549,11 @@ GitHub Actions additionally runs HACS and Hassfest validation. Full config-flow
 and entity tests should run inside a Home Assistant development environment.
 Pairing, heating, cancellation, telemetry, and camera changes must state
 whether they were verified on a physical oven.
+
+The dashboard card is a single hand-edited file,
+`custom_components/june_oven/www/july-oven-card.js`, with no build step. Check
+card changes on the test pages in [tests/card](tests/card/README.md) and against
+the [design record](docs/july-oven-card/DESIGN.md).
 
 See [CONTRIBUTING.md](CONTRIBUTING.md) before opening a pull request.
 
