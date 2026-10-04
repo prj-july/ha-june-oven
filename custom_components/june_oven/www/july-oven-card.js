@@ -34,7 +34,7 @@
  */
 (() => {
   "use strict";
-  const VERSION = "0.4.0";
+  const VERSION = "0.4.1";
   const DOMAIN = "june_oven";
   const TAG = "july-oven-card";
   if (customElements.get(TAG)) return;
@@ -1170,7 +1170,12 @@
 .c-d2 .d2-a{font:500 16px/21px var(--f);color:var(--fg);margin-top:12px;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
 .c-d2 .d2-b{font:400 14px/19px var(--f);color:var(--fg2);margin-top:2px;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
 /* camera */
-.c-d2 .d2-cam{position:relative;display:block;width:100%;aspect-ratio:4/3;border-radius:10px;overflow:hidden;background:var(--win);box-shadow:0 0 0 1px var(--line)}
+.c-d2 .d2-cam{position:relative;display:block;width:100%;aspect-ratio:4/3;border-radius:12px;overflow:hidden;isolation:isolate;background:var(--win)}
+/* The camera's edge matches the tiles: a faint ring drawn inside, above the picture, so the rounded
+   clip can't shave it unevenly. Corners match the Stop button above. */
+.c-d2 .d2-cam:not(.is-off)::after{content:"";position:absolute;inset:0;z-index:2;border-radius:inherit;pointer-events:none;box-shadow:inset 0 0 0 1px var(--uRim),inset 0 1px 0 var(--tSheen)}
+/* No picture yet (or offline): hide the empty image, or Chrome outlines it as a missing image. */
+.c-d2 .d2-win img:not([src]){display:none}
 .c-d2 .d2-win{display:block;width:100%;height:100%}
 .c-d2 .d2-cam.is-off{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;background:transparent;box-shadow:none;border:1.5px dashed var(--chipb);color:var(--fg2);font:500 12px/1 var(--f)}
 .c-d2 .d2-cam.is-off .d2-ic{width:20px;height:20px}
