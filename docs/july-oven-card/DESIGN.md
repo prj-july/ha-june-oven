@@ -106,14 +106,22 @@ report its door yet.
 
 **Idle (off).**
 
-- The oven's home screen: a centred clock (no AM/PM, as on the oven) and the date. The name and
-  status sit on one side and a small "Camera off" window on the other.
-- Square glowing mode tiles in two rows, centred between the date and the page dots.
+- The oven's home screen: a centred clock (no AM/PM, as on the oven) and the date, with the
+  oven's icon and name at the top left.
+- Square glowing mode tiles in two rows. Every margin is the card's padding (16 px, 28 px on a
+  wall tablet), measured to the ink: the icon's drawing and the clock's digits at the top, the
+  outer tiles at the sides, the labels at the bottom. Spare height goes between the date and the
+  tiles; on a wall tablet's single row the tiles sit midway instead.
 - The card offers the five modes Home Assistant can start: Bake, Roast, Broil, Air fry and Toast.
-  These plus **Settings** (the last tile, in grey glass, opening the oven's device page) fit
-  3 × 2 on one page.
+  These plus **Camera** and **Settings** (the last tiles, in grey glass) fit 4 × 2 on one page.
+- **Camera** opens a floating window inside the card with the camera at the chosen frame rate
+  and × to close. While the oven is off it says "Camera off": Home Assistant answers 503 for a
+  camera that is off.
+- **Settings** opens in the card: appearance, camera frame rate, the name, the clock, the oven's
+  icon, and a link to the oven's device page. Choices are kept per browser; YAML is the default.
 - A mode tile opens the review:
-  - the temperature, adjusted with − and +;
+  - the temperature, set with a slider (the oven's min, max and step), − and +, or by typing it
+    into the number (snapped to the step and clamped on Enter or leaving the field);
   - the warning "Make sure the oven is empty and the door is closed";
   - a countdown;
   - **Start preheating** (with several ovens, "Start preheating Kitchen").
@@ -133,6 +141,13 @@ report its door yet.
   column at the same width as the top Stop.
 - **Ovens that are off:** they share one row of small pills.
 - **Switching:** tapping a row or pill focuses that oven.
+
+**The oven's icon.** Every oven has one (`oven` by default). It is the oven's lamp: orange with
+a glow while it heats, the text colour (white on the glass) while it is off, grey when offline.
+It replaces the idle "Off" mark. The name beside it tucks into the icon 5 s after the card loads
+or another oven is picked, and comes back on hover, keyboard focus, or with the menu open. Tapping
+it opens a menu of every June oven in Home Assistant, each with its lamp, name and state; picking
+one shows it (an oven the card doesn't list takes the first oven's place).
 
 **Oven icons.** Pick from a set of 12 (oven, kitchen, house, garage, basement, apartment, cabin,
 patio, office, camper, bread, star), or use any `mdi:` icon. The icon shows next to the oven's
@@ -167,6 +182,12 @@ name, in its row, and on its pill.
 | 10-03 | Re-check registration every 2 s (v0.3.1) | Firefox: another card's scoped-registry polyfill replaced `window.customElements` after the card loaded |
 | 10-03 | Size the camera from the number group (v0.3.2) | On boxes other than 12 × 6 at 500 px the camera ended up to 48 px short of the bar |
 | 10-03 | Keep the repository name `ha-june-oven`, domain `june_oven`, name "June Oven" | Drop-in replacement for upstream jclima/ha-june-oven; easy to merge upstream fixes |
+| 10-04 | The icon is the oven's lamp and opens an oven menu; the name tucks into it after 5 s; no idle "Off" mark (v0.4.0) | Lead's request: calmer top row, every oven one tap away |
+| 10-04 | Camera becomes a tile and opens a floating window in the card | Lead's request: Home Assistant's camera dialog offered a broken snapshot download while the oven was off |
+| 10-04 | Settings open in the card, kept per browser | Lead's request: the device page's sensor list was not settings |
+| 10-04 | Review gets a slider and a typed temperature | Lead's request |
+| 10-04 | Equal margins on every side, measured to the ink | Lead's request: the gap above the name read tighter than the sides and bottom |
+| 10-04 | Sheets (review, settings, camera, menu) in their own layer over the card | Re-renders would otherwise interrupt a slider drag or typing |
 
 ## Open questions
 
@@ -176,8 +197,10 @@ name, in its row, and on its pill.
 - **Door state.** The oven cuts its elements while the door is open, so it knows. But the door is
   not in the captured telemetry: june-local needs to report it. Until then there is no door-open
   state and no door marks on graphs.
-- **Camera turn-on.** june-local's camera wake endpoint is unverified, so the card shows "Camera
-  off" without a Turn on button.
+- **Camera turn-on.** june-local's camera wake endpoint is unverified, so the camera window shows
+  "Camera off" without a Turn on button.
+- **Camera rate.** The window asks Home Assistant for a picture at the chosen rate, but the oven
+  only sends a new picture now and then; how often is unmeasured.
 - **Temperature graph.** It is one tap away, in Home Assistant's more-info history, not on the
   card. A Glass graph page (oven, food, door bands) is designed in the study.
 - **Undo after adding time.** This is in the design, not built: the action has no negative step.
@@ -189,8 +212,9 @@ name, in its row, and on its pill.
 
 1. Open [tests/card/index.html](../../tests/card/README.md) and check every state at 500, 358 and
    320 px in all three looks. `fitCheck()` must return `[]`.
-2. Click through Stop, add time, the start review (including a refused start), Settings, the
-   camera, switching ovens, and the remembered oven. Each must send the expected service call
+2. Click through Stop, add time, the start review (slider, typing, − and +, a refused start),
+   Settings (each choice, reload to see it kept), the camera window (Escape and ×), the oven
+   menu, switching ovens, the name tucking and coming back on hover, and the remembered oven. Each must send the expected service call
    (listed at the bottom of the page).
 3. For changes to the integration's setup, run the unit tests and the config-flow tests against
    Home Assistant. See [MAINTAINER.md](../../MAINTAINER.md) and the `tests/` folder.
