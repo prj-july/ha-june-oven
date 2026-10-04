@@ -6,7 +6,8 @@
     "http"
   ],
   "codeowners": [
-    "@jclima"
+    "@Terablo",
+    "@MakeshiftArtisan"
   ],
   "config_flow": true,
   "documentation": "https://github.com/prj-july/ha-june-oven",
