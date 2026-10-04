@@ -196,6 +196,7 @@ name, in its row, and on its pill.
 | 10-04 | Optional "most used first" order for the mode tiles, counted on Start | Lead's request; a review opened and cancelled is not a use |
 | 10-04 | Equal margins on every side, measured to the ink | Lead's request: the gap above the name read tighter than the sides and bottom |
 | 10-04 | Sheets (review, settings, camera, menu) in their own layer over the card | Re-renders would otherwise interrupt a slider drag or typing |
+| 10-04 | Camera edge: a faint inside ring like the tiles, Stop-matched corners; empty pictures hidden (v0.4.1) | Lead's pick over borderless; the uneven ring was Chrome's outline around an empty image, clipped by the corners |
 
 ## Open questions
 
