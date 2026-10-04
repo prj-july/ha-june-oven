@@ -34,7 +34,7 @@
  */
 (() => {
   "use strict";
-  const VERSION = "0.4.2";
+  const VERSION = "0.4.3";
   const DOMAIN = "june_oven";
   const TAG = "july-oven-card";
   if (customElements.get(TAG)) return;
@@ -280,7 +280,7 @@
   const lamp = (m) => (m.key === "offline" ? "lost" : m.heating ? "on" : "off");
   const lampWord = (m) => (m.key === "offline" ? "offline" : m.heating ? m.word.toLowerCase() : "off");
   function ovenButton(m, o = {}) {
-    return `<button class="d2-name d2-ovb l-${lamp(m)}${o.tucked ? " is-tucked" : ""}${o.open ? " is-open" : ""}${o.cls || ""}" data-act="menu" aria-haspopup="menu" aria-expanded="${o.open ? "true" : "false"}" aria-label="${esc(m.name)}, ${lampWord(m)}. Choose an oven"><span class="d2-lamp">${m.oic}</span><span class="d2-nm">${esc(m.name)}</span></button>`;
+    return `<button class="d2-name d2-ovb l-${lamp(m)}${o.tucked ? " is-tucked" : ""}${o.open ? " is-open" : ""}${o.cls || ""}" data-act="menu" aria-haspopup="menu" aria-expanded="${o.open ? "true" : "false"}" aria-label="${esc(m.name)}, ${lampWord(m)}. Choose an oven"><span class="d2-lamp">${m.oic}</span><span class="d2-nm"><span class="d2-nmt">${esc(m.name)}</span></span></button>`;
   }
 
   function cam(m, o = {}) {
@@ -441,7 +441,8 @@
       // The stylesheet is attached once, so :host sizing applies before the first measurement.
       // Sheets (review, settings, camera, oven menu) live in their own layer over the card, so the
       // card's re-renders never interrupt a slider drag or typing.
-      this.shadowRoot.innerHTML = `<style>${CSS}</style><div class="jo-root"></div><div class="jo-over" hidden></div>`;
+      // Until the first render, a plain panel holds the card's place; it fades in only if that takes a while.
+      this.shadowRoot.innerHTML = `<style>${CSS}</style><div class="jo-root"><div class="jo-skel" aria-label="Loading the oven" role="img"><i></i><b></b></div></div><div class="jo-over" hidden></div>`;
       this._root = this.shadowRoot.querySelector(".jo-root");
       this._overEl = this.shadowRoot.querySelector(".jo-over");
       this._busy = {};
@@ -509,6 +510,7 @@
       try { this._prefs = JSON.parse(localStorage.getItem(this._prefsKey)) || {}; } catch (e) { this._prefs = {}; }
       if (!this._prefs.icons || typeof this._prefs.icons !== "object") this._prefs.icons = {};
       if (this._config.load_fonts !== false) loadFonts();
+      if (this.isConnected) this._restartCamTimer();
       this._html = "";
       this._render();
       this._renderOver();
@@ -553,6 +555,11 @@
       this.shadowRoot.addEventListener("change", this._onChange = (e) => this._handleChange(e));
       // On the window, so Escape closes a sheet even when nothing in the card has focus.
       window.addEventListener("keydown", this._onKey = (e) => this._handleKey(e));
+      // A long oven name scrolls while the pointer (or focus) is on it.
+      this.shadowRoot.addEventListener("pointerover", this._onOver = (e) => this._nameHover(e, true));
+      this.shadowRoot.addEventListener("pointerout", this._onOut = (e) => this._nameHover(e, false));
+      this.shadowRoot.addEventListener("focusin", this._onOver);
+      this.shadowRoot.addEventListener("focusout", this._onOut);
       this._showName();
       // Resize observers pause in background tabs; measure now as well.
       this._measure();
@@ -571,6 +578,10 @@
       if (this._onInput) this.shadowRoot.removeEventListener("input", this._onInput);
       if (this._onChange) this.shadowRoot.removeEventListener("change", this._onChange);
       if (this._onKey) window.removeEventListener("keydown", this._onKey);
+      if (this._onOver) { this.shadowRoot.removeEventListener("pointerover", this._onOver); this.shadowRoot.removeEventListener("focusin", this._onOver); }
+      if (this._onOut) { this.shadowRoot.removeEventListener("pointerout", this._onOut); this.shadowRoot.removeEventListener("focusout", this._onOut); }
+      clearTimeout(this._marqTimer);
+      this._nameOn = null;
       this._sheet = null;
     }
 
@@ -670,6 +681,37 @@
         }, { passive: true });
       }
       this._placeCameras(models);
+      if (this._nameOn) this._marquee(0);
+    }
+
+    // ---- the oven name, scrolled when it doesn't fit ----
+    _nameHover(e, on) {
+      const btn = e.target.closest && e.target.closest(".d2-ovb");
+      if (!btn) return;
+      if (!on && e.relatedTarget && btn.contains(e.relatedTarget)) return;
+      if (on && this._nameOn === btn) return;
+      clearTimeout(this._marqTimer);
+      if (this._nameOn) this._nameOn.classList.remove("is-marquee");
+      this._nameOn = on ? btn : null;
+      // A tucked name opens first (0.5 s); measure once it has.
+      if (on) this._marquee(btn.classList.contains("is-tucked") ? 550 : 0);
+    }
+
+    _marquee(wait) {
+      clearTimeout(this._marqTimer);
+      this._marqTimer = setTimeout(() => {
+        if (!this._nameOn) return;
+        // After a re-render the button is a new element; follow the one in the same place.
+        if (!this._nameOn.isConnected) this._nameOn = this.shadowRoot.querySelector(this._nameOn.closest(".jo-over") ? ".jo-over .d2-ovb" : ".jo-root .d2-ovb");
+        const btn = this._nameOn, nm = btn && btn.querySelector(".d2-nm");
+        if (!nm || btn.classList.contains("is-marquee")) return;
+        const over = nm.scrollWidth - nm.clientWidth;
+        if (over < 2 || matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+        nm.style.setProperty("--nm-shift", `${-over}px`);
+        // About 40 px a second, so a long name doesn't race past.
+        nm.style.setProperty("--nm-dur", `${Math.max(1.6, over / 40 + 1.2).toFixed(2)}s`);
+        btn.classList.add("is-marquee");
+      }, wait);
     }
 
     // Camera stills: one <img> per camera, moved into place after each render so nothing flickers.
@@ -707,8 +749,11 @@
     }
 
     // ---- settings ----
+    // Home Assistant can attach the card before it gets its config (while the card is still being
+    // defined on a new registry), so this answers before setConfig too.
     _pref(k) {
-      return this._prefs[k] !== undefined ? this._prefs[k] : this._config[k];
+      const prefs = this._prefs || {}, config = this._config || {};
+      return prefs[k] !== undefined ? prefs[k] : config[k];
     }
 
     _theme() {
@@ -1322,6 +1367,13 @@
 /* ---- In Home Assistant ---- */
 :host{display:block;height:100%;position:relative}
 .jo-root{height:100%}
+.jo-skel{position:relative;height:100%;min-height:56px;box-sizing:border-box;padding:16px;overflow:hidden;border-radius:var(--ha-card-border-radius,12px);background:var(--ha-card-background,var(--card-background-color,#1c1c1c));box-shadow:inset 0 0 0 1px var(--divider-color,rgba(127,127,127,.15));animation:jo-in .25s .3s both}
+.jo-skel i,.jo-skel b{display:block;border-radius:8px;background:var(--divider-color,rgba(127,127,127,.15));animation:jo-pulse 1.4s ease-in-out .3s infinite alternate}
+.jo-skel i{width:38%;max-width:180px;height:22px}
+.jo-skel b{width:58%;max-width:280px;height:clamp(16px,18%,64px);margin-top:14px}
+@keyframes jo-in{from{opacity:0}}
+@keyframes jo-pulse{to{opacity:.45}}
+@media (prefers-reduced-motion:reduce){.jo-skel,.jo-skel i,.jo-skel b{animation:none}}
 @container (max-width:400px){.c-d2.d2-standard .d2-idle .d2-name{font-size:19px;line-height:24px}}
 @container (max-width:340px){.c-d2.d2-standard .d2-idle .d2-name{font-size:18px;line-height:24px}}
 ha-card{height:100%;overflow:hidden;background:none;border:none;box-shadow:none;border-radius:var(--ha-card-border-radius,12px);padding:0}
@@ -1368,6 +1420,9 @@ ha-card{height:100%;overflow:hidden;background:none;border:none;box-shadow:none;
 .c-d2 .l-lost .d2-oic{color:var(--grey);opacity:.75}
 .c-d2 .d2-nm{min-width:0;max-width:80cqw;padding-left:.4em;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;transition:max-width .5s ease,padding .5s ease,opacity .35s ease}
 .c-d2 .d2-ovb.is-tucked .d2-nm{max-width:0;padding-left:0;opacity:0}
+.c-d2 .d2-ovb.is-marquee .d2-nm{text-overflow:clip;-webkit-mask-image:linear-gradient(90deg,transparent 0,#000 .4em,#000 calc(100% - .6em),transparent);mask-image:linear-gradient(90deg,transparent 0,#000 .4em,#000 calc(100% - .6em),transparent)}
+.c-d2 .d2-ovb.is-marquee .d2-nmt{display:inline-block;animation:d2-marq var(--nm-dur,3s) ease-in-out .3s infinite alternate}
+@keyframes d2-marq{0%,12%{transform:translateX(0)}88%,100%{transform:translateX(var(--nm-shift,0))}}
 .c-d2 .d2-ovb.is-tucked:hover .d2-nm,.c-d2 .d2-ovb.is-tucked:focus-visible .d2-nm,.c-d2 .d2-ovb.is-tucked.is-open .d2-nm{max-width:80cqw;padding-left:.4em;opacity:1}
 .c-d2 .d2-idle .d2-top{align-items:start}
 /* Equal margins, measured to the ink: the icon's drawing and the clock's digits start at the
@@ -1484,6 +1539,11 @@ ha-card{height:100%;overflow:hidden;background:none;border:none;box-shadow:none;
     }
   }
   ensureDefined();
+  // Home Assistant's app installs that polyfill a moment after this file runs, and Lovelace waits for the
+  // card to appear on the new registry before showing it. Check often while the page starts, so the
+  // card shows at once rather than at the next slow check, then every 2 s.
+  const fastCheck = setInterval(ensureDefined, 50);
+  setTimeout(() => clearInterval(fastCheck), 30000);
   setInterval(ensureDefined, 2000);
   window.addEventListener("location-changed", ensureDefined);
   window.customCards = window.customCards || [];

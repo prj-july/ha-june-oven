@@ -1,0 +1,58 @@
+<!doctype html><html><head><meta charset="utf-8"><style>body{margin:0;padding:16px;background:#111}#box{width:500px;height:376px}</style></head><body>
+<div id="box"></div>
+<script>customElements.define("ha-card", class extends HTMLElement { connectedCallback() { this.style.display = "block"; } });</script>
+<script src="../../custom_components/june_oven/www/july-oven-card.js"></script>
+<script>
+// A page load in Home Assistant, in order: the card file (an extra module, small and cached) runs first,
+// then Home Assistant's app starts, installs its scoped-registry polyfill (a new window.customElements),
+// and builds the dashboard. Lovelace creates a custom card the way its _lazyCreate does: when the new
+// registry doesn't know the tag yet, it waits for whenDefined before giving the card its config.
+// BOOT.ms is the time from the dashboard being built to the card showing its screen.
+const q = new URLSearchParams(location.search);
+const APP_MS = Number(q.get("app") || 300);
+const BUILD_MS = Number(q.get("build") ?? 0);
+const native = window.customElements;
+class Registry {
+  constructor() { this.defs = new Map(); this.waiters = new Map(); }
+  get(tag) { return this.defs.get(tag); }
+  define(tag, cls) {
+    if (this.defs.has(tag)) throw new DOMException(`'${tag}' has already been used with this registry`, "NotSupportedError");
+    if (!native.get(tag)) native.define(tag, cls);
+    this.defs.set(tag, cls);
+    (this.waiters.get(tag) || []).forEach((r) => r(cls));
+  }
+  whenDefined(tag) { return this.defs.has(tag) ? Promise.resolve(this.defs.get(tag)) : new Promise((r) => this.waiters.set(tag, [...(this.waiters.get(tag) || []), r])); }
+  upgrade() {}
+}
+const hass = {
+  states: { "climate.june_oven": { entity_id: "climate.june_oven", state: "off", attributes: { friendly_name: "June Oven", current_temperature: 74, temperature: 350, preset_mode: "bake", min_temp: 100, max_temp: 500, target_temp_step: 5 }, last_changed: new Date().toISOString(), last_updated: new Date().toISOString() } },
+  entities: {}, devices: {}, areas: {}, language: "en", locale: { language: "en" }, themes: { darkMode: true },
+  callService: async () => {}, callWS: async () => ({})
+};
+window.BOOT = { app: APP_MS, build: BUILD_MS };
+setTimeout(() => {
+  Object.defineProperty(window, "customElements", { value: new Registry(), configurable: true, writable: true });
+  // The dashboard is built right after the app starts.
+  setTimeout(() => {
+    const config = { type: "custom:july-oven-card", entity: "climate.june_oven" };
+    const t0 = performance.now();
+    const shown = () => {
+      if (el.shadowRoot && el.shadowRoot.querySelector(".c-d2")) { BOOT.ms = Math.round(performance.now() - t0); return; }
+      requestAnimationFrame(shown);
+    };
+    let el;
+    if (customElements.get("july-oven-card")) {
+      el = document.createElement("july-oven-card");
+      el.setConfig(config);
+      BOOT.path = "defined";
+    } else {
+      el = document.createElement("july-oven-card");
+      customElements.whenDefined("july-oven-card").then(() => el.setConfig(config));
+      BOOT.path = "waited";
+    }
+    el.hass = hass;
+    document.getElementById("box").appendChild(el);
+    shown();
+  }, BUILD_MS);
+}, APP_MS);
+</script></body></html>

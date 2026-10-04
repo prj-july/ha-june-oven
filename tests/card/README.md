@@ -22,7 +22,10 @@ python -m http.server 8000
     with its slider and typed temperature). Escape or × closes them. Settings are kept in
     `localStorage`; clear it to go back to each card's config.
 - **http://localhost:8000/tests/card/registry-swap.html**: replaces `window.customElements` after the
-  card loads, the way a scoped-registry polyfill does in Firefox. After about 2 seconds,
+  card loads, the way Home Assistant's scoped-registry polyfill does. Within about 50 ms,
   `customElements.get("july-oven-card")` should return the card class and `SWAP.rebuilt` should be `true`.
+- **http://localhost:8000/tests/card/boot.html**: a page refresh in Home Assistant: the card file runs,
+  then the app swaps the registry (`?app=300`, in ms) and builds the dashboard (`?build=0`). `BOOT.ms`
+  is the time from the dashboard being built to the card showing its screen; it should be under 100.
 
 Check every change at 500, 358 and 320 px, in all three looks, before releasing.
