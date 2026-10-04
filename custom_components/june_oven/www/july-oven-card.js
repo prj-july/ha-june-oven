@@ -25,7 +25,7 @@
  *   display_mode: auto | standard | wall | compact
  *   name: Kitchen                       # optional; defaults to the device or area name
  *   load_fonts: true                    # Barlow fonts from Google Fonts (system fonts if off)
- *   camera_fps: 1                       # camera pictures per second (0.5, 1, 2 or 5)
+ *   camera_fps: 15                      # camera window pictures per second (1, 5, 10 or 15; 1 is the stock June app)
  *   hide_name: true                     # tuck the name into the icon after 5 s
  *   clock: auto | 12 | 24               # the idle clock
  *   mode_order: oven | used             # cook mode tiles in the oven's order, or most used first
@@ -34,7 +34,7 @@
  */
 (() => {
   "use strict";
-  const VERSION = "0.4.3";
+  const VERSION = "0.4.4";
   const DOMAIN = "june_oven";
   const TAG = "july-oven-card";
   if (customElements.get(TAG)) return;
@@ -52,7 +52,7 @@
   const DONE_WINDOW_MS = 30 * 60 * 1000;
   const REVIEW_MS = 5 * 60 * 1000;
   const TUCK_MS = 5000;
-  const FPS_OPTIONS = [0.5, 1, 2, 5];
+  const FPS_OPTIONS = [1, 5, 10, 15];
   const THEMES = [["auto", "Match Home Assistant"], ["light", "Light"], ["dark", "Dark"]];
   const CLOCKS = [["auto", "Automatic"], ["12", "12-hour"], ["24", "24-hour"]];
   // Entities of one oven, matched on the device by translation key (entity id suffix as a fallback).
@@ -406,7 +406,7 @@
         <button class="d2-icbtn" data-act="sheet-close" aria-label="Close settings">${I.close}</button></div>
       <div class="d2-set-list">
         ${setRow("Appearance", "", seg("theme", THEMES, p.theme, "Appearance"))}
-        ${setRow("Camera frame rate", "Pictures per second in the camera window. Higher rates load more pictures from Home Assistant.", seg("camera_fps", FPS_OPTIONS.map((v) => [v, `${v} fps`]), p.camera_fps, "Camera frame rate"))}
+        ${setRow("Camera frame rate", "Pictures per second in the camera window. 1 fps is the stock June app's rate. Higher rates load more pictures from Home Assistant.", seg("camera_fps", FPS_OPTIONS.map((v) => [v, `${v} fps`]), p.camera_fps, "Camera frame rate"))}
         ${setRow("Oven name", "", seg("hide_name", [["true", "Tuck into the icon"], ["false", "Always show"]], String(p.hide_name), "Oven name"))}
         ${setRow("Cook modes", "Most used first counts the cooks started from this card, per oven, in this browser.", seg("mode_order", ORDERS, p.mode_order, "Cook mode order"))}
         ${setRow("Clock", "", seg("clock", CLOCKS, p.clock, "Clock"))}
@@ -500,7 +500,7 @@
       for (const item of config.entities || []) add(typeof item === "string" ? { entity: item } : item);
       for (const n of [2, 3, 4]) add({ entity: config[`entity_${n}`], icon: config[`icon_${n}`], name: config[`name_${n}`] });
       for (const o of ovens) if (!String(o.entity).startsWith("climate.")) throw new Error(`${o.entity} is not a climate entity. Choose the oven itself.`);
-      this._config = { theme: "auto", display_mode: "auto", load_fonts: true, camera_fps: 1, hide_name: true, clock: "auto", mode_order: "oven", ...config };
+      this._config = { theme: "auto", display_mode: "auto", load_fonts: true, camera_fps: 15, hide_name: true, clock: "auto", mode_order: "oven", ...config };
       this._ovenConf = ovens;
       this._ovens = ovens.map((o) => o.entity);
       // The oven last picked in this card, and the card's own settings, are remembered in this browser.
@@ -768,7 +768,7 @@
 
     _fps() {
       const v = +this._pref("camera_fps");
-      return Number.isFinite(v) && v > 0 ? Math.min(10, Math.max(0.1, v)) : 1;
+      return Number.isFinite(v) && v > 0 ? Math.min(15, Math.max(0.1, v)) : 15;
     }
 
     // Cooks started from the card, per oven and mode. Kept apart from the settings, so Reset keeps them.
@@ -797,7 +797,9 @@
 
     _restartCamTimer() {
       clearInterval(this._camTimer);
-      this._camTimer = setInterval(() => this._refreshCameras(), Math.max(200, 1000 / this._fps()));
+      // The small pictures on the card refresh at most once a second (the oven's own rate); only the
+      // camera window runs faster.
+      this._camTimer = setInterval(() => this._refreshCameras(), Math.max(1000, 1000 / this._fps()));
     }
 
     // ---- ovens ----
