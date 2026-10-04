@@ -384,9 +384,18 @@
   const seg = (k, opts, cur, label) => `<div class="d2-seg" role="radiogroup" aria-label="${esc(label)}">${opts.map(([v, l]) => `<button role="radio" aria-checked="${String(v) === String(cur)}" data-act="set" data-k="${k}" data-v="${esc(v)}">${esc(l)}</button>`).join("")}</div>`;
   const setRow = (label, help, body) => `<div class="d2-set-row"><div class="d2-set-l">${esc(label)}</div>${body}${help ? `<div class="d2-set-h">${esc(help)}</div>` : ""}</div>`;
 
-  function settingsSheet(p, m) {
-    const icon = p.icon || "oven";
-    const icons = Object.entries(OVEN_ICONS).map(([k, [label]]) => `<button class="d2-ici" role="radio" aria-checked="${k === icon}" data-act="set" data-k="icon" data-v="${k}" aria-label="${label}" title="${label}">${ovenIcon(k)}</button>`).join("");
+  // One row per oven (every June oven in Home Assistant); the open row shows the icon choices.
+  function iconRows(ovens, open) {
+    return ovens.map(({ m, icon }) => {
+      const id = esc(m.ids.climate), isOpen = m.ids.climate === open, cur = icon || "oven";
+      const mdi = String(cur).startsWith("mdi:") ? cur : "";
+      const choices = isOpen ? `<div class="d2-ic-pick"><div class="d2-icons" role="radiogroup" aria-label="Icon for ${esc(m.name)}">${Object.entries(OVEN_ICONS).map(([k, [label]]) => `<button class="d2-ici" role="radio" aria-checked="${k === cur}" data-act="set" data-k="icon" data-oven="${id}" data-v="${k}" aria-label="${label}" title="${label}">${ovenIcon(k)}</button>`).join("")}</div>
+        <input class="d2-mdi" type="text" data-oven="${id}" value="${esc(mdi)}" placeholder="Or any mdi: icon, such as mdi:stove" autocomplete="off" spellcheck="false" aria-label="Any mdi: icon for ${esc(m.name)}"></div>` : "";
+      return `<div class="d2-ic-row${isOpen ? " is-open" : ""}"><button class="d2-ic-head" data-act="set-iconfor" data-oven="${id}" aria-expanded="${isOpen}"><span class="d2-ic-cur">${ovenIcon(cur)}</span><span class="d2-ic-n">${esc(m.name)}</span><span class="d2-ic-chev" aria-hidden="true">${isOpen ? "−" : "+"}</span></button>${choices}</div>`;
+    }).join("");
+  }
+
+  function settingsSheet(p, m, ovens, open) {
     return `<div class="d2-sheet d2-set" role="dialog" aria-modal="true" aria-label="Card settings">
       <div class="d2-sh-head"><div><div class="d2-sh-t">Settings</div><div class="d2-sh-s">This card, in this browser</div></div>
         <button class="d2-icbtn" data-act="sheet-close" aria-label="Close settings">${I.close}</button></div>
@@ -396,7 +405,7 @@
         ${setRow("Oven name", "", seg("hide_name", [["true", "Tuck into the icon"], ["false", "Always show"]], String(p.hide_name), "Oven name"))}
         ${setRow("Cook modes", "Most used first counts the cooks started from this card, per oven, in this browser.", seg("mode_order", ORDERS, p.mode_order, "Cook mode order"))}
         ${setRow("Clock", "", seg("clock", CLOCKS, p.clock, "Clock"))}
-        ${setRow(`Icon for ${m.name}`, "", `<div class="d2-icons" role="radiogroup" aria-label="Icon for ${esc(m.name)}">${icons}</div>`)}
+        ${setRow(ovens.length > 1 ? "Oven icons" : "Oven icon", "", `<div class="d2-ic-list">${iconRows(ovens, open)}</div>`)}
         <div class="d2-set-acts"><button class="d2-ghost" data-act="set-ha" data-oven="${esc(m.ids.climate)}">Oven in Home Assistant</button><button class="d2-ghost" data-act="set-reset">Reset</button></div>
       </div>
     </div>`;
@@ -818,7 +827,8 @@
       const now = Date.now();
       const m = this._model(this._conf(s.oven), now);
       if (s.kind === "review") el.innerHTML = review(s, m.name, m.unit, now, this._multi);
-      else if (s.kind === "settings") el.innerHTML = settingsSheet({ theme: this._theme(), camera_fps: this._fps(), hide_name: this._hideName(), clock: String(this._pref("clock")), mode_order: this._pref("mode_order") === "used" ? "used" : "oven", icon: this._prefs.icons[s.oven] || this._conf(s.oven).icon }, m);
+      else if (s.kind === "settings") el.innerHTML = settingsSheet({ theme: this._theme(), camera_fps: this._fps(), hide_name: this._hideName(), clock: String(this._pref("clock")), mode_order: this._pref("mode_order") === "used" ? "used" : "oven", }, m,
+        this._allOvens().map((o) => ({ m: this._model(o, now), icon: this._prefs.icons[o.entity] || o.icon })), s.iconFor || s.oven);
       else if (s.kind === "camera") el.innerHTML = cameraSheet(m);
       else if (s.kind === "menu") el.innerHTML = menuSheet(this._allOvens().map((o) => this._model(o, now)), s.oven, s.pos);
       const first = el.querySelector(s.kind === "menu" ? '.d2-mi[aria-checked="true"]' : ".d2-icbtn");
@@ -910,7 +920,8 @@
         return;
       }
       if (act === "settings") return this._openSheet({ kind: "settings", oven, byKey });
-      if (act === "set") return this._setPref(el.dataset.k, el.dataset.v);
+      if (act === "set") return this._setPref(el.dataset.k, el.dataset.v, oven);
+      if (act === "set-iconfor") { this._sheet.iconFor = this._sheet.iconFor === oven || (!this._sheet.iconFor && this._sheet.oven === oven) ? "-" : oven; return this._prefsChanged(true); }
       if (act === "set-reset") { this._prefs = { icons: {} }; return this._prefsChanged(); }
       if (act === "set-ha") {
         const ids = ovenEntities(hass, oven);
@@ -940,6 +951,12 @@
 
     _handleChange(e) {
       if (e.target.matches(".d2-sh-in")) this._commitTyped(e.target);
+      if (e.target.matches(".d2-mdi")) {
+        const v = e.target.value.trim().toLowerCase();
+        if (/^mdi:[a-z0-9-]+$/.test(v)) this._setPref("icon", v, e.target.dataset.oven);
+        else if (!v) this._setPref("icon", "oven", e.target.dataset.oven);
+        else e.target.value = e.target.defaultValue;
+      }
     }
 
     _handleKey(e) {
@@ -950,12 +967,12 @@
         if (e.key === "Escape") { t.value = this._sheet.temp; t.blur(); }
         return;
       }
+      if (t && t.matches && t.matches(".d2-mdi") && e.key === "Enter") return t.blur();
       if (e.key === "Escape") { this._sheet.byKey = this.shadowRoot.activeElement !== null; this._closeSheet(); }
     }
 
-    _setPref(k, v) {
+    _setPref(k, v, oven) {
       if (k === "icon") {
-        const oven = this._sheet && this._sheet.oven;
         if (oven) this._prefs.icons[oven] = v;
       } else if (k === "camera_fps") this._prefs[k] = +v;
       else if (k === "hide_name") this._prefs[k] = v === "true";
@@ -963,12 +980,14 @@
       this._prefsChanged();
     }
 
-    _prefsChanged() {
-      this._savePrefs();
-      this._restartCamTimer();
-      if (this._hideName()) this._showName(); else { clearTimeout(this._tuckTimer); this._tucked = false; }
-      this._html = "";
-      this._render();
+    _prefsChanged(viewOnly) {
+      if (!viewOnly) {
+        this._savePrefs();
+        this._restartCamTimer();
+        if (this._hideName()) this._showName(); else { clearTimeout(this._tuckTimer); this._tucked = false; }
+        this._html = "";
+        this._render();
+      }
       const sheet = this._sheet;
       const scroll = this._overEl.querySelector(".d2-set-list");
       const top = scroll ? scroll.scrollTop : 0;
@@ -1383,6 +1402,18 @@ ha-card{height:100%;overflow:hidden;background:none;border:none;box-shadow:none;
 .c-d2 .d2-icons{display:grid;grid-template-columns:repeat(auto-fill,minmax(44px,1fr));gap:6px}
 .c-d2 .d2-ici{height:44px;display:flex;align-items:center;justify-content:center;border-radius:10px;box-shadow:inset 0 0 0 1px var(--chipb);color:var(--fg)}
 .c-d2 .d2-ici .d2-oic{width:24px;height:24px;margin:0;color:inherit}
+.c-d2 .d2-ic-list{display:flex;flex-direction:column;gap:6px}
+.c-d2 .d2-ic-row{border-radius:12px;box-shadow:inset 0 0 0 1px var(--line)}
+.c-d2 .d2-ic-row.is-open{box-shadow:inset 0 0 0 1px var(--chipb)}
+.c-d2 .d2-ic-head{display:flex;align-items:center;gap:10px;width:100%;min-height:48px;padding:0 12px;font:500 16px/20px var(--f);color:var(--fg);text-align:left}
+.c-d2 .d2-ic-cur .d2-oic{width:24px;height:24px;margin:0;color:var(--fg)}
+.c-d2 .d2-ic-n{flex:1 1 auto;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.c-d2 .d2-ic-chev{flex:none;width:20px;text-align:center;font:400 20px/1 var(--f);color:var(--fg2)}
+.c-d2 .d2-ic-pick{padding:0 10px 10px}
+.c-d2 .d2-mdi{display:block;width:100%;height:40px;margin-top:8px;padding:0 12px;border:0;border-radius:10px;box-shadow:inset 0 0 0 1px var(--chipb);background:none;font:400 15px/1 var(--f);color:var(--fg);outline:none}
+.c-d2 .d2-mdi:focus{box-shadow:inset 0 0 0 1.5px var(--ember)}
+.c-d2 .d2-mdi::placeholder{color:var(--fg2)}
+.c-d2.d2-wall .d2-ic-head{min-height:60px;font-size:20px}
 .c-d2 .d2-set-acts{display:flex;flex-wrap:wrap;gap:8px;padding-top:10px;border-top:1px solid var(--line)}
 .c-d2 .d2-set-acts .d2-ghost{flex:1 1 auto;height:44px}
 .c-d2.d2-wall .d2-seg button{min-height:52px;font-size:19px}

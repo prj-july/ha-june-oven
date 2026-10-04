@@ -335,7 +335,7 @@ entity: climate.kitchen_oven
 | `clock` | `auto` | The idle clock: `auto` follows your language, or `12` / `24` |
 | `mode_order` | `oven` | Cook mode tiles in the oven's order, or `used`: most used first, counting the cooks started from the card on that oven in that browser |
 
-`theme`, `camera_fps`, `hide_name`, `clock`, `mode_order` and each oven's icon can also be
+`theme`, `camera_fps`, `hide_name`, `clock`, `mode_order` and every oven's icon can also be
 changed from the card's own **Settings** tile. Those choices are kept in that
 browser; the YAML values are the starting point.
 
@@ -391,8 +391,9 @@ What the card does:
   you press **Start preheating**, and the review closes itself after 5 minutes.
   **Settings**, the last tile, opens the card's settings: appearance, camera
   frame rate, the name, cook mode order (the oven's, or most used first), the
-  clock and the oven's icon, with a link to the
-  oven's device page.
+  clock, and an icon for every June oven in Home Assistant (one of the 12, or
+  any `mdi:` icon typed in), with a link to the oven's device page. The icons
+  show next to each oven's name, in the oven menu and in the card's rows.
 - **Refusals:** when the oven refuses a command, the card says why in plain
   words. For example: remote start is off, or the door is open.
 
