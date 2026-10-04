@@ -34,7 +34,7 @@
  */
 (() => {
   "use strict";
-  const VERSION = "0.4.2";
+  const VERSION = "0.4.3";
   const DOMAIN = "june_oven";
   const TAG = "july-oven-card";
   if (customElements.get(TAG)) return;
@@ -441,7 +441,8 @@
       // The stylesheet is attached once, so :host sizing applies before the first measurement.
       // Sheets (review, settings, camera, oven menu) live in their own layer over the card, so the
       // card's re-renders never interrupt a slider drag or typing.
-      this.shadowRoot.innerHTML = `<style>${CSS}</style><div class="jo-root"></div><div class="jo-over" hidden></div>`;
+      // Until the first render, a plain panel holds the card's place; it fades in only if that takes a while.
+      this.shadowRoot.innerHTML = `<style>${CSS}</style><div class="jo-root"><div class="jo-skel" aria-label="Loading the oven" role="img"><i></i><b></b></div></div><div class="jo-over" hidden></div>`;
       this._root = this.shadowRoot.querySelector(".jo-root");
       this._overEl = this.shadowRoot.querySelector(".jo-over");
       this._busy = {};
@@ -509,6 +510,7 @@
       try { this._prefs = JSON.parse(localStorage.getItem(this._prefsKey)) || {}; } catch (e) { this._prefs = {}; }
       if (!this._prefs.icons || typeof this._prefs.icons !== "object") this._prefs.icons = {};
       if (this._config.load_fonts !== false) loadFonts();
+      if (this.isConnected) this._restartCamTimer();
       this._html = "";
       this._render();
       this._renderOver();
@@ -707,8 +709,11 @@
     }
 
     // ---- settings ----
+    // Home Assistant can attach the card before it gets its config (while the card is still being
+    // defined on a new registry), so this answers before setConfig too.
     _pref(k) {
-      return this._prefs[k] !== undefined ? this._prefs[k] : this._config[k];
+      const prefs = this._prefs || {}, config = this._config || {};
+      return prefs[k] !== undefined ? prefs[k] : config[k];
     }
 
     _theme() {
@@ -1322,6 +1327,13 @@
 /* ---- In Home Assistant ---- */
 :host{display:block;height:100%;position:relative}
 .jo-root{height:100%}
+.jo-skel{position:relative;height:100%;min-height:56px;box-sizing:border-box;padding:16px;overflow:hidden;border-radius:var(--ha-card-border-radius,12px);background:var(--ha-card-background,var(--card-background-color,#1c1c1c));box-shadow:inset 0 0 0 1px var(--divider-color,rgba(127,127,127,.15));animation:jo-in .25s .3s both}
+.jo-skel i,.jo-skel b{display:block;border-radius:8px;background:var(--divider-color,rgba(127,127,127,.15));animation:jo-pulse 1.4s ease-in-out .3s infinite alternate}
+.jo-skel i{width:38%;max-width:180px;height:22px}
+.jo-skel b{width:58%;max-width:280px;height:clamp(16px,18%,64px);margin-top:14px}
+@keyframes jo-in{from{opacity:0}}
+@keyframes jo-pulse{to{opacity:.45}}
+@media (prefers-reduced-motion:reduce){.jo-skel,.jo-skel i,.jo-skel b{animation:none}}
 @container (max-width:400px){.c-d2.d2-standard .d2-idle .d2-name{font-size:19px;line-height:24px}}
 @container (max-width:340px){.c-d2.d2-standard .d2-idle .d2-name{font-size:18px;line-height:24px}}
 ha-card{height:100%;overflow:hidden;background:none;border:none;box-shadow:none;border-radius:var(--ha-card-border-radius,12px);padding:0}
@@ -1484,6 +1496,11 @@ ha-card{height:100%;overflow:hidden;background:none;border:none;box-shadow:none;
     }
   }
   ensureDefined();
+  // Home Assistant's app installs that polyfill a moment after this file runs, and Lovelace waits for the
+  // card to appear on the new registry before showing it. Check often while the page starts, so the
+  // card shows at once rather than at the next slow check, then every 2 s.
+  const fastCheck = setInterval(ensureDefined, 50);
+  setTimeout(() => clearInterval(fastCheck), 30000);
   setInterval(ensureDefined, 2000);
   window.addEventListener("location-changed", ensureDefined);
   window.customCards = window.customCards || [];
