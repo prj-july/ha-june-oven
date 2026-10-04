@@ -17,6 +17,10 @@ python -m http.server 8000
   - `?theme=auto|light|dark` sets the card's look; `?ha=light` uses Home Assistant's light theme.
   - In the browser console, `fitCheck()` returns everything that spills out of its card box or has
     clipped text. It should return `[]`.
+  - The sheets open in a layer over each card: tap an oven's icon (the oven menu), **Camera** (the
+    camera window, showing the bench's still picture), **Settings**, or a mode tile (the review,
+    with its slider and typed temperature). Escape or × closes them. Settings are kept in
+    `localStorage`; clear it to go back to each card's config.
 - **http://localhost:8000/tests/card/registry-swap.html**: replaces `window.customElements` after the
   card loads, the way a scoped-registry polyfill does in Firefox. After about 2 seconds,
   `customElements.get("july-oven-card")` should return the card class and `SWAP.rebuilt` should be `true`.
