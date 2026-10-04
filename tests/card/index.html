@@ -1,0 +1,134 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>July Oven card test bench</title>
+<style>
+  .ha-dark{--primary-background-color:#111111;--card-background-color:#1c1c1c;--ha-card-background:#1c1c1c;--primary-text-color:#e1e1e1;--secondary-text-color:#9b9b9b;--divider-color:rgba(225,225,225,.12);--primary-color:#03a9f4;--ha-card-border-radius:12px;--ha-card-border-color:#2c2c2c;--gridc:rgba(255,255,255,.05);color-scheme:dark}
+  .ha-light{--primary-background-color:#fafafa;--card-background-color:#fff;--ha-card-background:#fff;--primary-text-color:#212121;--secondary-text-color:#727272;--divider-color:rgba(0,0,0,.12);--primary-color:#03a9f4;--ha-card-border-radius:12px;--ha-card-border-color:#e0e0e0;--gridc:rgba(0,0,0,.05);color-scheme:light}
+  body{margin:0;padding:16px;font:14px system-ui;background:var(--primary-background-color);color:var(--primary-text-color)}
+  .row{display:flex;flex-wrap:wrap;gap:18px;align-items:flex-start;margin-bottom:22px}
+  .box{position:relative;background-size:auto}
+  .cap{font:12px ui-monospace,monospace;color:var(--secondary-text-color);margin-top:4px;max-width:520px}
+  #log{font:12px ui-monospace,monospace;white-space:pre-wrap}
+  masonry{display:block;width:360px}
+</style>
+</head>
+<body class="ha-dark">
+<div id="out"></div>
+<h3>Service calls</h3><div id="log"></div>
+<script>
+// Home Assistant's ha-card, stripped down for the bench.
+customElements.define("ha-card", class extends HTMLElement { connectedCallback() { this.style.display = "block"; } });
+const NOW = Date.now();
+const iso = (ms) => new Date(ms).toISOString();
+const LOG = [];
+function oven(slug, device, area, s) {
+  const eid = (d, k) => `${d}.${slug}_${k}`;
+  const states = {}, entities = {};
+  const add = (id, state, attributes = {}, tk, extra = {}) => {
+    states[id] = { entity_id: id, state: String(state), attributes, last_changed: iso(extra.changed || NOW - 60000), last_updated: iso(extra.changed || NOW - 1000) };
+    entities[id] = { entity_id: id, device_id: device, platform: "june_oven", translation_key: tk };
+  };
+  const active = s.phase !== "idle";
+  add(`climate.${slug}`, s.unavailable ? "unavailable" : active ? "heat" : "off", {
+    current_temperature: s.cur, temperature: s.tgt, preset_mode: s.mode || "bake", hvac_action: active ? "heating" : "off",
+    min_temp: 100, max_temp: 500, target_temp_step: 5, friendly_name: "June Oven", preset_modes: ["bake", "roast", "broil", "airfry", "toast"]
+  }, "oven");
+  add(eid("sensor", "cook_phase"), s.unavailable ? "unavailable" : s.phase, {}, "cook_phase");
+  add(eid("sensor", "progress"), s.progress ?? "unknown", { unit_of_measurement: "%" }, "progress");
+  add(eid("sensor", "time_remaining"), s.remaining ?? "unknown", { unit_of_measurement: "s" }, "time_remaining");
+  add(eid("sensor", "cook_elapsed"), s.elapsed ?? "unknown", { unit_of_measurement: "s" }, "cook_elapsed");
+  add(eid("sensor", "probe_temperature"), s.probe ?? "unknown", { unit_of_measurement: "°F" }, "probe_temperature");
+  add(eid("sensor", "probe_target"), s.probeTgt ?? "unknown", { unit_of_measurement: "°F" }, "probe_target");
+  add(eid("sensor", "last_cook_completed"), s.completed ? iso(s.completed) : "unknown", {}, "last_cook_completed");
+  add(eid("binary_sensor", "connected"), s.offline ? "off" : "on", {}, "connected", { changed: s.offline ? NOW - 3 * 60000 : NOW - 3600000 });
+  add(eid("camera", "interior"), "idle", { entity_picture: `still.svg?token=${slug}` }, "interior");
+  return { states, entities, devices: { [device]: { id: device, name: "June Oven", area_id: area } } };
+}
+const SC = {
+  off: { phase: "idle", cur: 74, tgt: 350 },
+  preheat: { phase: "preheating", cur: 312, tgt: 400, progress: 73 },
+  ready: { phase: "preheated", cur: 400, tgt: 400, progress: 100 },
+  cooking: { phase: "cooking", cur: 401, tgt: 400, remaining: 750, elapsed: 750, probe: 128, probeTgt: 145 },
+  probeCook: { phase: "cooking", cur: 351, tgt: 350, mode: "roast", probe: 131, probeTgt: 145, elapsed: 1260, progress: 86 },
+  done: { phase: "idle", cur: 371, tgt: 400, probe: 146, completed: NOW - 2 * 60000 },
+  offline: { phase: "cooking", cur: 401, tgt: 400, offline: true }
+};
+function hassFor(list) {
+  const h = { states: {}, entities: {}, devices: {}, areas: { kitchen: { area_id: "kitchen", name: "Kitchen" }, garage: { area_id: "garage", name: "Garage" }, studio: { area_id: "studio", name: "Studio" } },
+    config: { unit_system: { temperature: "°F" } }, locale: { language: "en-US" }, language: "en",
+    callService: async (d, s, data, target) => { LOG.push(`${d}.${s} ${JSON.stringify(data)} → ${JSON.stringify(target)}`); document.getElementById("log").textContent = LOG.join("\n"); } };
+  for (const o of list) { Object.assign(h.states, o.states); Object.assign(h.entities, o.entities); Object.assign(h.devices, o.devices); }
+  return h;
+}
+const ROW = 56, GAP = 8;
+const cardH = (r) => r * ROW + (r - 1) * GAP;
+const cardW = (c, sec) => { const cw = (sec - 11 * GAP) / 12; return c * cw + (c - 1) * GAP; };
+function place(parent, caption, w, h, config, hass) {
+  const wrap = document.createElement("div");
+  const box = document.createElement("div");
+  box.className = "box";
+  box.style.cssText = `width:${w}px;height:${h}px`;
+  const card = document.createElement("july-oven-card");
+  card.setConfig(config);
+  box.appendChild(card);
+  wrap.appendChild(box);
+  const cap = document.createElement("div"); cap.className = "cap"; cap.textContent = caption; wrap.appendChild(cap);
+  parent.appendChild(wrap);
+  card.hass = hass;
+  return card;
+}
+window.BENCH = { SC, oven, hassFor, place, cardH, cardW, NOW, LOG };
+</script>
+<script src="../../custom_components/june_oven/www/july-oven-card.js"></script>
+<script>
+const out = document.getElementById("out");
+const q = new URLSearchParams(location.search);
+const theme = q.get("theme") || "auto";
+if (q.get("ha") === "light") document.body.className = "ha-light";
+const widths = (q.get("w") || "500,358").split(",").map(Number);
+const cards = [];
+for (const w of widths) {
+  const row = document.createElement("div"); row.className = "row"; out.appendChild(row);
+  for (const [k, s] of Object.entries(SC)) {
+    const hass = hassFor([oven("kitchen_oven", "dev1", "kitchen", s)]);
+    cards.push(place(row, `${k} · standard 12×6 · ${w} px section`, cardW(12, w), cardH(6), { entity: "climate.kitchen_oven", theme }, hass));
+  }
+}
+const wall = document.createElement("div"); wall.className = "row"; out.appendChild(wall);
+for (const k of ["off", "preheat", "cooking", "done"]) cards.push(place(wall, `${k} · wall 24×8`, 1032, cardH(8), { entity: "climate.kitchen_oven", theme }, hassFor([oven("kitchen_oven", "dev1", "kitchen", SC[k])])));
+const comp = document.createElement("div"); comp.className = "row"; out.appendChild(comp);
+for (const w of widths) for (const k of Object.keys(SC)) cards.push(place(comp, `${k} · compact 12×1 · ${w}`, cardW(12, w), cardH(1), { entity: "climate.kitchen_oven", theme }, hassFor([oven("kitchen_oven", "dev1", "kitchen", SC[k])])));
+const multi = document.createElement("div"); multi.className = "row"; out.appendChild(multi);
+const three = hassFor([oven("kitchen_oven", "dev1", "kitchen", SC.cooking), oven("garage_oven", "dev2", "garage", { ...SC.preheat, cur: 280, tgt: 350, progress: 60 }), oven("studio_oven", "dev3", "studio", SC.off)]);
+for (const w of widths) cards.push(place(multi, `three ovens · 12×8 · ${w}`, cardW(12, w), cardH(8), { entity: "climate.kitchen_oven", icon: "kitchen", entities: [{ entity: "climate.garage_oven", icon: "garage" }, { entity: "climate.studio_oven", icon: "apartment" }], theme }, three));
+const allOff = hassFor([oven("kitchen_oven", "dev1", "kitchen", SC.off), oven("garage_oven", "dev2", "garage", SC.off), oven("studio_oven", "dev3", "studio", SC.off)]);
+cards.push(place(multi, "three ovens, all off · 12×8 · 500", cardW(12, 500), cardH(8), { entity: "climate.kitchen_oven", icon: "kitchen", entity_2: "climate.garage_oven", icon_2: "garage", entity_3: "climate.studio_oven", icon_3: "mdi:home-city", theme }, allOff));
+cards.push(place(multi, "one oven with an icon · cooking · 358", cardW(12, 358), cardH(6), { entity: "climate.kitchen_oven", icon: "house", theme }, hassFor([oven("kitchen_oven", "dev1", "kitchen", SC.cooking)])));
+const mas = document.createElement("masonry"); out.appendChild(mas);
+cards.push(place(mas, "masonry (no fixed height) · cooking", 360, "auto", { entity: "climate.kitchen_oven", theme }, hassFor([oven("kitchen_oven", "dev1", "kitchen", SC.cooking)])));
+window.CARDS = cards;
+// Fit check through the shadow roots: nothing may spill out of its card box.
+window.fitCheck = () => {
+  const bad = [];
+  cards.forEach((c, i) => {
+    const box = c.getBoundingClientRect();
+    const root = c.shadowRoot;
+    if (!root) return bad.push(`card ${i}: no shadow root`);
+    const cap = c.parentElement.nextElementSibling ? c.parentElement.nextElementSibling.textContent : "";
+    root.querySelectorAll("*").forEach((e) => {
+      if (e.closest(".d2-pager") && !e.matches(".d2-pager")) return;
+      if (e.closest(".is-quiet") && !e.matches(".is-quiet")) return;
+      const r = e.getBoundingClientRect();
+      if (!r.width && !r.height) return;
+      if (r.right > box.right + 1 || r.bottom > box.bottom + 1 || r.left < box.left - 1 || r.top < box.top - 1) bad.push(`${cap}: <${e.tagName.toLowerCase()} class="${e.getAttribute("class") || ""}"> spills`);
+    });
+    root.querySelectorAll(".d2-name,.d2-st b,.d2-q,.d2-a,.d2-b,.d2-cname,.d2-m2,.d2-qn,.d2-lab").forEach((e) => { if (e.scrollWidth > e.clientWidth + 1) bad.push(`${cap}: clipped "${e.textContent.trim()}"`); });
+  });
+  return [...new Set(bad)];
+};
+</script>
+</body>
+</html>
