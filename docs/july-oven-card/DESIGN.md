@@ -201,6 +201,7 @@ name, in its row, and on its pill.
 | 10-04 | Sheets (review, settings, camera, menu) in their own layer over the card | Re-renders would otherwise interrupt a slider drag or typing |
 | 10-04 | Camera edge: a faint inside ring like the tiles, Stop-matched corners; empty pictures hidden (v0.4.1) | Lead's pick over borderless; the uneven ring was Chrome's outline around an empty image, clipped by the corners |
 | 10-04 | Re-check registration every 50 ms for the first 30 s, then every 2 s; a loading panel fades in after 0.3 s if nothing has rendered; settings read safely before setConfig (v0.4.3) | Lead's report: the card was blank for a few seconds after a refresh. Home Assistant's own app installs a scoped-registry polyfill after the card file runs, and Lovelace waits for the new registry, so the card waited for the next 2 s check. In that state the card was attached without a config and its tap handlers never attached |
+| 10-04 | A cut-off oven name scrolls (back and forth, about 40 px/s, edges faded) while hovered or focused; only when it overflows; not with reduced motion (v0.4.3) | Lead's request: a long name was unreadable even on hover |
 
 ## Open questions
 
