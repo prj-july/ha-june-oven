@@ -5,8 +5,8 @@
  *   one large number with its status mark under it; the progress bar; two short lines;
  *   +1 / +5 / +10 min only while a timer runs.
  * The oven's icon is its lamp: orange while it heats, white (the text colour) while it is off. The
- * name tucks into the icon 5 s after the card loads and comes back on hover. The icon opens a menu
- * of every June oven in Home Assistant.
+ * name tucks into the icon 5 s after the home screen (the mode tiles) appears and comes back on
+ * hover; during a cook it always shows. The icon opens a menu of every June oven in Home Assistant.
  * Idle shows the oven's home screen: a clock and pages of mode tiles. A tile opens a review that
  * must be confirmed within 5 minutes (UL 1026). Camera and Settings are the last tiles; both open
  * in the card: a floating camera window, and settings saved in this browser.
@@ -617,7 +617,12 @@
         .filter((part) => part.type !== "dayPeriod").map((part) => part.value).join("").trim();
       const date = new Date(now).toLocaleDateString(lang, { weekday: "long", month: "long", day: "numeric" });
 
-      const nb = { tucked: this._tucked && this._hideName(), open: !!(this._sheet && this._sheet.kind === "menu") };
+      // The name tucks only on the home screen (the mode tiles); in a cook it always shows. Coming back
+      // home shows it again for 5 s.
+      const home = focus.key === "off" && size !== "compact";
+      if (home && this._wasHome === false) this._tuckLater();
+      this._wasHome = home;
+      const nb = { tucked: home && this._tucked && this._hideName(), open: !!(this._sheet && this._sheet.kind === "menu") };
       let body;
       if (size === "compact") body = compact(focus, { multi: false }, this._busy[focus.ids.climate]);
       else body = focus.key === "off" ? idle(focus, clock, date, this._page, size, nb, this._tiles(focus.ids.climate)) : run(focus, { size, multi }, this._busy[focus.ids.climate], nb);
@@ -760,12 +765,18 @@
 
     // The name shows for 5 s, then tucks into the icon (it comes back on hover, focus, or with the menu).
     _showName() {
+      const was = this._tucked;
+      this._tuckLater();
+      if (was) { this._html = ""; this._render(); }
+    }
+
+    _tuckLater() {
       clearTimeout(this._tuckTimer);
-      if (this._tucked) { this._tucked = false; this._html = ""; this._render(); }
+      this._tucked = false;
       this._tuckTimer = setTimeout(() => {
         this._tucked = true;
-        // Tuck the button in place so it animates; the next render carries the same class.
-        if (this._hideName()) this.shadowRoot.querySelectorAll(".d2-ovb").forEach((b) => b.classList.add("is-tucked"));
+        // Tuck the home screen's button in place so it animates; the next render carries the same class.
+        if (this._hideName()) this.shadowRoot.querySelectorAll(".d2-idle .d2-ovb").forEach((b) => b.classList.add("is-tucked"));
       }, TUCK_MS);
     }
 
