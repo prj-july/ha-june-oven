@@ -1,0 +1,77 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Concept preview</title>
+<style>
+  /* Home Assistant default theme variables (what "Match Home Assistant" reads) */
+  .ha-light{--primary-background-color:#fafafa;--card-background-color:#fff;--ha-card-background:#fff;--primary-text-color:#212121;--secondary-text-color:#727272;--disabled-text-color:#bdbdbd;--divider-color:rgba(0,0,0,.12);--primary-color:#03a9f4;--accent-color:#ff9800;--error-color:#db4437;--warning-color:#ffa600;--success-color:#43a047;--state-icon-color:#44739e;--ha-card-border-radius:12px;--ha-card-border-color:#e0e0e0;--gridc:rgba(0,0,0,.05);color-scheme:light}
+  .ha-dark{--primary-background-color:#111111;--card-background-color:#1c1c1c;--ha-card-background:#1c1c1c;--primary-text-color:#e1e1e1;--secondary-text-color:#9b9b9b;--disabled-text-color:#6f6f6f;--divider-color:rgba(225,225,225,.12);--primary-color:#03a9f4;--accent-color:#ff9800;--error-color:#ef5350;--warning-color:#ffa600;--success-color:#66bb6a;--state-icon-color:#44739e;--ha-card-border-radius:12px;--ha-card-border-color:#2c2c2c;--gridc:rgba(255,255,255,.05);color-scheme:dark}
+  body{margin:0;font:15px/1.45 system-ui,sans-serif;background:var(--primary-background-color);color:var(--primary-text-color)}
+  header{position:sticky;top:0;z-index:5;display:flex;flex-wrap:wrap;gap:10px 18px;align-items:center;padding:10px 16px;background:var(--card-background-color);border-bottom:1px solid var(--divider-color)}
+  header label{font-size:13px;display:flex;gap:6px;align-items:center}
+  main{padding:16px;display:grid;gap:22px}
+  h2{margin:8px 0 4px;font-size:17px}
+  .row{display:flex;flex-wrap:wrap;gap:16px;align-items:flex-start}
+  .hx-fig{margin:0;min-width:0;flex:0 1 auto}
+  .hx-fig figcaption{font-size:12px;color:var(--secondary-text-color);margin-top:4px}
+  .hx-scaler{overflow:hidden}
+  .hx-sec{transform-origin:top left}
+  .hx-card{position:relative;overflow:hidden;border-radius:var(--ha-card-border-radius)}
+  #fit{font:12px/1.4 ui-monospace,monospace;white-space:pre-wrap;color:var(--error-color)}
+  #fit.ok{color:var(--success-color)}
+</style>
+</head>
+<body class="ha-dark">
+<header>
+  <b id="cname">Concept</b>
+  <label>Look <select id="theme"><option value="auto">Match HA</option><option value="light">Light</option><option value="dark">Dark</option></select></label>
+  <label>HA theme <select id="ha"><option value="ha-dark">Dark</option><option value="ha-light">Light</option></select></label>
+  <label>Section width <select id="w"><option>500</option><option>358</option></select></label>
+  <span id="fit"></span>
+</header>
+<main id="out"></main>
+<script src="harness.js"></script>
+<script>
+(function () {
+  const q = new URLSearchParams(location.search), id = q.get("c") || "d1";
+  const sc = document.createElement("script");
+  sc.src = `../concepts/${id}.js?t=${Date.now()}`;
+  sc.onload = run; sc.onerror = () => { document.getElementById("out").textContent = "Could not load concepts/" + id + ".js"; };
+  document.head.appendChild(sc);
+  function run() {
+    const C = window.CONCEPTS[id];
+    if (!C) { document.getElementById("out").textContent = "concepts/" + id + ".js did not register window.CONCEPTS." + id; return; }
+    document.getElementById("cname").textContent = C.name || id;
+    if (C.css) { const st = document.createElement("style"); st.textContent = C.css; document.head.appendChild(st); }
+    const draw = () => {
+      const theme = document.getElementById("theme").value, w = +document.getElementById("w").value;
+      document.body.className = document.getElementById("ha").value;
+      let html = "";
+      for (const [size, g] of Object.entries(C.sizes)) {
+        html += `<section><h2>${size}</h2><div class="row">`;
+        for (const k of HX.STATE_ORDER) {
+          const s = HX.S[k];
+          html += HX.frame(C.render(s, { size, theme, width: g[2] ? 500 : w }), g[0], g[1], g[2] ? 500 : w, g[2] || 1, s.word + (k === "cookingProbe" ? " (probe)" : ""));
+        }
+        html += `</div></section>`;
+      }
+      if (C.multi) html += `<section><h2>Several ovens</h2><div class="row">${C.multi([HX.S.cooking, HX.GARAGE], { theme, width: w })}${C.multi([HX.S.off, HX.GARAGE], { theme, width: w })}</div></section>`;
+      if (C.detail) html += `<section><h2>Detail view</h2><div class="row">${(C.detailPages || ["main"]).map((p) => `<div style="width:420px">${C.detail(HX.S.cooking, { page: p, theme })}</div>`).join("")}</div></section>`;
+      document.getElementById("out").innerHTML = html;
+      if (C.wire) C.wire(document.getElementById("out"));
+      HX.fitScalers();
+      const bad = HX.checkFit();
+      const f = document.getElementById("fit");
+      f.className = bad.length ? "" : "ok";
+      f.textContent = bad.length ? `${bad.length} fit problems:\n` + [...new Set(bad)].slice(0, 12).join("\n") : "All cards fit their boxes";
+    };
+    ["theme", "ha", "w"].forEach((i) => document.getElementById(i).addEventListener("change", draw));
+    draw();
+    addEventListener("resize", () => HX.fitScalers());
+  }
+})();
+</script>
+</body>
+</html>

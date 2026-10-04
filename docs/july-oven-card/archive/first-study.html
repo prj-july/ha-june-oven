@@ -1,0 +1,1585 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head><body>
+<title>July Oven Card Study</title>
+<meta name="description" content="Design study for a Home Assistant dashboard card for June ovens running Project July.">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600&family=Public+Sans:ital,wght@0,400;0,600;0,700;1,400&family=IBM+Plex+Mono:wght@400;500&family=Barlow:wght@400;500;600;700&family=Barlow+Condensed:wght@400;500&display=swap">
+<style>
+:root{
+  --surface:#faf6ef;--raised:#ffffff;--sunken:#f1e9db;--line:#e6dcc9;--line-strong:#8c7a60;
+  --ink:#2a2019;--muted:#675847;--ember:#b23c0d;--on-ember:#ffffff;--ember-soft:#fce5d2;
+  --ready:#2f6a2c;--ready-soft:#dcecd8;--heat:#8a5a00;--heat-soft:#fae7c8;--fault:#b3261e;--fault-soft:#f8dcd8;
+  --glow:rgba(178,60,13,.16);--gridc:rgba(140,122,96,.13);
+  --shadow-sm:0 1px 2px #2a20190f,0 2px 6px #2a20191a;
+  --shadow-lg:0 2px 4px #2a201914,0 12px 32px #2a201924;
+  --serif:"Fraunces",Georgia,"Times New Roman",serif;
+  --sans:"Public Sans",system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
+  --mono:"IBM Plex Mono",ui-monospace,"SFMono-Regular",Consolas,monospace;
+  --r-sm:8px;--r-md:12px;--r-lg:20px;
+  --glass-sans:"Barlow","Public Sans",system-ui,sans-serif;--glass-num:"Barlow Condensed","Barlow",system-ui,sans-serif;
+  color-scheme:light;
+}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){
+  --surface:#17130f;--raised:#211b16;--sunken:#100c09;--line:#362f28;--line-strong:#877869;
+  --ink:#f4eee4;--muted:#b8aa98;--ember:#f89a4e;--on-ember:#1b120a;--ember-soft:#3a1d0c;
+  --ready:#74c46a;--ready-soft:#18300f;--heat:#e2a83e;--heat-soft:#35280a;--fault:#f2867d;--fault-soft:#3a1411;
+  --glow:rgba(248,154,78,.18);--gridc:rgba(184,170,152,.055);
+  --shadow-sm:0 1px 2px #0000004d,0 2px 8px #00000059;--shadow-lg:0 2px 6px #00000066,0 16px 40px #00000080;
+  color-scheme:dark;}}
+:root[data-theme="dark"]{
+  --surface:#17130f;--raised:#211b16;--sunken:#100c09;--line:#362f28;--line-strong:#877869;
+  --ink:#f4eee4;--muted:#b8aa98;--ember:#f89a4e;--on-ember:#1b120a;--ember-soft:#3a1d0c;
+  --ready:#74c46a;--ready-soft:#18300f;--heat:#e2a83e;--heat-soft:#35280a;--fault:#f2867d;--fault-soft:#3a1411;
+  --glow:rgba(248,154,78,.18);--gridc:rgba(184,170,152,.055);
+  --shadow-sm:0 1px 2px #0000004d,0 2px 8px #00000059;--shadow-lg:0 2px 6px #00000066,0 16px 40px #00000080;
+  color-scheme:dark;}
+
+*{box-sizing:border-box}
+body{background:var(--surface);color:var(--ink);font-family:var(--sans);font-size:17px;line-height:1.6;padding-inline:clamp(16px,4vw,40px);padding-block:0 64px}
+a{color:var(--ember);text-underline-offset:2px}
+a:focus-visible,button:focus-visible,[tabindex]:focus-visible{outline:none;box-shadow:0 0 0 3px var(--surface),0 0 0 6px var(--ember);border-radius:6px}
+h1,h2,h3{font-family:var(--serif);font-weight:600;line-height:1.15;text-wrap:balance;margin:0}
+h2{font-size:clamp(28px,3.4vw,36px);margin-block:0 12px}
+h3{font-size:22px;margin-block:0 8px}
+h4{font-family:var(--sans);font-size:15px;font-weight:700;margin:0 0 6px;letter-spacing:.02em}
+p{margin:0 0 14px;max-width:70ch}
+ul,ol{margin:0 0 14px;padding-inline-start:22px;max-width:72ch}
+li{margin-block:4px}
+code,.mono{font-family:var(--mono);font-size:.88em}
+code{background:var(--sunken);padding:1px 5px;border-radius:5px}
+.eyebrow{font-size:13px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);margin:0 0 8px}
+.lead{font-size:20px;line-height:1.55;color:var(--ink)}
+.muted{color:var(--muted)}
+.small{font-size:14.5px}
+
+.wrap{max-width:1180px;margin:0 auto}
+.layout{display:grid;grid-template-columns:minmax(0,1fr);gap:28px}
+@media (min-width:1100px){.layout{grid-template-columns:210px minmax(0,1fr)}}
+nav.toc ol{list-style:none;padding:0;margin:0;display:flex;flex-wrap:wrap;gap:6px}
+nav.toc a{display:inline-block;padding:6px 12px;border:1px solid var(--line);border-radius:999px;color:var(--muted);text-decoration:none;font-size:14px}
+nav.toc a:hover{background:var(--sunken);color:var(--ink)}
+@media (min-width:1100px){nav.toc{display:block;position:sticky;top:calc(env(safe-area-inset-top,0px) + 24px);align-self:start;font-size:14.5px;padding-top:8px}
+  nav.toc ol{display:block}
+  nav.toc a{display:block;padding:6px 10px;border:0;border-radius:8px;font-size:14.5px}
+  nav.toc a:hover{background:var(--sunken);color:var(--ink)}}
+section{padding-block:44px;border-top:1px solid var(--line)}
+section:first-of-type{border-top:0}
+
+header.hero{padding-block:48px 28px;max-width:1180px;margin:0 auto}
+.hero h1{font-size:clamp(40px,6vw,64px);letter-spacing:-.01em;margin-block:6px 16px}
+.meta{display:flex;flex-wrap:wrap;gap:8px 18px;font-size:14.5px;color:var(--muted);margin-block:10px 0}
+.meta span{display:inline-flex;align-items:center;gap:6px}
+
+.verdict{display:grid;gap:18px;grid-template-columns:1fr;background:var(--raised);border:1px solid var(--line);border-radius:var(--r-lg);padding:24px;box-shadow:var(--shadow-sm);margin-block:26px 0}
+@media (min-width:860px){.verdict{grid-template-columns:1.3fr 1fr}}
+.verdict h2{font-size:26px}
+.verdict ol{margin:0}
+.kv{display:grid;grid-template-columns:auto 1fr;gap:6px 14px;font-size:15px;margin:0}
+.kv dt{color:var(--muted)}
+.kv dd{margin:0;font-weight:600}
+
+.grid2{display:grid;gap:18px;grid-template-columns:1fr}
+@media (min-width:760px){.grid2{grid-template-columns:1fr 1fr}}
+.grid3{display:grid;gap:16px;grid-template-columns:1fr}
+@media (min-width:760px){.grid3{grid-template-columns:repeat(3,1fr)}}
+.panel{background:var(--raised);border:1px solid var(--line);border-radius:var(--r-md);padding:18px 20px}
+.panel p:last-child,.panel ul:last-child{margin-bottom:0}
+.note{background:var(--sunken);border-radius:var(--r-md);padding:14px 18px;font-size:15.5px;max-width:78ch}
+.note.warn{background:var(--fault-soft)}
+.note.warn strong{color:var(--fault)}
+
+.tablewrap{overflow-x:auto;border:1px solid var(--line);border-radius:var(--r-md);background:var(--raised);margin-block:8px 18px}
+table{border-collapse:collapse;width:100%;font-size:14.5px;min-width:620px}
+th,td{text-align:left;padding:9px 12px;border-bottom:1px solid var(--line);vertical-align:top}
+th{font-size:12.5px;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);background:var(--sunken);font-weight:700}
+tr:last-child td{border-bottom:0}
+td.num,th.num{text-align:right;font-variant-numeric:tabular-nums}
+
+.tag{display:inline-flex;align-items:center;gap:6px;font-size:12.5px;font-weight:700;padding:2px 9px;border-radius:999px;white-space:nowrap}
+.tag::before{content:"";width:7px;height:7px;border-radius:50%;background:currentColor}
+.t-ok{background:var(--ready-soft);color:var(--ready)}
+.t-warn{background:var(--heat-soft);color:var(--heat)}
+.t-new{background:var(--ember-soft);color:var(--ember)}
+.t-lost{background:var(--sunken);color:var(--muted)}
+.t-bad{background:var(--fault-soft);color:var(--fault)}
+
+.swatches{display:flex;flex-wrap:wrap;gap:10px;margin-block:8px 14px}
+.sw{display:flex;flex-direction:column;gap:6px;width:112px;font-size:12.5px}
+.sw i{display:block;height:46px;border-radius:10px;border:1px solid var(--line)}
+.sw b{font-family:var(--mono);font-weight:500}
+.ramp{height:18px;border-radius:9px;border:1px solid var(--line);margin-block:6px}
+
+.principles{display:grid;gap:14px;grid-template-columns:1fr}
+@media (min-width:760px){.principles{grid-template-columns:1fr 1fr}}
+.pr{background:var(--raised);border:1px solid var(--line);border-radius:var(--r-md);padding:16px 18px}
+.pr h3{font-size:19px}
+.pr p{font-size:15.5px;margin-bottom:8px}
+.src{font-size:13px;color:var(--muted);line-height:1.5}
+.src a{color:var(--muted)}
+
+/* ---------- mockup system ---------- */
+.stagebar{position:sticky;top:env(safe-area-inset-top,0px);z-index:5;background:color-mix(in srgb,var(--surface) 92%,transparent);backdrop-filter:blur(8px);padding-block:12px;margin-block:8px 18px;border-bottom:1px solid var(--line);display:flex;flex-wrap:wrap;align-items:center;gap:10px 16px}
+.seg{display:inline-flex;flex-wrap:wrap;gap:4px;background:var(--sunken);padding:4px;border-radius:12px}
+.seg button{font:600 14px/1 var(--sans);color:var(--muted);background:transparent;border:0;border-radius:9px;padding:10px 13px;min-height:40px;cursor:pointer}
+.seg button[aria-pressed="true"]{background:var(--raised);color:var(--ink);box-shadow:var(--shadow-sm)}
+.option{display:grid;gap:22px;grid-template-columns:minmax(0,1fr);align-items:start;padding-block:26px;border-top:1px dashed var(--line)}
+.option:first-of-type{border-top:0}
+@media (min-width:1000px){.option{grid-template-columns:minmax(0,540px) minmax(0,1fr)}}
+.option .desc h3{font-size:26px}
+.option .desc .tagline{font-family:var(--serif);font-style:italic;color:var(--muted);font-size:18px;margin-bottom:12px}
+.proscons{display:grid;gap:12px;grid-template-columns:1fr 1fr;font-size:15px}
+.proscons ul{padding-inline-start:18px;margin:0}
+.proscons h4{margin-bottom:2px}
+.stage{background:var(--sunken);border-radius:var(--r-lg);padding:18px;display:flex;justify-content:center}
+.stage .caption,.density .caption{font-size:12.5px;color:var(--muted);text-align:center;margin:8px 0 0;max-width:none}
+
+/* mock HA card */
+.mk{width:100%;max-width:392px;background:var(--raised);border:1px solid var(--line);border-radius:var(--r-md);box-shadow:var(--shadow-sm);padding:16px;color:var(--ink);font-family:var(--sans);position:relative;overflow:hidden}
+.mk .row{display:flex;align-items:center;gap:10px}
+.mk .between{justify-content:space-between}
+.mk .name{font-weight:700;font-size:16px}
+.mk .sub{font-size:14px;color:var(--muted)}
+.pill{display:inline-flex;align-items:center;gap:7px;min-height:30px;padding:3px 12px;border-radius:999px;font-weight:700;font-size:14px;white-space:nowrap}
+.pill i{width:9px;height:9px;border-radius:50%;background:currentColor;display:block}
+.p-off{background:var(--sunken);color:var(--muted)}
+.p-heat{background:var(--heat-soft);color:var(--heat)}
+.p-ready{background:var(--ready-soft);color:var(--ready)}
+.p-cook{background:var(--ember-soft);color:var(--ember)}
+.p-fault{background:var(--fault-soft);color:var(--fault)}
+.p-heat i{border-radius:2px;transform:rotate(45deg)}
+.p-fault i{border-radius:0;clip-path:polygon(50% 0,100% 100%,0 100%)}
+.p-off i{background:transparent;border:2px solid currentColor}
+.btn{font:700 16px/1.1 var(--sans);border-radius:var(--r-md);min-height:52px;padding:12px 16px;border:1.5px solid var(--line-strong);background:var(--raised);color:var(--ink);cursor:pointer;display:inline-flex;align-items:center;justify-content:center;gap:8px}
+.btn.primary{background:var(--ember);border-color:var(--ember);color:var(--on-ember)}
+.btn.stop{background:var(--ink);border-color:var(--ink);color:var(--surface)}
+.btn.block{width:100%}
+.btn[aria-pressed="true"]{border-color:var(--ember);background:var(--ember-soft);color:var(--ember)}
+.btn.sm{min-height:44px;font-size:15px;padding:8px 12px}
+.big{font-family:var(--serif);font-weight:500;font-variant-numeric:tabular-nums lining-nums;letter-spacing:-.02em;line-height:1}
+.chips{display:flex;flex-wrap:wrap;gap:6px}
+.chip{font:600 14px/1 var(--sans);min-height:40px;padding:0 12px;border-radius:999px;border:1.5px solid var(--line);background:var(--raised);color:var(--ink);display:inline-flex;align-items:center;gap:6px}
+.chip.on{border-color:var(--ember);background:var(--ember-soft);color:var(--ember)}
+.ico{width:22px;height:22px;flex:none}
+.stale{opacity:.5}
+.divider{height:1px;background:var(--line);margin-block:12px}
+.mkfoot{font-size:12.5px;color:var(--muted);display:flex;align-items:center;gap:6px}
+.mkfoot i{width:7px;height:7px;border-radius:50%;background:var(--ready);display:block}
+.glowpulse{box-shadow:0 0 0 1px color-mix(in srgb,var(--ember) 45%,transparent),0 0 24px var(--glow)}
+
+/* Home Assistant sections grid: the card is exactly its getGridOptions box */
+.slot{width:100%;min-width:0;display:block}
+.density figure{min-width:0}
+.stage>*{min-width:0;width:100%}
+.scaler{position:relative;margin-inline:auto;overflow:hidden}
+.scaler>.hasec{transform-origin:top left}
+.hasec{position:relative;border-radius:6px;outline:1px dashed var(--line);outline-offset:4px}
+.hacard{position:absolute;left:0;top:0}
+.mk.fit{max-width:none;width:100%;height:100%;display:flex;flex-direction:column;gap:8px;padding:12px 14px;overflow:hidden}
+.mk.fit .btn{min-height:48px}
+.mk.fit{container-type:size}
+.contain43{flex:1;min-height:0;container-type:size;display:flex;align-items:center;justify-content:center}
+.contain43>.cam{width:min(100cqw,calc(100cqh * 4 / 3))!important;height:auto!important;aspect-ratio:4/3!important;flex:none!important}
+.feat.sel>span{min-width:0;overflow:hidden;text-overflow:ellipsis}
+.feat>span{white-space:nowrap}
+@container (max-width:220px){
+  .b-top{flex-direction:column;height:auto!important;align-items:stretch!important}
+  .b-top .cam{height:auto!important;width:100%!important;aspect-ratio:4/3!important}
+  .b-top .big{font-size:36px!important}
+  .b-date{display:none}
+  .feat{font-size:14px}
+}
+.fx,.fbtn{flex:none}
+.trunc{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.herorow{flex:1;min-height:0;display:flex;gap:12px;align-items:stretch}
+.ringbox{flex:1;min-width:0;min-height:0;display:flex;justify-content:center;align-items:center}
+.ringwrap{position:relative;height:100%;aspect-ratio:1;max-width:100%}
+.ringface{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center}
+.etiles{flex:1;min-height:0;display:grid;grid-template-columns:1fr 1fr;grid-auto-rows:1fr;gap:8px}
+.etiles .etile{min-height:0}
+.mk.ha{padding:10px;gap:8px}
+.feat{flex:none;height:42px;border-radius:12px;background:var(--sunken);display:flex;align-items:center;justify-content:space-between;gap:8px;font:600 15px/1 var(--sans);color:var(--ink);padding:0 4px;border:0;width:100%}
+.feat button{width:42px;height:34px;border:0;border-radius:9px;background:var(--raised);color:var(--ink);font:500 20px/1 var(--sans)}
+.feat.sel{padding:0 12px;justify-content:flex-start}
+.feat.btnf{justify-content:center;cursor:pointer}
+.feat.btnf.primary{background:var(--ember);color:var(--on-ember)}
+.feat.btnf.stop{background:var(--ink);color:var(--surface)}
+
+/* Glass: Dark is the oven's own glass; Light is its daytime twin; Auto follows the viewer's HA theme */
+.glass{--g-bg:#120e0b;--g-bg2:#1f1712;--g-ink:#f4eee4;--g-muted:#a99a88;--g-ember:#f89a4e;--g-track:#3a2416;--g-ready:#74c46a;--g-heat:#e2a83e;--g-fault:#f2867d;--g-btn:#2c231c;--g-btn-line:#4a3a2e;--g-btn-ink:#f4eee4;--g-tile1:#2a1c14;--g-tile2:#170f0b;--g-tile-line:#3a2a20;--g-border:#2c231c;--g-glow:rgba(248,154,78,.55);
+  background:radial-gradient(120% 90% at 50% 0%,var(--g-bg2) 0%,var(--g-bg) 60%);color:var(--g-ink);border-color:var(--g-border)}
+.glass.g-light{--g-bg:#fffaf3;--g-bg2:#fff1e2;--g-ink:#2a2019;--g-muted:#675847;--g-ember:#b23c0d;--g-track:#f1e2d0;--g-ready:#2f6a2c;--g-heat:#8a5a00;--g-fault:#b3261e;--g-btn:#2a2019;--g-btn-line:#2a2019;--g-btn-ink:#faf6ef;--g-tile1:#fff4e8;--g-tile2:#fde6d1;--g-tile-line:#ecd6bf;--g-border:#e6dcc9;--g-glow:rgba(178,60,13,.35)}
+.glass.g-auto{--g-bg:var(--raised);--g-bg2:var(--raised);--g-ink:var(--ink);--g-muted:var(--muted);--g-ember:var(--ember);--g-track:color-mix(in srgb,var(--ember) 16%,var(--sunken));--g-ready:var(--ready);--g-heat:var(--heat);--g-fault:var(--fault);--g-btn:var(--ink);--g-btn-line:var(--ink);--g-btn-ink:var(--surface);--g-tile1:var(--ember-soft);--g-tile2:var(--ember-soft);--g-tile-line:var(--line);--g-border:var(--line);--g-glow:var(--glow)}
+.glass{font-family:var(--glass-sans)}
+.glass .big{font-family:var(--glass-num);font-weight:400;letter-spacing:0}
+.glass .btn,.glass .chip{font-family:var(--glass-sans)}
+.glass .sub{color:var(--g-muted)}
+.glass .cam .off{background:var(--g-tile2);color:var(--g-muted)}
+.glass .pill{background:color-mix(in srgb,currentColor 16%,transparent)}
+.glass .p-heat{color:var(--g-heat)}.glass .p-ready{color:var(--g-ready)}.glass .p-cook{color:var(--g-ember)}.glass .p-fault{color:var(--g-fault)}.glass .p-off{color:var(--g-muted)}
+.gbtn{background:var(--g-btn);border-color:var(--g-btn-line);color:var(--g-btn-ink)}
+.gbtn.primary{background:var(--g-ember);border-color:var(--g-ember);color:var(--g-bg)}
+.etile{background:linear-gradient(180deg,var(--g-tile1),var(--g-tile2));border:1px solid var(--g-tile-line);border-radius:16px;min-height:78px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;color:var(--g-ember);font:600 14px/1 var(--glass-sans)}
+.etile span{color:var(--g-ink)}
+.etile svg{width:30px;height:30px;filter:drop-shadow(0 0 6px var(--g-glow))}
+/* Idle home screen: pages of tiles, swiped left/right, with page dots (June on-oven) */
+.tilewrap{flex:1;min-width:0;min-height:0;display:flex;flex-direction:column;gap:4px}
+.tpages{flex:1;min-width:0;min-height:0;display:flex;overflow-x:auto;overflow-y:hidden;scroll-snap-type:x mandatory;scrollbar-width:none;overscroll-behavior-x:contain;touch-action:pan-x;container-type:size}
+.tpages::-webkit-scrollbar{display:none}
+/* Square tiles, like the oven's: each track is the tile size, so the 8 px gap is the same both ways */
+.tpage{flex:0 0 100%;min-width:0;scroll-snap-align:start;display:grid;--t:min(calc((100cqw - (var(--cols) - 1) * 8px) / var(--cols)),calc((100cqh - (var(--rows) - 1) * 8px) / var(--rows)));grid-template-columns:repeat(var(--cols),var(--t));grid-template-rows:repeat(var(--rows),var(--t));gap:8px;justify-content:center;align-content:center}
+.tpage .etile{width:100%;height:100%;min-height:0;text-align:center;line-height:1.1;padding:4px;border-radius:18px}
+/* Clock and date centered at the top, as on the oven's home screen */
+.ghead{display:grid;grid-template-columns:1fr auto 1fr;align-items:center;gap:8px}
+.ghead .l{min-width:0;justify-self:start}
+.ghead .r{justify-self:end;min-width:0;width:100%;display:flex;justify-content:flex-end}
+.ghead .c{text-align:center}
+.gclock{font-size:40px}
+.gdate{font-size:12.5px;margin-top:2px;white-space:nowrap}
+/* Several ovens: every oven's live state stays visible in its chip */
+.ovens{display:flex;gap:6px;align-items:center;padding-bottom:6px}
+/* A chip per oven: select area plus, while that oven heats, its own Stop (one tap, never hidden) */
+.ovenchip{position:relative;flex:1;min-width:0;min-height:52px;border-radius:12px;border:1.5px solid var(--g-tile-line);display:flex;align-items:stretch}
+/* Selected oven: an ink underline, like HA's tabs; no fill, so selection never looks like a state */
+.ovenchip.sel::after{content:"";position:absolute;left:10px;right:10px;bottom:-7px;height:3px;border-radius:2px;background:var(--g-ink)}
+.ovenchip .csel{flex:1;min-width:0;border:0;background:none;color:var(--g-ink);display:flex;align-items:center;gap:8px;padding:0 10px;text-align:left;font:600 14px/1.15 var(--glass-sans);cursor:pointer;border-radius:inherit}
+.ovenchip .ctext{min-width:0;display:flex;flex-direction:column}
+.ovenchip .t{color:var(--g-muted);font-weight:600;font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.ovenchip .cstop{flex:none;min-width:56px;border:0;border-left:1.5px solid var(--g-tile-line);border-radius:0 10.5px 10.5px 0;background:var(--g-btn);color:var(--g-btn-ink);font:700 14px/1 var(--glass-sans);cursor:pointer}
+/* An oven that is off: a small unfilled pill, one line; its tap area still reaches 48 px */
+.ovenchip.idle{flex:none;min-height:36px;border-radius:18px;border-width:1px}
+.ovenchip.idle .csel{padding:0 12px 0 10px;gap:7px}
+.ovenchip.idle .csel::before{content:"";position:absolute;inset:-6px 0}
+.ovenchip.idle .ctext{flex-direction:row;align-items:baseline;white-space:nowrap}
+.ovenchip.idle .mkr{width:9px;height:9px}
+/* Idle camera window in the header, opposite the name: 4:3, at least 48 px tall */
+.camwin{width:min(84px,100%);min-width:64px;aspect-ratio:4/3;border-radius:10px;border:1px solid var(--g-tile-line);background:var(--g-tile2);color:var(--g-muted);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;padding:0;font:600 12.5px/1 var(--glass-sans);cursor:pointer}
+.camwin svg{width:20px;height:20px}
+/* State marker: colour + shape, as in the pills (dot, diamond, triangle, ring) */
+.mkr{width:10px;height:10px;flex:none;display:block;background:currentColor;border-radius:50%}
+.mkr.heat{color:var(--g-heat);border-radius:2px;transform:rotate(45deg)}
+.mkr.cook{color:var(--g-ember)}
+.mkr.ready{color:var(--g-ready)}
+.mkr.fault{color:var(--g-fault);border-radius:0;clip-path:polygon(50% 0,100% 100%,0 100%)}
+.mkr.off{color:var(--g-muted);background:transparent;border:2px solid currentColor}
+.etile.util{background:transparent;border-color:var(--g-tile-line);color:var(--g-muted)}
+.etile.util svg{filter:none}
+.dots{flex:none;display:flex;justify-content:center;align-items:center;gap:0;height:28px}
+.dots button{width:24px;height:24px;border:0;background:none;padding:0;display:grid;place-items:center;cursor:pointer;color:var(--g-muted)}
+.dots button i{display:block;width:8px;height:8px;border-radius:4px;background:var(--g-tile-line);transition:width .2s}
+.dots button[aria-current="true"] i{width:20px;background:var(--g-ember)}
+.dots .arr{width:36px;font:500 20px/1 var(--sans)}
+@media (prefers-reduced-motion:reduce){.dots button i{transition:none}}
+.gbar .gtrack{position:relative;height:10px;border-radius:5px;background:var(--g-track)}
+.gbar .gdot{position:absolute;top:50%;width:16px;height:16px;margin:-8px 0 0 -8px;border-radius:50%;background:var(--g-ink);border:3px solid var(--g-bg)}
+.gbar .gtick{position:absolute;top:-5px;bottom:-5px;width:4px;margin-left:-2px;background:var(--g-ember);border-radius:2px}
+.gbar .gscale{display:flex;justify-content:space-between;font-size:12.5px;color:var(--g-muted);margin-top:6px}
+.ringwrap{container-type:size}
+/* Glass temperature graph: oven (ember) and food (ink), door openings as shaded bands */
+.gchart{display:flex;flex-direction:column;min-width:0}
+.gchart.fill{flex:1;min-height:0;width:100%}
+.gchart.axes{--gut:34px}
+.gchart .lane,.gchart .plot,.gchart .xl{margin-left:var(--gut,0);margin-right:4px}
+.gchart .lane{height:16px;position:relative;flex:none}
+.gchart .dlab{position:absolute;top:0;transform:translateX(-50%);font:600 12.5px/16px var(--glass-sans);color:var(--g-muted);white-space:nowrap}
+.gchart .plot{position:relative;flex:none}
+.gchart.fill .plot{flex:1;min-height:40px}
+.gchart .band{position:absolute;top:-16px;bottom:0;background:color-mix(in srgb,var(--g-ink) 13%,transparent);border-radius:3px}
+.gchart svg{position:absolute;inset:0;width:100%;height:100%;overflow:visible}
+.gchart .yl{position:absolute;left:calc(-1 * var(--gut));width:calc(var(--gut) - 6px);text-align:right;transform:translateY(-50%);font-size:12px;color:var(--g-muted)}
+.gchart .xl{position:relative;height:16px;flex:none;margin-top:3px}
+.gchart .xl span{position:absolute;transform:translateX(-50%);font-size:12px;color:var(--g-muted);white-space:nowrap}
+.gchart .xl span:first-child{transform:none}
+.gchart .xl span:last-child{transform:translateX(-100%)}
+.gchart .end{position:absolute;right:-4px;width:8px;height:8px;margin-top:-4px;border-radius:50%}
+.gchart .end.ko{background:var(--g-ember)}
+.gchart .end.kf{background:var(--g-ink)}
+.gkey{display:flex;flex-wrap:wrap;justify-content:space-between;gap:2px 10px;font-size:12.5px;font-weight:600;color:var(--g-muted);margin-top:4px;flex:none}
+.gkey span{white-space:nowrap}
+.gkey span::before{content:"";display:inline-block;width:12px;height:3px;border-radius:2px;margin-right:5px;vertical-align:middle}
+.gkey .ko::before{background:var(--g-ember)}
+.gkey .kf::before{background:var(--g-ink);height:4px}
+.glass .pfill{background:var(--g-ink)!important}
+/* Cooking pages: page 1 the ring and camera, page 2 the graph */
+.tpage.cpage{display:flex;gap:14px;align-items:stretch;min-height:0}
+/* Stop plus quick add-time while a timer runs */
+.gact{display:flex;gap:8px}
+.gact .btn{flex:1;min-width:0}
+.gadd{flex:none;display:flex;border:1.5px solid var(--g-btn-line);border-radius:var(--r-md);overflow:hidden}
+.gadd button{min-width:48px;border:0;border-left:1.5px solid var(--g-tile-line);background:transparent;color:var(--g-ink);font:700 15px/1 var(--glass-sans);padding:0 8px;cursor:pointer}
+.gadd button:first-child{border-left:0}
+.gadd small{font-size:12.5px;font-weight:600;color:var(--g-muted)}
+.themes{display:grid;gap:16px;grid-template-columns:1fr}
+@media (min-width:1000px){.themes{grid-template-columns:1fr 1fr}}
+.themes figure{margin:0;min-width:0}
+.themes figcaption{font-size:13.5px;font-weight:700;margin-bottom:8px}
+.themes figure.sel figcaption{color:var(--ember)}
+.themes figure.sel .hasec{outline:2px solid var(--ember)}
+/* settings mocks */
+.editor{background:var(--raised);border:1px solid var(--line);border-radius:var(--r-md);padding:16px;display:grid;gap:14px;max-width:460px}
+.editor label,.editor .lbl{font-size:13.5px;font-weight:700;display:block;margin-bottom:6px}
+.editor .help{font-size:13px;color:var(--muted);margin-top:6px}
+.fakesel{border:1.5px solid var(--line-strong);border-radius:10px;min-height:48px;display:flex;align-items:center;justify-content:space-between;padding:0 12px;font-size:15px}
+.srow{display:flex;align-items:center;justify-content:space-between;gap:12px;min-height:52px;border-bottom:1px solid var(--line);font-size:15px}
+.srow:last-child{border-bottom:0}
+.srow .d{font-size:13px;color:var(--muted)}
+.sw8{width:48px;height:28px;border-radius:14px;background:var(--line-strong);position:relative;flex:none}
+.sw8::after{content:"";position:absolute;top:3px;left:3px;width:22px;height:22px;border-radius:50%;background:var(--raised)}
+.sw8.on{background:var(--ember)}
+.sw8.on::after{left:23px;background:var(--on-ember)}
+.sgroup{font-size:12.5px;letter-spacing:.07em;text-transform:uppercase;font-weight:700;color:var(--muted);margin:14px 0 2px}
+.tiers{display:grid;gap:14px;grid-template-columns:1fr}
+@media (min-width:900px){.tiers{grid-template-columns:repeat(3,1fr)}}
+.tier{background:var(--raised);border:1px solid var(--line);border-radius:var(--r-md);padding:16px}
+.tier h4{font-size:16px;margin-bottom:2px}
+.tier .who{font-size:13px;color:var(--muted);margin-bottom:8px}
+.tier ul{font-size:14.5px;margin:0;padding-inline-start:18px}
+
+/* option D window */
+.cam{position:relative;aspect-ratio:4/3;border-radius:10px;overflow:hidden;background:#140d09}
+.cam svg.scene{position:absolute;inset:0;width:100%;height:100%}
+.cam .ov{position:absolute;inset:auto 0 0 0;padding:34px 14px 12px;background:linear-gradient(transparent,rgba(10,6,4,.86));color:#fbf4ea}
+.cam .badge{position:absolute;top:10px;left:10px;display:inline-flex;align-items:center;gap:6px;font:700 12.5px/1 var(--sans);background:rgba(10,6,4,.72);color:#fbf4ea;padding:6px 9px;border-radius:999px}
+.cam .badge i{width:8px;height:8px;border-radius:50%;background:#74c46a;display:block}
+.cam .badge.stale i{background:#e2a83e}
+.cam .badge.off i{background:transparent;border:1.5px solid #cbbba8}
+.cam .off{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px;color:#cbbba8;font-size:14.5px;background:var(--sunken)}
+.cam .off{color:var(--muted)}
+.cam.thumb{flex:none;max-width:100%;border:1px solid var(--line)}
+.cam.thumb .badge{top:6px;left:6px;font-size:13px;padding:4px 8px}
+.cam .dot{position:absolute;top:5px;left:5px;width:10px;height:10px;border-radius:50%;background:#74c46a;box-shadow:0 0 0 2px rgba(10,6,4,.7)}
+.cam .dot.stale{background:#e2a83e}
+.cam.thumb.big .badge{top:10px;left:10px;font-size:12.5px;padding:6px 9px}
+.cam .xp{position:absolute;right:6px;bottom:6px;width:26px;height:26px;border-radius:8px;background:rgba(10,6,4,.62);color:#fbf4ea;display:grid;place-items:center}
+.cam .xp svg{width:15px;height:15px}
+.cam.big .xp{width:34px;height:34px;right:10px;bottom:10px}
+.cam.big .xp svg{width:20px;height:20px}
+
+/* option E timeline */
+.track{display:grid;grid-template-columns:1fr 1.6fr .8fr;gap:6px;margin-block:10px 6px}
+.track div{height:12px;border-radius:6px;background:var(--sunken);position:relative;overflow:hidden;border:1px solid var(--line)}
+.track div b{position:absolute;inset:0 auto 0 0;background:var(--ember)}
+.track div.done b{width:100%;background:var(--muted)}
+.tlabels{display:grid;grid-template-columns:1fr 1.6fr .8fr;gap:6px;font-size:12.5px;color:var(--muted);font-weight:600}
+.tlabels .cur{color:var(--ink)}
+
+/* bullet graph */
+.bullet{position:relative;height:34px;margin-block:10px 4px}
+.bullet .band{position:absolute;top:6px;bottom:6px;border-radius:4px}
+.bullet .measure{position:absolute;top:13px;height:8px;border-radius:4px;background:var(--ink)}
+.bullet .marker{position:absolute;top:8px;width:18px;height:18px;margin-left:-9px;border-radius:50%;background:var(--ink);border:3px solid var(--raised)}
+.bullet .target{position:absolute;top:1px;bottom:1px;width:4px;margin-left:-2px;background:var(--ember);border-radius:2px}
+.bullet .proj{position:absolute;top:16px;height:2px;border-top:2px dashed var(--muted)}
+.bscale{display:flex;justify-content:space-between;font-size:12px;color:var(--muted);font-variant-numeric:tabular-nums}
+
+.scorebar{height:10px;border-radius:5px;background:var(--sunken);overflow:hidden;min-width:80px}
+.scorebar b{display:block;height:100%;background:var(--ember)}
+.winner td{background:color-mix(in srgb,var(--ember-soft) 55%,transparent)}
+
+/* recommended design: panel mock */
+.devices{display:grid;gap:22px;grid-template-columns:1fr;align-items:start}
+@media (min-width:980px){.devices{grid-template-columns:auto minmax(0,1fr)}}
+.tabs{display:flex;gap:4px;border-bottom:1px solid var(--line);margin-bottom:12px;overflow-x:auto}
+.tabs button{font:700 14.5px/1 var(--sans);background:none;border:0;border-bottom:3px solid transparent;color:var(--muted);padding:12px 12px 10px;min-height:44px;cursor:pointer;white-space:nowrap}
+.tabs button[aria-selected="true"]{color:var(--ink);border-bottom-color:var(--ember)}
+.mtiles{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
+.mtile{border:1.5px solid var(--line);border-radius:14px;background:var(--raised);min-height:84px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;font:600 14px/1.1 var(--sans);color:var(--ink);cursor:pointer;text-align:center;padding:6px}
+.mtile svg{width:28px;height:28px;color:var(--ember)}
+.mtile[aria-pressed="true"]{border-color:var(--ember);background:var(--ember-soft)}
+.stepper{display:grid;grid-template-columns:64px 1fr 64px;align-items:center;gap:8px}
+.stepper .btn{min-height:64px;font-size:26px;padding:0}
+.sheet{border:1.5px solid var(--line-strong);border-radius:16px;padding:16px;background:var(--surface)}
+.density{display:flex;flex-wrap:wrap;gap:18px;align-items:flex-start}
+.density figure{margin:0;display:flex;flex-direction:column;gap:8px}
+.density figcaption{font-size:13px;color:var(--muted)}
+
+pre.mermaid{background:var(--raised);border:1px solid var(--line);border-radius:var(--r-md);padding:16px;overflow-x:auto;font-size:13px}
+.flow{display:flex;flex-wrap:wrap;align-items:stretch;gap:8px;margin-block:10px 18px}
+.flow .step{flex:1 1 150px;background:var(--raised);border:1px solid var(--line);border-radius:12px;padding:12px 14px;font-size:14.5px}
+.flow .step b{display:block;font-size:12.5px;letter-spacing:.06em;text-transform:uppercase;color:var(--ember);margin-bottom:4px}
+.rules{counter-reset:r;list-style:none;padding:0;display:grid;gap:10px;grid-template-columns:1fr;max-width:none}
+@media (min-width:860px){.rules{grid-template-columns:1fr 1fr}}
+.rules li{counter-increment:r;background:var(--raised);border:1px solid var(--line);border-radius:12px;padding:12px 14px 12px 50px;position:relative;font-size:15px;margin:0}
+.rules li::before{content:counter(r);position:absolute;left:14px;top:12px;width:24px;height:24px;border-radius:50%;background:var(--ember-soft);color:var(--ember);font:700 13px/24px var(--sans);text-align:center}
+.rules li b{display:block}
+.rules li .test{display:block;color:var(--muted);font-size:13.5px;margin-top:4px}
+.refs{columns:1;column-gap:28px;font-size:13.5px;line-height:1.5}
+@media (min-width:900px){.refs{columns:2}}
+.refs h4{break-after:avoid;margin-top:14px}
+.refs ul{list-style:none;padding:0;margin:0 0 8px}
+.refs li{break-inside:avoid;margin-block:0 6px}
+footer{border-top:1px solid var(--line);padding-block:24px;color:var(--muted);font-size:14px}
+/* Every layout grid may shrink below its widest mockup; mockups scale themselves to fit */
+.grid2,.grid3,.principles,.tiers,.themes,.devices{grid-template-columns:minmax(0,1fr)}
+@media (min-width:760px){.grid2{grid-template-columns:repeat(2,minmax(0,1fr))}.grid3{grid-template-columns:repeat(3,minmax(0,1fr))}.principles{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media (min-width:900px){.tiers{grid-template-columns:repeat(3,minmax(0,1fr))}}
+@media (min-width:1000px){.themes{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media (min-width:980px){.devices{grid-template-columns:auto minmax(0,1fr)}}
+.devices>*,.grid2>*,.themes>*{min-width:0}
+</style>
+
+<header class="hero">
+  <p class="eyebrow">Project July · design study · 27 September 2026</p>
+  <h1>July Oven Card Study</h1>
+  <p class="lead">How a Home Assistant dashboard card should show and control a June oven running the Project July local server: what the oven can tell us, what the original app and oven screen did, what the best research says, five design directions, and the one we recommend building.</p>
+  <div class="meta">
+    <span>8 research strands · ~250 sources reviewed</span><span>June app 1.24.1.11 decoded</span><span>30 MB of real oven frames analysed</span><span>Status: draft for community review</span>
+  </div>
+  <div class="verdict">
+    <div>
+      <p class="eyebrow">Recommendation</p>
+      <h2>Build Glass: the oven’s own screen, as a calm card that opens into a cooking panel</h2>
+      <ol>
+        <li><b>On the dashboard:</b> June’s ring with the big number inside it, the uncropped camera window beside it, one status sentence, a current-versus-target bar while preheating, and an always-visible <b>Stop</b>. When idle: clock, camera and the oven’s mode tiles, which open a review step and never heat on one tap.</li>
+        <li><b>Appearance:</b> <i>Match Home Assistant</i> (default, follows each viewer’s light or dark theme), <i>Light</i>, or <i>Dark</i> (the oven’s glass).</li>
+        <li><b>Behind a tap:</b> Now · Cook · Camera · History, with <b>Settings</b> behind a labelled gear in the panel header. Card look lives in the card editor; the oven address stays in the integration’s Configure screen.</li>
+        <li><b>Several ovens:</b> one card per oven by default; an optional switcher or list keeps every oven’s live state visible. See <a href="#ovens">Several ovens</a>.</li>
+        <li><b>Safety asymmetry:</b> stopping is one tap, never confirmed. Starting heat is two deliberate steps that restate what will happen, and remote-start permission stays on the oven.</li>
+      </ol>
+    </div>
+    <dl class="kv">
+      <dt>Primary job</dt><dd>“Let me do something else and know, without walking over, when the oven is ready, when food is done, and that it’s safe.”</dd>
+      <dt>Primary audience</dt><dd>Older June owners; households with a kitchen wall tablet</dd>
+      <dt>Brand</dt><dd>July Oven system, not June’s trade dress</dd>
+      <dt>Chosen by</dt><dd>Project lead, over the higher-scoring Status line (see Evaluation)</dd>
+      <dt>Blocking work</dt><dd>Five integration bugs; seven new entities (see Data contract)</dd>
+    </dl>
+  </div>
+</header>
+
+<div class="wrap layout">
+<nav class="toc" aria-label="Contents">
+  <ol>
+    <li><a href="#brief">The brief</a></li>
+    <li><a href="#inventory">What the oven knows</a></li>
+    <li><a href="#language">Design language</a></li>
+    <li><a href="#research">What research says</a></li>
+    <li><a href="#options">Five directions</a></li>
+    <li><a href="#camera">The live oven view</a></li>
+    <li><a href="#evaluation">Evaluation</a></li>
+    <li><a href="#recommended">Recommended: Glass</a></li>
+    <li><a href="#settings">Settings</a></li>
+    <li><a href="#ovens">Several ovens</a></li>
+    <li><a href="#flows">States &amp; flows</a></li>
+    <li><a href="#contract">Data contract</a></li>
+    <li><a href="#rules">Design rules</a></li>
+    <li><a href="#validation">Validation plan</a></li>
+    <li><a href="#open">Open questions</a></li>
+    <li><a href="#sources">Sources</a></li>
+  </ol>
+</nav>
+<main>
+
+<section id="brief">
+  <p class="eyebrow">01 · The brief</p>
+  <h2>A card for a heating appliance, not a gadget</h2>
+  <p>June’s cloud was switched off on 22 September 2026. Project July keeps the oven working by running a small server on the oven itself, and our Home Assistant integration talks to it. The card is where most owners will now meet their oven away from its door, so it inherits three responsibilities the June app used to carry: telling people what the oven is doing, letting them adjust or stop a cook, and making sure nothing heats up that shouldn’t.</p>
+  <div class="grid3">
+    <div class="panel"><h4>Who it’s for</h4><p class="small">Many June owners are older and were promised an oven that “just works”. NN/g found adults 65+ are 43% slower on interfaces and blame themselves for 90% of failures. Many HA households also mount a tablet in the kitchen and read it from 2–3 m away.</p></div>
+    <div class="panel"><h4>Job to be done</h4><p class="small">Christensen’s framing: the progress someone is trying to make in a circumstance. Here: <i>keep cooking while I do other things, and know without looking when to act.</i> Reviewers praised June’s notifications far more than its app or camera, which supports that framing.</p></div>
+    <div class="panel"><h4>Constraints</h4><p class="small">It must feel native to Home Assistant, use July’s design system rather than June’s brand, work from phone to wall tablet, and show only data the local server really provides. <b>The interior camera is a required component of every design.</b> Remote start is treated as the riskiest action on the page.</p></div>
+  </div>
+  <div class="note warn" style="margin-top:18px"><strong>Why safety leads.</strong> Cooking causes 44–49% of US home fires, and unattended cooking is involved in about half of cooking-fire deaths (NFPA, 2023). In August 2019 several June ovens preheated overnight, which June attributed to accidental taps and voice commands, and it responded by adding a setting to disable remote preheat. Every major oven maker now gates remote start behind an action at the oven (GE Remote Enable, Samsung Smart Control, Miele MobileStart), and Traeger doesn’t allow remote ignition at all.</div>
+</section>
+
+<section id="inventory">
+  <p class="eyebrow">02 · What the oven knows</p>
+  <h2>Every signal, and whether we can use it today</h2>
+  <p>We combined three sources: the decoded June Android app (554 strings, 273 layouts, the colour and drawable tables), about 30 MB of real frames relayed through june-local on 22 September, and the current integration code. Each row is marked by what a card can rely on <b>today</b>.</p>
+  <p class="small"><span class="tag t-ok">In HA</span> works now · <span class="tag t-bad">Broken</span> exposed but misparsed · <span class="tag t-new">On the wire</span> sent by the oven, not yet exposed · <span class="tag t-lost">Lost</span> was cloud-only</p>
+  <div class="tablewrap"><table>
+    <thead><tr><th>Signal</th><th>Source</th><th>Range &amp; cadence</th><th>Status</th><th>What the card does with it</th></tr></thead>
+    <tbody>
+      <tr><td>Oven (cavity) temperature</td><td><code>10013 sensor_data.cavity</code></td><td>milli-°C, 1 Hz while active</td><td><span class="tag t-ok">In HA</span></td><td>Hero number</td></tr>
+      <tr><td>Target temperature</td><td>current plan step <code>temperature_cavity</code></td><td>milli-°C</td><td><span class="tag t-bad">Broken</span></td><td>Target tick; wrong for cooks started on the oven</td></tr>
+      <tr><td>Mode / program</td><td><code>cook_plan_data.food.name</code>, step <code>cook_mode</code></td><td>13 primitives, 287 programs</td><td><span class="tag t-bad">Broken</span></td><td>Status sentence (“Convection bake”)</td></tr>
+      <tr><td>Phase</td><td>step <code>presentation_type</code>: preheat, preheat_and_hold, cook_bound, cook_unbound, complete_and_off</td><td>per plan</td><td><span class="tag t-new">On the wire</span></td><td>The state machine that drives everything</td></tr>
+      <tr><td>Progress</td><td><code>progress{label_type, label_value, percentage}</code></td><td>0–100, 1 Hz</td><td><span class="tag t-bad">Broken</span></td><td>Preheat bar; time-based while cooking</td></tr>
+      <tr><td>Elapsed / remaining</td><td><code>cook_time_elapsed</code>, <code>cook_time_remaining</code></td><td>ms</td><td><span class="tag t-new">On the wire</span></td><td>Countdown, “done at 6:42”</td></tr>
+      <tr><td>Estimate status</td><td><code>eta.status</code>: unknown, calculating, acquired, fallback</td><td>enum</td><td><span class="tag t-new">On the wire</span></td><td>Honest “Estimating…” vs a real time</td></tr>
+      <tr><td>Food probe</td><td><code>sensor_data.probe[{id,value}]</code></td><td>milli-°C, 1 Hz when inserted</td><td><span class="tag t-ok">In HA</span></td><td>Doneness bar; becomes the hero when a target is set</td></tr>
+      <tr><td>Probe target</td><td>command <code>11007</code></td><td>milli-°C</td><td><span class="tag t-new">On the wire</span></td><td>Doneness presets (USDA-anchored)</td></tr>
+      <tr><td>Timer</td><td>command <code>11006</code>; <code>cook_bound</code> step</td><td>ms</td><td><span class="tag t-new">On the wire</span></td><td>Timer chips; “starts when food goes in”</td></tr>
+      <tr><td>Heating elements &amp; fans</td><td><code>heating_configuration</code> top ×4, bottom ×2; <code>conv_0/1</code></td><td>0–100 %</td><td><span class="tag t-new">On the wire</span></td><td>Mode glyph lights the elements that are on</td></tr>
+      <tr><td>Idle / active, cook ended</td><td><code>10018</code>, <code>10017 cancelled|completed</code></td><td>on change</td><td><span class="tag t-ok">In HA</span></td><td>Done vs cancelled (no “done” alert after Stop)</td></tr>
+      <tr><td>Connected</td><td>REST <code>connection_state</code></td><td>polled 60 s</td><td><span class="tag t-bad">Broken</span></td><td>Offline state; reads “off” today</td></tr>
+      <tr><td>Command result</td><td><code>10020</code> ack: success, door-open, preheat-warning-food-present, session-start-disabled…</td><td>per command</td><td><span class="tag t-new">On the wire</span></td><td>“Oven confirmed” / plain-language refusal</td></tr>
+      <tr><td>Camera</td><td>stills via <code>10011</code>; <code>/media/stream.mjpg</code>; <code>/internal/camera/on</code></td><td>640×480, up to 10 fps</td><td><span class="tag t-ok">In HA</span></td><td><b>Required in every design:</b> still on the card, live when expanded</td></tr>
+      <tr><td>Door, weight, lights, internal temps</td><td>on-oven only</td><td>—</td><td><span class="tag t-lost">Not sent</span></td><td>Door known only from a refused command</td></tr>
+      <tr><td>Recipes, videos, timelapse, push, food suggestions</td><td>June cloud</td><td>—</td><td><span class="tag t-lost">Lost</span></td><td>Replaced by HA notifications and local history</td></tr>
+    </tbody>
+  </table></div>
+  <div class="grid2">
+    <div class="panel">
+      <h4>Cook modes (from the June app and oven)</h4>
+      <p class="small">Bake (standard or convection) · Roast (standard or convection) · Broil (intensity 5–10, “Very low” to “Very high”) · Air fry · Toast (levels 1–9) · Reheat · Keep warm · Proof · Dehydrate · Slow cook (low or high) · Grill (low, medium, high) · Pizzaiolo · Sous vide (water temperature), plus 287 one-tap programs in the local catalogue.</p>
+      <p class="small muted">In the stock app, remote <b>start</b> was offered for Bake and Roast only; other modes could be adjusted or stopped remotely. That is a strong precedent for the card’s default.</p>
+    </div>
+    <div class="panel">
+      <h4>Edit-cook actions the June app offered</h4>
+      <p class="small">Oven temperature · Set or replace timer · Set or replace thermometer target · Convection fans on/off · Water temperature (sous vide) · Stop cooking. Estimates read “Estimating cook time”, then “13:37 or more” / “or less”. Notifications: preheated, preheat cancelled to save energy, timer ended, food needs attention, nearly finished, done.</p>
+    </div>
+  </div>
+</section>
+
+<section id="language">
+  <p class="eyebrow">03 · Design language</p>
+  <h2>Borrow June’s behaviour, keep July’s identity</h2>
+  <p>The on-oven screen and the June app share one idea worth keeping: <b>the oven shows you its heat</b>. Home-screen tiles are glowing glass squares whose icon is the pattern of heating elements each mode uses. Bake is a bottom bar, broil a top bar, roast both, and air fry a fan. The app’s “isometric oven” lit each element as it switched on, and the cooking screen was one ring, one big thin number, three lines of context and one orange button. That is a disciplined, glanceable language, and every screen in the app followed it.</p>
+  <div class="grid2">
+    <div class="panel">
+      <h4>June app palette (decoded from the APK)</h4>
+      <div class="swatches">
+        <div class="sw"><i style="background:#FB5028"></i><b>#FB5028</b>brand “carrot”</div>
+        <div class="sw"><i style="background:#F95933"></i><b>#F95933</b>action button</div>
+        <div class="sw"><i style="background:#000000"></i><b>#000000</b>oven screen</div>
+        <div class="sw"><i style="background:#161616"></i><b>#161616</b>tabs</div>
+        <div class="sw"><i style="background:#FF5500"></i><b>#FF5500</b>cavity line</div>
+        <div class="sw"><i style="background:#FFAA00"></i><b>#FFAA00</b>probe line</div>
+        <div class="sw"><i style="background:#1CA600"></i><b>#1CA600</b>done donut</div>
+        <div class="sw"><i style="background:#2C2C2C"></i><b>#2C2C2C</b>element off</div>
+      </div>
+      <p class="small">Temperature scale: <span class="mono">#75D4DF → #5097D9 → #FFFF4B → #FC4C02</span></p>
+      <div class="ramp" style="background:linear-gradient(90deg,#75D4DF,#5097D9,#FFFF4B,#FC4C02)" role="img" aria-label="June's cool-to-hot temperature ramp"></div>
+      <p class="small muted">Type: DIN Next LT Pro (condensed light for big numerals) and Tiempos Headline, both commercially licensed and not usable by us. The Glass card uses Barlow and Barlow Condensed, open fonts drawn in the same spirit.</p>
+    </div>
+    <div class="panel">
+      <h4>July Oven system (what the card ships)</h4>
+      <div class="swatches">
+        <div class="sw"><i style="background:#b23c0d"></i><b>#b23c0d</b>ember · light</div>
+        <div class="sw"><i style="background:#f89a4e"></i><b>#f89a4e</b>ember · dark</div>
+        <div class="sw"><i style="background:#faf6ef"></i><b>#faf6ef</b>surface</div>
+        <div class="sw"><i style="background:#17130f"></i><b>#17130f</b>surface · dark</div>
+        <div class="sw"><i style="background:#2f6a2c"></i><b>#2f6a2c</b>ready</div>
+        <div class="sw"><i style="background:#8a5a00"></i><b>#8a5a00</b>heat</div>
+        <div class="sw"><i style="background:#b3261e"></i><b>#b3261e</b>fault</div>
+        <div class="sw"><i style="background:#675847"></i><b>#675847</b>ink muted</div>
+      </div>
+      <p class="small">Type: <span style="font-family:var(--serif);font-weight:600">Fraunces</span> for the big number and headings, Public Sans for everything read, IBM Plex Mono for addresses and codes. Every pairing meets WCAG AA in both themes, primary controls are at least 48 px, ember is used once per view, and status is always colour plus word plus shape.</p>
+    </div>
+  </div>
+  <div class="tablewrap"><table>
+    <thead><tr><th>Signature element</th><th>Where it comes from</th><th>Decision</th><th>How</th></tr></thead>
+    <tbody>
+      <tr><td>Mode tiles whose icon is the lit heating elements</td><td>On-oven home screen, <code>elements_*_fill_on</code></td><td><span class="tag t-ok">Reinterpret</span></td><td>Redrawn as July line glyphs (24 px, 1.75 stroke). Live cooks light the elements actually on, from <code>heating_configuration</code>.</td></tr>
+      <tr><td>One ring, one big number, three lines, one button</td><td>App cooking screen, oven cooking screen</td><td><span class="tag t-ok">Reinterpret</span></td><td>Keep the hierarchy. The ring becomes a linear bar on the dashboard (research favours bars) and stays as an option inside the panel.</td></tr>
+      <tr><td>Hedged estimate language (“or more”, “or less”)</td><td>App strings</td><td><span class="tag t-ok">Borrow</span></td><td>Round the number and keep the hedge as text: “About 25 min, maybe longer”.</td></tr>
+      <tr><td>Green “done” state on the ring</td><td><code>timer_green</code></td><td><span class="tag t-ok">Reinterpret</span></td><td>July <code>ready</code> colour, plus the word “Done” and a check shape.</td></tr>
+      <tr><td>Utility actions visually distinct from cooking actions</td><td>Settings, Clean and Connect are grey, green and blue circles</td><td><span class="tag t-ok">Borrow</span></td><td>Only cooking actions use ember. Camera, settings and history are neutral.</td></tr>
+      <tr><td>DIN Next type: condensed numerals, plain labels</td><td>June app fonts (commercial licence)</td><td><span class="tag t-ok">Reinterpret</span></td><td>Barlow and Barlow Condensed (SIL Open Font License) on the Glass card, in regular weight rather than June’s light, because thin strokes fade at 2–3 m (Android TV and Nest Farsight guidance).</td></tr>
+      <tr><td>Black-screen cook UI, carrot orange, “june” wordmark, oven-model art</td><td>June trade dress</td><td><span class="tag t-bad">Avoid</span></td><td>The repo’s rule: familiar in feel, not a copy of June’s brand. The Glass direction below uses July’s dark tokens, not June’s.</td></tr>
+    </tbody>
+  </table></div>
+</section>
+
+<section id="research">
+  <p class="eyebrow">04 · What research says</p>
+  <h2>Twelve findings that shaped every option</h2>
+  <p>Eight parallel research strands covered Home Assistant’s own design direction, the June product and its reviews, award-winning appliance and smart-home interfaces, safety standards, foundational usability research, cooking-probe and prediction apps, designing for older adults and wall tablets, and camera and notification surfaces. These are the findings that changed the design.</p>
+  <div class="principles">
+    <div class="pr"><h3>1 · Status first, always visible</h3><p>Nielsen’s first heuristic, and Endsley’s three levels of situation awareness: perception (“312°F”), comprehension (“preheating, not ready”), projection (“ready in about 4 min”). A card that shows only a number does only the first.</p><p class="src">Nielsen, NN/g (1994, rev. 2024); Endsley, <i>Human Factors</i> (1995)</p></div>
+    <div class="pr"><h3>2 · Bars beat gauges for “how close am I?”</h3><p>Few built the bullet graph “to replace the meters and gauges”. NN/g’s dashboard work says gauges take space and read worse than linear marks. A smartwatch study found bars and donuts fastest only for a single proportion. So: rings for a single timer, bars for current versus target.</p><p class="src">Few, Perceptual Edge (2013); Laubheimer, NN/g (2017); Blascheck et al., IEEE TVCG (2019)</p></div>
+    <div class="pr"><h3>3 · Honest progress, honest estimates</h3><p>Accelerating progress is preferred and slowdowns near the end feel worst (Harrison, CMU), yet oven heating naturally slows near its target. Map preheat progress so the last 10% doesn’t crawl, but show “Ready” only when the sensor reaches target. Estimates get an explicit “Estimating…” state and rounded numbers, like MEATER and Combustion.</p><p class="src">Harrison et al., UIST 2007; Kay et al., CHI 2016; Padilla, Kay &amp; Hullman (2020); MEATER, Combustion Inc. docs</p></div>
+    <div class="pr"><h3>4 · Stopping is easy, starting is deliberate</h3><p>UL 1026 always allows remote cancel and expires remote programming after 5 minutes. GE, Samsung and Miele require arming at the oven, and opening the door disarms. Matter’s on/off cluster has an “Off only” feature. Nielsen: confirm only serious actions, or people learn to click through.</p><p class="src">Intertek SUN, UL 1026 (2015); GE, Samsung, Miele support; CSA Matter 1.3; Nielsen, NN/g (2018)</p></div>
+    <div class="pr"><h3>5 · Glanceable from across the kitchen</h3><p>Nest’s Farsight shows one large item from about 3 m and more detail when you approach. Alexa’s 10-ft type scale sets display text at 148–192 dp. At 2 m a numeral needs about 13–18 mm of cap height, roughly 110–150 CSS px on a 10-inch tablet. A simple rendering with few states beats a rich one (Matthews et al.).</p><p class="src">Google Nest (2024); Amazon APL style guide; ADA 703.5.5; Matthews et al., DIS 2006</p></div>
+    <div class="pr"><h3>6 · Built for older hands and eyes</h3><p>Older adults tapped accurately at 14 mm or more, and performance plateaued around 20 mm. Dragging is the hardest gesture, slow taps become “holds”, and people preferred explicit buttons to sliders. WCAG 2.2 requires a non-drag alternative. So: steppers and preset chips, no long-press, activate on release.</p><p class="src">Leitão &amp; Silva (2012); Yu et al., IJERPH (2022); Kobayashi et al., INTERACT 2011; Motti et al. (2013); WCAG 2.5.7</p></div>
+    <div class="pr"><h3>7 · Colour means something, or nothing</h3><p>High-performance industrial displays stay neutral and reserve colour for abnormal or active states (ISA-101). IBM Carbon requires at least three of colour, shape, symbol and text for status. Heat ramps must rise in lightness to stay colour-blind safe, and red stays reserved for faults.</p><p class="src">ISA-101; IBM Carbon; Crameri et al., <i>Nature Communications</i> (2020); Nuñez et al., PLOS ONE (2018)</p></div>
+    <div class="pr"><h3>8 · Alerts are the product</h3><p>Reviewers called June’s notifications “massively helpful” and forgot the camera within a week. 85–99% of hospital alarms need no action, which teaches people to ignore them. Send few alerts, each tied to an action, one per event, replaced in place, with the countdown in a Live Activity or Live Update.</p><p class="src">TechCrunch (2016); InsideHook (2022); Joint Commission SEA 50 (2013); Apple HIG Live Activities</p></div>
+    <div class="pr"><h3>9 · The camera is always there, and always honest</h3><p>The camera is a required part of every design: it’s June’s signature and the fastest reassurance that food isn’t burning. The research governs how it behaves. Google, Arlo and Ring all time-box live video, and Nest Hub Max separates “camera on” from “someone is watching”. HA’s own cards refresh stills every 10 s and rejected faster polling. So the card shows a still with its frame age, goes live only when expanded, and never lets the picture replace the status sentence.</p><p class="src">Google Nest help; Arlo KB; HA picture-entity docs and community PR; Advanced Camera Card docs</p></div>
+    <div class="pr"><h3>10 · Feel native to Home Assistant</h3><p>HA’s card principles: “a clear primary action”, clickable things look clickable, features beat icon buttons, don’t clutter. Use the 56 px row grid, <code>getGridOptions</code>, theme variables with fallbacks, a visual editor, and <code>getEntitySuggestion</code> so the card appears in the 2026.6 card picker.</p><p class="src">Mak, HA blog “Dashboard chapter 2” (2024); HA developer docs; HA 2026.6 release notes</p></div>
+    <div class="pr"><h3>11 · Model it as a statechart</h3><p>Harel statecharts with concurrent regions (heat × timer × probe × connection) rule out impossible screens like “Ready” while off. The oven already speaks in steps (<code>preheat → preheat_and_hold → cook_bound → complete_and_off</code>), which map almost one-to-one onto Matter’s oven phases.</p><p class="src">Harel (1987); XState/Stately; CSA Matter Oven Cavity Operational State</p></div>
+    <div class="pr"><h3>12 · Calm by default</h3><p>Weiser and Brown: information lives in the periphery and comes to the centre only when needed. Amber Case: technology can communicate without speaking. No motion at rest, a subtle warmth only while heating, and nothing that flashes. Always-on wall panels need a dim, pixel-shifted idle state.</p><p class="src">Weiser &amp; Brown, Xerox PARC (1995); Case, <i>Calm Technology</i>; Apple StandBy; WCAG 2.2.2 and 2.3</p></div>
+  </div>
+</section>
+
+<section id="options">
+  <p class="eyebrow">05 · Five directions</p>
+  <h2>Five ways to form the card</h2>
+  <p>Each direction is a complete answer to the same brief, drawn in July’s tokens and filled with values from a real bake captured on 22 September (convection bake, 400°F, 25-minute timer, probe target 145°F). Use the switcher to put every option in the same state. The comparison matters most in <b>Preheating</b>, <b>Done</b> and <b>Offline</b>, where cards usually fail.</p>
+  <p>Every mockup is drawn the way Home Assistant really lays out a card. In a Sections view a section is 320–500 px wide and split into 12 columns; rows are 56 px with 8 px gaps. A card declares its size in grid cells with <code>getGridOptions</code>, and its height is fixed at <code>rows × 56 + (rows − 1) × 8</code> px. The content has to fit that box; it never grows the card. The dashed outline and faint cells show the section grid. Switch to the phone width to see the same card squeezed into a 358 px section: the height stays the same and only the width changes.</p>
+  <div class="stagebar" role="group" aria-label="Oven state shown in every mockup">
+    <span class="small muted" id="stateLabel">Show every mockup as:</span>
+    <div class="seg" id="stateSeg">
+      <button type="button" data-s="off">Off</button>
+      <button type="button" data-s="preheat" aria-pressed="true">Preheating</button>
+      <button type="button" data-s="ready">Ready</button>
+      <button type="button" data-s="cooking">Cooking</button>
+      <button type="button" data-s="done">Done</button>
+      <button type="button" data-s="offline">Offline</button>
+    </div>
+    <span class="small muted">Section width:</span>
+    <div class="seg" id="widthSeg">
+      <button type="button" data-w="500" aria-pressed="true">Tablet / desktop · 500 px</button>
+      <button type="button" data-w="358">Phone · 358 px</button>
+    </div>
+    <span class="small muted">Glass look:</span>
+    <div class="seg" id="themeSeg">
+      <button type="button" data-t="auto" aria-pressed="true">Match HA</button>
+      <button type="button" data-t="light">Light</button>
+      <button type="button" data-t="dark">Dark</button>
+    </div>
+  </div>
+
+  <article class="option" id="optA">
+    <div class="stage"><div class="slot" data-opt="A"></div></div>
+    <div class="desc">
+      <p class="eyebrow">Option A</p>
+      <h3>Tile</h3>
+      <p class="tagline">Looks like it shipped with Home Assistant.</p>
+      <p>An HA tile card with oven-specific feature rows: a 4:3 camera picture (HA’s picture-card convention), a mode row, a target stepper and one action. Status reads as one line of text next to a state-coloured icon, exactly like HA’s built-in climate tile. Tapping the picture opens live view in the standard more-info dialog.</p>
+      <div class="proscons"><div><h4>Strengths</h4><ul><li>Zero learning curve for HA users (Jakob’s law)</li><li>Can ship as <code>customCardFeatures</code> on the stock tile</li><li>Cheapest to build and maintain</li></ul></div><div><h4>Weaknesses</h4><ul><li>Temperature is small; fails the 2 m glance test</li><li>“How close to ready?” is text only</li><li>Nothing of June’s feel survives</li><li>HA feature rows are 42 px, below our 48 px rule</li><li>Only 175 px wide in a phone section</li></ul></div></div>
+    </div>
+  </article>
+
+  <article class="option" id="optB">
+    <div class="stage"><div class="slot" data-opt="B"></div></div>
+    <div class="desc">
+      <p class="eyebrow">Option B</p>
+      <h3>Glass</h3>
+      <p class="tagline">The oven’s own screen, brought to the dashboard.</p>
+      <p>A faithful reinterpretation of the on-oven and app cooking screens: one ring, one big number, a few lines of context, one button. The camera is the oven’s window: the full, uncropped 4:3 frame above the ring, with its own Live badge, that expands on tap. The big number stays inside the ring, exactly where June put it. When idle it becomes the oven’s home screen: a clock and a camera window above pages of glowing mode tiles whose icons are their heating elements, swiped left and right with page dots, ending with a Settings tile. It uses July’s tokens and glyphs, not June’s carrot or DIN, and follows the Glass appearance switch at the top of the page.</p>
+      <div class="proscons"><div><h4>Strengths</h4><ul><li>Strongest emotional continuity for June owners</li><li>Camera reads as the oven’s window, number stays in the ring</li><li>Beautiful on a dark wall panel</li></ul></div><div><h4>Weaknesses</h4><ul><li>Ring reads worse than a bar for temperature</li><li>First drawn always dark; the appearance options (Match HA, Light, Dark) came with the revision</li><li>Idle mode tiles invite one-tap remote starts</li><li>Ring shrinks to 150 px in a phone section</li></ul></div></div>
+    </div>
+  </article>
+
+  <article class="option" id="optC">
+    <div class="stage"><div class="slot" data-opt="C"></div></div>
+    <div class="desc">
+      <p class="eyebrow">Option C</p>
+      <h3>Status line</h3>
+      <p class="tagline">Say what’s happening, show how close, offer one action.</p>
+      <p>Built from the research: a plain-language status sentence (Endsley’s comprehension and projection), a very large tabular number with the camera still beside it, and Few’s bullet graph with a dot for the current temperature, a tick for the target and a dashed projection. The card is neutral at rest, and colour appears only for active or abnormal states (ISA-101). One full-width action: <b>Stop</b> while heating, <b>Start cooking…</b> when off.</p>
+      <div class="proscons"><div><h4>Strengths</h4><ul><li>Best glanceability and accessibility</li><li>Status survives greyscale and colour-blindness</li><li>Natural glance, standard and compact densities</li></ul></div><div><h4>Weaknesses</h4><ul><li>Plain; less delight than Glass</li><li>Camera still is small at phone width (tap to enlarge)</li><li>Bullet graphs are unfamiliar to some people (a label fixes this)</li></ul></div></div>
+    </div>
+  </article>
+
+  <article class="option" id="optD">
+    <div class="stage"><div class="slot" data-opt="D"></div></div>
+    <div class="desc">
+      <p class="eyebrow">Option D</p>
+      <h3>Window</h3>
+      <p class="tagline">Look through the door.</p>
+      <p>The camera is the card. Temperature, status and actions sit over a gradient at the bottom of the frame, with a frame-age badge top left. When the camera is off it shows an honest placeholder and an option to switch it on for two minutes.</p>
+      <div class="proscons"><div><h4>Strengths</h4><ul><li>The largest, clearest camera of the five</li><li>Instant reassurance that food isn’t burning</li></ul></div><div><h4>Weaknesses</h4><ul><li>Status has to share space with the picture</li><li>Text over video is hard to keep legible (1.4.3)</li><li>Bandwidth and privacy cost on always-on panels</li><li>Empty when idle, which is most of the day</li></ul></div></div>
+    </div>
+  </article>
+
+  <article class="option" id="optE">
+    <div class="stage"><div class="slot" data-opt="E"></div></div>
+    <div class="desc">
+      <p class="eyebrow">Option E</p>
+      <h3>Timeline</h3>
+      <p class="tagline">Where are we in this cook?</p>
+      <p>The cook as a journey: Preheat → Cook → Done, like a delivery tracker driven only by real oven steps. The current stage fills, the headline is the time that matters now next to a camera still, and the probe gets its own small bar. The same layout, minus the camera, maps directly onto an iOS Live Activity or Android Live Update; Live Activities can’t show images, so the picture stays on the card and in notifications.</p>
+      <div class="proscons"><div><h4>Strengths</h4><ul><li>Makes the preheat → cook model obvious</li><li>Goal-gradient: people see the end coming</li><li>One design across card, lock screen and watch (the camera is card-only)</li></ul></div><div><h4>Weaknesses</h4><ul><li>Has little to say when the oven is off</li><li>Stage widths imply durations we don’t know</li><li>Wide; awkward in a 6-column section</li></ul></div></div>
+    </div>
+  </article>
+</section>
+
+<section id="camera">
+  <p class="eyebrow">05b · The live oven view</p>
+  <h2>How each candidate shows the camera, and why</h2>
+  <p>The camera is required in every design. Its placement was audited against the research after the first version, because some placements were the study team’s improvisation rather than evidence. The rules below come from the research; the table marks what each candidate does and what changed.</p>
+  <div class="grid2">
+    <div class="panel"><h4>What the research says</h4><ul class="small">
+      <li><b>Keep the whole frame.</b> camerad sends 640 × 480 (4:3). The oven is top-down fisheye and reviewers found blind spots at the tray edges (Brava), so never crop to a circle or strip. HA’s own picture cards expose <code>aspect_ratio</code> and <code>fit_mode</code> for the same reason.</li>
+      <li><b>Status stays primary.</b> The camera is a secondary, tap-to-open still (NN/g cards; older-adult and wall-tablet research). June kept live video on its own tab next to “Cooking”, and Anova does the same.</li>
+      <li><b>Label every frame’s age.</b> “Live”, then “Updated 14 s ago” (Google Home’s timestamped previews; Apple’s stale-thumbnail backlash; NN/g visibility of status).</li>
+      <li><b>Live only when expanded, for 5 minutes.</b> Google, Arlo and Ring time-box live video; HA refreshes card stills every 10 s.</li>
+      <li><b>Two indicators.</b> “Camera on” is separate from “someone is watching” (Nest Hub Max).</li>
+      <li><b>Text over video needs a scrim</b> to meet WCAG 1.4.3, as HA’s picture-glance bar does.</li>
+    </ul></div>
+    <div class="panel"><h4>Where the evidence runs out</h4><p class="small">No source sets a minimum thumbnail size or says whether the camera belongs above, beside or below the number on a card. Those choices are the study team’s, made to keep the number largest (Farsight, 10-ft UI) and the picture uncropped. They should be tested in the first usability round.</p></div>
+  </div>
+  <div class="tablewrap"><table>
+    <thead><tr><th>Candidate</th><th>Camera placement now</th><th>Frame</th><th>Evidence</th><th>Changed in this audit</th></tr></thead>
+    <tbody>
+      <tr><td>A · Tile</td><td>Picture area under the tile header, like HA’s picture cards</td><td>4:3</td><td><span class="tag t-ok">Backed</span> HA picture-card convention</td><td>Was a stretched band cropping the frame to about 1.6:1</td></tr>
+      <tr><td>B · Glass</td><td>The oven’s window, above the ring; number inside the ring</td><td>4:3</td><td><span class="tag t-warn">Partly</span> uncropped frame backed; “above the ring” is a team choice</td><td>Was a round porthole inside the ring (≈40% cropped, number pushed out), then a 16:9 window (25% cropped). Card grows to 6 × 8.</td></tr>
+      <tr><td>C · Status line</td><td>Thumbnail beside the big number</td><td>4:3</td><td><span class="tag t-ok">Backed</span> secondary tap-to-open still</td><td>Frame-age badge raised from 11 px to 13 px</td></tr>
+      <tr><td>D · Window</td><td>Camera is the card, status over a scrim</td><td>4:3</td><td><span class="tag t-warn">Partly</span> scrim backed (picture-glance); camera-first contradicts “status stays primary”</td><td>Was filling the card at about 1.6:1. Card grows to 12 × 7.</td></tr>
+      <tr><td>E · Timeline</td><td>Thumbnail beside the headline</td><td>4:3</td><td><span class="tag t-ok">Backed</span> secondary still</td><td>Claim corrected: Live Activities can’t show images</td></tr>
+      <tr><td>Glass (recommended) · standard</td><td>Camera window beside the ring; number inside the ring. When idle, a small window in the header opposite the name, so the mode tiles take the full width</td><td>4:3</td><td><span class="tag t-warn">Partly</span> uncropped and secondary to the number; side placement is a team choice</td><td>New in the recommendation</td></tr>
+      <tr><td>Glass (recommended) · glance</td><td>Side column under the status sentence; the ring and number fill the left</td><td>4:3</td><td><span class="tag t-ok">Backed</span> one large item at 2–3 m; camera secondary</td><td>In the earlier Hearth design the camera took half the card</td></tr>
+      <tr><td>Glass (recommended) · compact</td><td>Thumbnail with frame-age dot; camera state in words</td><td>4:3</td><td><span class="tag t-ok">Backed</span> every frame labelled</td><td>Earlier compact card had no frame age</td></tr>
+      <tr><td>Panel · Camera page</td><td>Full-width live view, 5-min limit, “camera on” and “watching” indicators</td><td>4:3</td><td><span class="tag t-ok">Backed</span> June Live Video tab; Nest; Arlo</td><td>None</td></tr>
+    </tbody>
+  </table></div>
+  <p class="small muted">Also fixed while auditing: the recommended card’s heating glow was a continuous pulse animation, which WCAG 2.2.2 and the study’s own “calm at rest” rule rule out. It is now a static warm edge.</p>
+</section>
+
+<section id="evaluation">
+  <p class="eyebrow">06 · Evaluation</p>
+  <h2>How the five directions score</h2>
+  <p>Weighted against the brief. Weights favour glanceability and safety because this is a heating appliance used by an older audience. Every option includes the camera, so “camera integration” scores how well it is placed and how honestly it behaves, not whether it exists. Fidelity to June matters, but less than whether the card is safe and readable. Scores are the study team’s assessment against the research above, 1 (poor) to 5 (excellent). They should be re-scored after the first usability round.</p>
+  <div class="tablewrap"><table>
+    <thead><tr><th>Criterion</th><th class="num">Weight</th><th class="num">A · Tile</th><th class="num">B · Glass</th><th class="num">C · Status line</th><th class="num">D · Window</th><th class="num">E · Timeline</th><th class="num">Glass, revised</th></tr></thead>
+    <tbody><tr><td>Glanceability at 2 m</td><td class="num">20%</td><td class="num">3</td><td class="num">4</td><td class="num">5</td><td class="num">3</td><td class="num">4</td><td class="num">4</td></tr><tr><td>Safety &amp; error prevention</td><td class="num">20%</td><td class="num">4</td><td class="num">3</td><td class="num">5</td><td class="num">3</td><td class="num">4</td><td class="num">4</td></tr><tr><td>Older-adult accessibility</td><td class="num">15%</td><td class="num">4</td><td class="num">3</td><td class="num">5</td><td class="num">3</td><td class="num">4</td><td class="num">4</td></tr><tr><td>Feels native to Home Assistant</td><td class="num">15%</td><td class="num">5</td><td class="num">2</td><td class="num">4</td><td class="num">3</td><td class="num">3</td><td class="num">3</td></tr><tr><td>Camera integration</td><td class="num">10%</td><td class="num">3</td><td class="num">4</td><td class="num">4</td><td class="num">5</td><td class="num">3</td><td class="num">4</td></tr><tr><td>Continuity with June</td><td class="num">10%</td><td class="num">2</td><td class="num">5</td><td class="num">2</td><td class="num">4</td><td class="num">3</td><td class="num">5</td></tr><tr><td>Works phone → desktop → wall</td><td class="num">5%</td><td class="num">4</td><td class="num">3</td><td class="num">4</td><td class="num">2</td><td class="num">3</td><td class="num">4</td></tr><tr><td>Build &amp; maintenance cost (5 = cheap)</td><td class="num">5%</td><td class="num">4</td><td class="num">3</td><td class="num">4</td><td class="num">2</td><td class="num">3</td><td class="num">3</td></tr><tr class="winner"><td><b>Weighted score</b></td><td class="num">100%</td><td class="num"><b>3.65</b><div class="scorebar"><b style="width:73%"></b></div></td><td class="num"><b>3.35</b><div class="scorebar"><b style="width:67%"></b></div></td><td class="num"><b>4.35</b><div class="scorebar"><b style="width:87%"></b></div></td><td class="num"><b>3.20</b><div class="scorebar"><b style="width:64%"></b></div></td><td class="num"><b>3.55</b><div class="scorebar"><b style="width:71%"></b></div></td><td class="num"><b>3.90</b><div class="scorebar"><b style="width:78%"></b></div></td></tr></tbody>
+  </table></div>
+  <p><b>Reading the result.</b> Status line wins on every criterion that carries safety or accessibility weight, and loses only on continuity with June. Window has the best camera but the weakest status.</p>
+  <p><b>Why Glass is recommended anyway.</b> The project lead chose Glass for its continuity with the oven owners already know. The revision in the last column closes most of Glass’s gaps with evidence from this study: it follows the viewer’s Home Assistant theme (<i>Match HA</i>, <i>Light</i> or <i>Dark</i>) instead of being always dark; it adds a current-versus-target bar while preheating, because a ring alone reads worse than a bar; it gains glance and compact sizes, the four-page panel, the camera rules and every safety rule. On paper it still trails Status line (3.90 against 4.35), mainly because a ring is a custom visual rather than an HA-native one. The first usability round should put the two side by side.</p>
+</section>
+
+<section id="recommended">
+  <p class="eyebrow">07 · Recommended</p>
+  <h2>Glass: the oven’s own screen, as a calm card that opens into a cooking panel</h2>
+  <p>Glass keeps what June owners know from the oven’s door: the ring with the big number inside it, the glowing element tiles, and the dark glass. The revision adds what the research asks for: status in words, a current-versus-target bar while preheating, an uncropped camera, a theme that follows Home Assistant, sizes for every screen, and the safety rules.</p>
+  <div class="grid2">
+    <div class="panel"><h4>Layer 1 · The card</h4><ul class="small"><li>Name and a state pill (colour + word + shape), then one status sentence in plain words</li><li>The ring with the big number inside: temperature while preheating, time left while a timer runs, “Ready” or “Done” as words</li><li><b>Camera window</b> beside the ring: the full 4:3 frame with its frame age; tap for live view. When idle: “Camera off · Turn on”</li><li>A current-versus-target bar under the camera while preheating or ready</li><li>One action: <b>Stop</b> (never confirmed) while heating</li><li>Idle: the oven’s home screen. The clock and date centered at the top, with the oven’s name on one side and a small camera window on the other, then square tiles across the full width in pages swiped left and right with page dots, as on June’s oven, with equal 8 px gaps both ways. The last tile is <b>Settings</b>, the same square with a neutral gear. Tapping a dot or an arrow turns the page without swiping. Mode tiles open the Cook page with that mode chosen; they never heat on one tap</li><li>While a timer runs: <b>+1 · +5 · +10 min</b> beside Stop, with Undo after each tap</li><li>While cooking or done: swipe to page 2, the temperature graph (oven, food, door openings); back to page 1 after 30 s</li><li>While cooking, tap the card to open the oven panel; Settings is also the gear in its header</li></ul></div>
+    <div class="panel"><h4>Layer 2 · The panel</h4><ul class="small"><li><b>Now:</b> the cook at full size, the stage track, temperature graph, adjust temperature and timer</li><li><b>Cook:</b> mode tiles with element glyphs, temperature stepper and preset chips, timer and probe, then a review sheet</li><li><b>Camera:</b> still first, live on request, stops itself after 5 minutes</li><li><b>History:</b> past cooks, who started each one and from where, and the graph</li><li><b>Settings</b> (gear in the header): alerts, camera, oven information, remote-start status. See <a href="#settings">Settings</a>.</li><li><b>More than one oven?</b> See <a href="#ovens">Several ovens</a>.</li></ul><p class="small muted">Opens as HA’s adaptive dialog: a bottom sheet on phones, a dialog on desktop. Deep-linkable (<code>#oven-now</code>, <code>#oven-camera</code>) from notifications.</p></div>
+  </div>
+
+  <div class="note" style="margin-top:18px"><b>Type.</b> The Glass card uses <b>Barlow</b> for words and <b>Barlow Condensed</b> for numbers: open-licensed (SIL OFL) stand-ins for the DIN Next family June used, which is commercially licensed. It is set in regular weight rather than June’s light, because the research on 10-ft screens and Farsight shows thin strokes fade at a distance. The rest of the study keeps July’s Fraunces and Public Sans.</div>
+
+  <h3 style="margin-top:28px">Appearance: Match Home Assistant, Light or Dark</h3>
+  <p><b>Match Home Assistant</b> is the default. It follows each viewer’s own light or dark theme (HA passes it to cards through its theme variables), so a shared wall tablet and someone’s phone can each look right. <b>Dark</b> is the oven’s own glass, and suits an always-on wall panel at night. <b>Light</b> is its daytime twin for bright kitchens. All three use July’s tokens and pass WCAG AA; status colours shift together so each state keeps its meaning in every appearance. Appearance is chosen in the card editor (see <a href="#settings">Settings</a>).</p>
+  <div class="stage" style="margin-bottom:22px"><div class="slot" data-opt="G3"></div></div>
+
+  <h3>Three sizes, chosen by the box the card is given</h3>
+  <p>In Home Assistant the user resizes a card by dragging it to a number of columns and rows, so the card never chooses its own size. Glass reads the box it is given with CSS size container queries (<code>container-type: size</code>) and picks a layout that fits it; a <code>display_mode</code> option overrides it. <b>Glance</b> is for wall tablets read from 2–3 m, <b>standard</b> for phones and desktops, <b>compact</b> for a one-row strip. The camera is present at every size, and always secondary to the number. These follow the Glass appearance switch above.</p>
+  <div class="stage" style="margin-bottom:22px"><div class="density" id="densityRow"></div></div>
+
+
+  <h3>The temperature graph and quick add time</h3>
+  <p>Two things from the panel come onto the Glass card. <b>The temperature graph</b> shows the oven and the food over the whole cook, with every door opening marked. On the standard card it is a second page you swipe to, like the oven’s own screens. Page 1 stays the ring and camera, and the status line, Stop and quick add stay in place on both pages. On a wall tablet (glance) there is room to show it under the camera. <b>Quick add</b> (+1, +5, +10 min) sits beside Stop while a timer runs.</p>
+  <div class="grid2">
+    <div class="panel"><h4>How the graph is drawn</h4><ul class="small">
+      <li>The oven line is ember and the food line is ink, thicker, with a dashed line at the food’s target. Ember already means cooking; amber would mean preheating, so the panel’s amber food line is now ink too.</li>
+      <li>Each line is labelled in words at its end, with no legend to decode (Tufte’s direct labelling).</li>
+      <li>A door opening is a shaded band with “Door” above it. It comes from the oven’s door switch, never from guessing at a temperature dip. If the door sensor is missing, no band is drawn.</li>
+      <li>After 30 s the card goes back to page 1, so a wall tablet never rests on the graph.</li>
+    </ul></div>
+    <div class="panel"><h4>How quick add behaves</h4><ul class="small">
+      <li>It shows only while a timer is running. When preheating, ready or done there is nothing to extend.</li>
+      <li>It is one group reading “+1 · +5 · +10 min”, with “min” said once to save width. Screen readers hear “Add 1 minute”.</li>
+      <li>Each tap uses the oven’s own timer command (11006). The card then shows the new end time with <b>Undo</b> for a few seconds, so a wrong tap costs nothing.</li>
+      <li>Stop keeps its place, its size and its one tap. Quick add is outlined, never filled, so it can’t be mistaken for the main action.</li>
+    </ul></div>
+  </div>
+  <div class="tablewrap"><table>
+    <thead><tr><th>Rule</th><th>Graph</th><th>Quick add</th></tr></thead>
+    <tbody>
+      <tr><td>Status stays primary; the hero number is largest</td><td><span class="tag t-ok">Pass</span> page 1 is unchanged; the status line and pill stay on both pages; back to page 1 after 30 s</td><td><span class="tag t-ok">Pass</span></td></tr>
+      <tr><td>Stop is one tap, always visible</td><td><span class="tag t-ok">Pass</span> fixed below both pages</td><td><span class="tag t-ok">Pass</span> beside Stop, never in its place</td></tr>
+      <tr><td>Colour only for meaning</td><td><span class="tag t-bad">Fixed</span> the panel drew food in amber, the preheating colour; it is now ink everywhere</td><td><span class="tag t-ok">Pass</span> neutral outline</td></tr>
+      <tr><td>Never colour alone</td><td><span class="tag t-ok">Pass</span> lines differ in weight and carry words; the door band carries “Door”</td><td><span class="tag t-ok">n/a</span></td></tr>
+      <tr><td>Targets 48 px or more</td><td><span class="tag t-ok">Pass</span> page dots and arrows as on the idle card</td><td><span class="tag t-ok">Pass</span> each button is at least 48 × 48 px</td></tr>
+      <tr><td>Mistakes are cheap</td><td><span class="tag t-ok">n/a</span></td><td><span class="tag t-warn">To test</span> Undo after every add</td></tr>
+      <tr><td>Starting is deliberate (UL 1026)</td><td><span class="tag t-ok">n/a</span></td><td><span class="tag t-warn">Partly</span> it only extends a cook that was already started. Whether extending counts as remote programming under UL 1026 is an open question.</td></tr>
+      <tr><td>Camera on every card</td><td><span class="tag t-warn">Partly</span> page 2 hides the camera on the standard card; glance shows both</td><td><span class="tag t-ok">Pass</span></td></tr>
+      <tr><td>Honest data</td><td><span class="tag t-warn">Needs data</span> door bands need the door sensor from june-local (see Data contract)</td><td><span class="tag t-ok">Pass</span> uses the oven’s timer</td></tr>
+      <tr><td>Fits its HA box</td><td colspan="2"><span class="tag t-ok">Pass</span> checked at 358 and 500 px, in every state and all three looks</td></tr>
+    </tbody>
+  </table></div>
+  <p class="small muted">Where the evidence runs out: Tufte and Few support small, directly labelled graphs, and progressive disclosure (NN/g) supports putting detail one swipe away. Putting the graph on a second page rather than shrinking it onto page 1, and the 30 s return, are the study team’s choices, made after an inline graph pushed the camera down to 144 × 108 px.</p>
+
+  <h3>The panel</h3>
+  <div class="devices">
+    <div class="stage" style="padding:22px"><div class="mk" style="max-width:420px" id="panelMock">
+      <div class="row between"><span class="name">Kitchen oven</span><div class="row" style="gap:6px"><button class="btn sm" type="button" id="panelSettings" aria-pressed="false"><svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1Z"/></svg>Settings</button><button class="btn sm" type="button" aria-label="Close panel" style="min-height:44px;min-width:44px;padding:0">✕</button></div></div>
+      <div class="tabs" role="tablist" aria-label="Oven panel pages" id="panelTabs">
+        <button role="tab" type="button" aria-selected="true" data-p="now">Now</button>
+        <button role="tab" type="button" aria-selected="false" data-p="cook">Cook</button>
+        <button role="tab" type="button" aria-selected="false" data-p="camera">Camera</button>
+        <button role="tab" type="button" aria-selected="false" data-p="history">History</button>
+      </div>
+      <div id="panelBody"></div>
+    </div></div>
+    <div>
+      <h4>What each page is for</h4>
+      <div class="tablewrap"><table>
+        <thead><tr><th>Page</th><th>Answers</th><th>Borrowed from</th></tr></thead>
+        <tbody>
+          <tr><td><b>Now</b></td><td>How is this cook going? When will it be ready? Can I nudge it?</td><td>June Dashboard tab; Option E’s stage track; Combustion’s rounded estimate that only counts down smoothly in the last 5 min</td></tr>
+          <tr><td><b>Cook</b></td><td>Start something, safely.</td><td>On-oven mode tiles; July companion’s stepper and chips; June’s bake/roast-only remote start; Joule’s outcome-named doneness</td></tr>
+          <tr><td><b>Camera</b></td><td>Is it burning? Is it browned?</td><td>June Live Video tab; Nest time-boxed live view; Advanced Camera Card’s still-while-loading</td></tr>
+          <tr><td><b>History</b></td><td>What happened, and who turned it on?</td><td>Google Home activity feed; June History tab; FireBoard graph annotations</td></tr>
+          <tr><td><b>Settings</b> (gear)</td><td>How does this oven alert me, and what is it?</td><td>June app Settings screen; HA more-info dialog’s header gear; on-oven grey Settings tile</td></tr>
+        </tbody>
+      </table></div>
+      <div class="note"><b>Mode tiles on the idle card.</b> The research warns that one-tap “Bake” tiles on an always-on panel are the pattern behind June’s 2019 overnight preheats. Glass keeps the tiles because they are its identity, but a tile only opens the Cook page with that mode chosen; heat always needs the review step. The list ends with a Settings tile, as on the oven, drawn neutral so it never reads as a cooking tile. The card editor can hide the mode tiles, and they are off by default in glance mode on wall tablets; the Settings tile stays.</div>
+    </div>
+  </div>
+</section>
+
+
+
+<section id="settings">
+  <p class="eyebrow">08 · Settings</p>
+  <h2>Where each setting lives</h2>
+  <p>The first design had no settings at all. Going back to the research, settings split three ways by who changes them and how often. Each has an established home, so the card doesn’t invent a new one.</p>
+  <div class="grid2">
+    <div class="panel"><h4>What the sources say</h4><ul class="small">
+      <li><b>June kept settings apart from cooking, but on the same screen.</b> The app had its own Settings screen (Info, Notifications, Disconnect, Help). On the oven, the home screen is pages of tiles you swipe left and right, with page dots; Settings comes right after the last cook mode (after Keep Warm), drawn as a grey gear so it never reads as a cooking tile.</li>
+      <li><b>Remote start is controlled at the oven.</b> June: “Visit Settings › App Permissions on the oven.” GE, Samsung and Miele also arm remote start at the appliance. The card shows the status and never offers a toggle.</li>
+      <li><b>Card options belong in the card editor.</b> HA asks custom cards to ship visual editors (Dashboard chapter 2), and Mushroom’s “visual editor for every option” is a big part of why it is loved.</li>
+      <li><b>Connection settings belong to the integration.</b> The oven address, certificate and defaults already live in HA’s Configure screen for the integration.</li>
+      <li><b>Keep them out of the way of cooking.</b> HA: one clear primary action, don’t clutter. NN/g: rarely used options go in a secondary view, and at the end of the mode list is exactly that. HA’s own more-info dialog also puts a gear in its header.</li>
+      <li><b>No hidden gestures.</b> Many HA cards open settings with a long-press; older-adult research shows long-press is undiscoverable and fires by accident. Settings is a labelled button.</li>
+    </ul></div>
+    <div class="panel"><h4>Decision</h4><p class="small">Three homes, one per audience. The panel’s Settings page gathers what people who cook need, and links out to the other two, so nobody has to know where a setting “really” lives. It has two doors: the <b>Settings tile</b> on the last page of the idle card’s mode tiles, exactly where June’s oven puts it, and the gear in the panel header, which is the way in while something is cooking and the tiles are hidden.</p>
+      <div class="flow" style="margin:6px 0 0"><div class="step"><b>Card editor</b>How the card looks and what it shows</div><div class="step"><b>Panel · Settings</b>Alerts, camera, oven info</div><div class="step"><b>Integration · Configure</b>Oven address and connection</div></div></div>
+  </div>
+  <div class="tiers" style="margin-top:14px">
+    <div class="tier"><h4>1 · Card editor</h4><div class="who">Dashboard owner · set once · Edit dashboard › the card</div><ul><li>Which oven</li><li><b>Appearance: Match HA, Light, Dark</b></li><li>Size: Automatic, Glance, Standard, Compact</li><li>Show the food probe; show mode tiles when idle</li><li>Camera still refresh (2 s default, HA’s own cards use 10 s)</li><li>Wall tablets: dim when the oven is off</li><li>What a tap does (opens the oven panel by default)</li></ul></div>
+    <div class="tier"><h4>2 · Panel · Settings</h4><div class="who">Anyone who cooks · occasionally · Settings tile on the idle card, or the gear in the panel header</div><ul><li>Alerts: preheated, 5 min left, food at target, done, oven left on (each is an HA automation from our blueprints)</li><li>Camera: turn on during every cook</li><li>Remote start: status only, and how to change it on the oven</li><li>About this oven: name, model, software, serial, server</li><li>Links to card and connection settings; help</li></ul></div>
+    <div class="tier"><h4>3 · Integration · Configure</h4><div class="who">Whoever set it up · rarely · Settings › Devices &amp; services</div><ul><li>Oven address</li><li>TLS verification and CA certificate</li><li>Default cook mode and temperature</li><li>Pair again or remove the oven</li></ul><p class="small muted" style="margin:8px 0 0">Already built in the integration; the panel links here.</p></div>
+  </div>
+  <div class="grid2" style="margin-top:18px">
+    <div>
+      <h3>The card editor</h3>
+      <div class="editor" inert>
+        <div><span class="lbl">Oven</span><div class="fakesel">Kitchen oven <span class="muted">▾</span></div></div>
+        <div><span class="lbl">Appearance</span><div class="seg"><button type="button" aria-pressed="true">Match Home Assistant</button><button type="button">Light</button><button type="button">Dark</button></div><div class="help">Match Home Assistant follows each viewer’s light or dark theme. Dark is the oven’s glass look.</div></div>
+        <div><span class="lbl">Size</span><div class="seg"><button type="button" aria-pressed="true">Automatic</button><button type="button">Glance</button><button type="button">Standard</button><button type="button">Compact</button></div><div class="help">Automatic picks a layout from the space you give the card.</div></div>
+        <div><div class="srow"><span>Show the food probe</span><span class="sw8 on"></span></div><div class="srow"><span>Show mode tiles when the oven is off<br><span class="d">Tiles open the cooking screen; they never start the oven. The Settings tile always stays.</span></span><span class="sw8 on"></span></div><div class="srow"><span>Dim when the oven is off<br><span class="d">For always-on wall tablets</span></span><span class="sw8"></span></div></div>
+        <div><span class="lbl">Camera picture refresh</span><div class="fakesel">Every 2 seconds <span class="muted">▾</span></div></div>
+      </div>
+    </div>
+    <div>
+      <h3>The same, in YAML</h3>
+      <pre style="background:var(--raised);border:1px solid var(--line);border-radius:var(--r-md);padding:14px;overflow-x:auto;font-size:13.5px"><code style="background:none;padding:0">type: custom:july-oven-card
+entity: climate.kitchen_oven
+theme: auto            # auto | light | dark
+display_mode: auto     # auto | glance | standard | compact
+show_probe: true
+show_mode_tiles: true
+camera_refresh: 2      # seconds
+dim_when_idle: false</code></pre>
+      <p><button class="btn primary" type="button" id="showSettings">Show the panel’s Settings page</button></p>
+      <p class="small">On the dashboard, the Settings tile is on the last page of the idle card’s tiles: swipe left, or tap the last dot (set the state switcher to <b>Off</b>, then try it in the mockups). While the oven is cooking, tap the card to open the panel; Settings is the labelled gear in its header. Appearance is deliberately a card option rather than a panel toggle, because Home Assistant already lets each person choose light or dark for themselves; <i>Match Home Assistant</i> respects that choice.</p>
+    </div>
+  </div>
+</section>
+
+<section id="ovens">
+  <p class="eyebrow">09 · Several ovens</p>
+  <h2>For households with more than one June</h2>
+  <p>The integration already supports several ovens: each is added once and becomes its own Home Assistant device with its own entities. The card needs to show them without ever hiding one that is hot.</p>
+  <div class="grid2">
+    <div class="panel"><h4>What the research says</h4><ul class="small">
+      <li><b>Never hide a heating oven.</b> Visibility of system status (Nielsen) and the study’s safety rules apply to every oven, not just the one on screen. ISA-101 keeps abnormal or active states visible in every view, and HA’s 2026.9 Security dashboard surfaces “Active alerts” wherever you are.</li>
+      <li><b>One card, one clear primary action</b> (HA dashboard principles). A card that controls two ovens must make it unmistakable which one a button acts on.</li>
+      <li><b>Status is colour, shape and word</b> (IBM Carbon). Each oven’s chip carries all three, so a hot oven stands out even when it is not selected.</li>
+      <li><b>Start names its target.</b> The review sheet says “Start preheating the Garage oven”, and every alert names the oven, so nobody acts on the wrong one.</li>
+      <li><b>Plain names.</b> Use the name the household gave the oven or its area (“Kitchen”, “Garage”), per HA’s plain-language direction.</li>
+    </ul></div>
+    <div class="panel"><h4>Decision</h4><ul class="small">
+      <li><b>Separate cards</b> (default). One Glass card per oven, side by side in a section. This is how Home Assistant treats devices, and both ovens are always visible.</li>
+      <li><b>Switcher in one card</b> (opt-in, for phones and small wall tablets). A row of oven chips replaces the name; each chip shows that oven’s live state. An oven that is off shrinks to a small, unfilled pill (“○ Kitchen · Off”), so ovens that are heating take the room. The selected oven is underlined, as in Home Assistant’s tabs. The card grows to 12 × 7. The panel title becomes the same switcher.</li>
+      <li><b>List</b> (opt-in, for desktops). One compact row per oven, each with its own Stop.</li>
+      <li>Settings are per oven: the Settings tile and panel gear open the selected oven’s settings.</li>
+    </ul></div>
+  </div>
+  <h3 style="margin-top:22px">Try it</h3>
+  <p class="small muted">Pick how the card shows several ovens. The mockup below follows this choice, the state switcher (for the Kitchen oven) and the Glass look switch. The Garage oven is preheating in every example, so you can see that an oven you are not looking at still shows its state.</p>
+  <div class="grid2">
+    <div class="editor">
+      <div inert><span class="lbl">Ovens</span><div class="fakesel">Kitchen oven, Garage oven <span class="muted">▾</span></div></div>
+      <div><span class="lbl">Show several ovens as</span><div class="seg" id="multiSeg" role="group" aria-label="Show several ovens as"><button type="button" data-m="cards" aria-pressed="true">Separate cards</button><button type="button" data-m="switcher">Switcher</button><button type="button" data-m="list">List</button></div><div class="help">Separate cards keep every oven in view. The switcher saves space and still shows every oven’s state.</div></div>
+    </div>
+    <pre style="background:var(--raised);border:1px solid var(--line);border-radius:var(--r-md);padding:14px;overflow-x:auto;font-size:13.5px;margin:0"><code style="background:none;padding:0">type: custom:july-oven-card
+entities:
+  - climate.kitchen_oven
+  - climate.garage_oven
+multi_oven: <span id="multiYaml">cards</span>      # cards | switcher | list</code></pre>
+  </div>
+  <div class="stage" style="margin-block:18px"><div class="slot" data-opt="M"></div></div>
+
+  <h3>Checked against the study’s rules</h3>
+  <p>The first drafts of these layouts were drawn from the research summary above but not checked rule by rule. This audit did that; everything marked “fixed” failed a rule in the first draft and is corrected in the mockups.</p>
+  <div class="tablewrap"><table>
+    <thead><tr><th>Rule</th><th>Separate cards</th><th>Switcher</th><th>List</th></tr></thead>
+    <tbody>
+      <tr><td>Status in colour, shape and word</td><td><span class="tag t-ok">Pass</span> each card has its pill</td><td><span class="tag t-bad">Fixed</span> chip markers had all become plain dots, and the selected chip showed a number, not a state. Chips now use the pill shapes (dot, diamond, triangle, ring) and a word: “Preheating · 312°”.</td><td><span class="tag t-ok">Pass</span> ring colour, ring symbol and a state word</td></tr>
+      <tr><td>Stop is one tap, always visible</td><td><span class="tag t-ok">Pass</span></td><td><span class="tag t-bad">Fixed</span> stopping the Garage oven took two taps (select it, then Stop). A heating oven that is not selected now has its own Stop inside its chip.</td><td><span class="tag t-ok">Pass</span> a Stop in every row</td></tr>
+      <tr><td>Every action names its oven</td><td><span class="tag t-bad">Fixed</span> buttons said “Stop cooking”; now “Stop the Garage oven”</td><td><span class="tag t-bad">Fixed</span> the status sentence and Stop didn’t say which oven; now “Kitchen · Preheating…” and “Stop the Kitchen oven”</td><td><span class="tag t-ok">Pass</span> each row starts with the oven’s name; Stop is labelled with it for screen readers</td></tr>
+      <tr><td>Targets 48 px or more</td><td><span class="tag t-ok">Pass</span></td><td><span class="tag t-bad">Fixed</span> chips were 44 px; now 52 px, and each chip’s Stop is 56 px wide. An off oven’s pill is drawn 36 px tall, but its tap area is 48 px.</td><td><span class="tag t-ok">Pass</span> 48 px Stop</td></tr>
+      <tr><td>Colour only for active or abnormal states</td><td><span class="tag t-ok">Pass</span></td><td><span class="tag t-bad">Fixed</span> the selected chip had an ember border, but ember means cooking. It then had a filled highlight, which made an oven that is off look active. Selection is now only an ink underline, and off ovens have no fill.</td><td><span class="tag t-ok">Pass</span></td></tr>
+      <tr><td>Which oven is selected is clear without colour</td><td><span class="tag t-ok">n/a</span></td><td><span class="tag t-ok">Pass</span> an underline (a shape, 3:1 against the card) plus <code>aria-selected</code>, the tab pattern HA uses</td><td><span class="tag t-ok">n/a</span></td></tr>
+      <tr><td>Never hide a heating oven</td><td><span class="tag t-ok">Pass</span> both cards always visible</td><td><span class="tag t-ok">Pass</span> the unselected oven’s chip shows its live state</td><td><span class="tag t-ok">Pass</span></td></tr>
+      <tr><td>Camera on every card, with frame age</td><td><span class="tag t-ok">Pass</span></td><td><span class="tag t-warn">Partly</span> only the selected oven’s camera shows. When idle it is a small window opposite the clock, so the mode tiles get the full width. The research treats the camera as secondary, so this is accepted, but it is a trade-off of the switcher.</td><td><span class="tag t-ok">Pass</span> thumbnail with a frame-age dot</td></tr>
+      <tr><td>Hero number is the largest thing</td><td><span class="tag t-ok">Pass</span></td><td><span class="tag t-ok">Pass</span></td><td><span class="tag t-warn">n/a</span> the list is the compact size, which has no hero number by design</td></tr>
+      <tr><td>Feels native to Home Assistant</td><td><span class="tag t-ok">Pass</span> one card per device, like HA</td><td><span class="tag t-warn">Partly</span> a custom control</td><td><span class="tag t-ok">Pass</span> like a row of HA tiles</td></tr>
+    </tbody>
+  </table></div>
+  <p class="small muted">Where the evidence runs out: no source covers a Stop button inside a switcher chip, a smaller chip for an oven that is off, or which of the three layouts households prefer. The small off pill and the idle camera window’s place in the header are the study team’s choices; the underline follows Home Assistant’s own tabs. Separate cards is the default because it passes every rule without trade-offs; the switcher and list are opt-in and should be tested.</p>
+
+</section>
+
+<section id="flows">
+  <p class="eyebrow">10 · States &amp; flows</p>
+  <h2>One state machine, driven by what the oven actually reports</h2>
+  <p>The oven already describes each cook as a list of steps. The card maps those steps onto six user-facing states, the same phases Matter’s oven device type uses. Connection runs as a separate, concurrent region, so a stale reading can never pass for a live one.</p>
+  <pre class="mermaid">
+stateDiagram-v2
+  direction LR
+  [*] --> Off
+  Off --> Preheating: Start confirmed · ack success
+  Preheating --> Ready: step becomes preheat_and_hold
+  Ready --> Cooking: food detected · timer starts
+  Preheating --> Cooking: modes without preheat
+  Cooking --> Done: 10017 completed · timer or probe target
+  Done --> Off: acknowledged or after 30 min
+  Preheating --> Off: Stop · 10017 cancelled
+  Ready --> Off: Stop · preheat timeout
+  Cooking --> Off: Stop
+  </pre>
+  <div class="tablewrap"><table>
+    <thead><tr><th>State</th><th>Detected from</th><th>Status sentence</th><th>Pill</th><th>Hero number</th><th>Action</th></tr></thead>
+    <tbody>
+      <tr><td>Off</td><td><code>10018 idle</code></td><td>Off</td><td>Grey ring · “Off”</td><td>Oven temperature, dimmed</td><td>Start cooking…</td></tr>
+      <tr><td>Preheating</td><td>step <code>preheat</code>, progress label temperature</td><td>Preheating — not ready yet</td><td>Gold diamond · “Preheating”</td><td>Oven temp → target</td><td>Stop</td></tr>
+      <tr><td>Ready</td><td>step <code>preheat_and_hold</code></td><td>Ready — put food in</td><td>Green dot · “Ready”</td><td>Target reached</td><td>Stop</td></tr>
+      <tr><td>Cooking</td><td>step <code>cook_bound</code> / <code>cook_unbound</code></td><td>Cooking — 12 min left</td><td>Ember dot · “Cooking”</td><td>Time left, or food temp if probe target set</td><td>Stop</td></tr>
+      <tr><td>Done</td><td><code>10017 completed</code></td><td>Done — take food out</td><td>Green check · “Done”</td><td>Food temp or finish time</td><td>Dismiss</td></tr>
+      <tr><td>Offline / stale</td><td>connection region: no update for 30 s → stale, 2 min → offline</td><td>Oven not responding</td><td>Red triangle · “Offline”</td><td>Last value, 50% opacity, with its age</td><td>How to fix it</td></tr>
+    </tbody>
+  </table></div>
+
+  <h3 style="margin-top:24px">Starting a cook</h3>
+  <p>Two deliberate steps, both labelled with their outcome. There is no preselected default, and no long-press or swipe anywhere. The review sheet restates everything and expires after 5 minutes, following UL 1026’s remote-programming window. Every refusal from the oven becomes a plain instruction.</p>
+  <pre class="mermaid">
+flowchart LR
+  A["Start cooking…"] --> B["Cook page: pick a mode tile"]
+  B --> C["Temperature: − / + and preset chips"]
+  C --> D["Optional: timer chips · probe doneness"]
+  D --> E["Review: Convection bake at 400°F. Preheat first. Make sure the oven is empty."]
+  E -->|Start preheating| F["Sending… (under 1 s)"]
+  E -->|5 min pass| X["Review expired · start again"]
+  F --> G{"Oven replies"}
+  G -->|success| H["Preheating"]
+  G -->|door-open| I["Close the oven door, then try again"]
+  G -->|food present| J["Take food out before preheating"]
+  G -->|session-start-disabled| K["This oven only starts from its own screen"]
+  G -->|no reply in 10 s| L["The oven didn't answer · Try again"]
+  </pre>
+  <div class="grid2">
+    <div class="panel"><h4>Stopping</h4><p class="small">Stop is visible in every active state, at least 2 grid rows tall on wall tablets, and labelled “Stop cooking”. It is never confirmed and never hidden in a menu. The card shows “Stopping…” until the oven confirms with <code>10017 cancelled</code>, then “Oven off”. There is deliberately <b>no Undo</b>: undoing a stop would be a one-tap remote start. Instead the card offers “Start again…”, which goes through the review step.</p></div>
+    <div class="panel"><h4>Adjusting a running cook</h4><p class="small">Temperature and timer changes are not confirmed. They apply after a 1-second pause in tapping, matching HA’s own thermostat debounce, and show “Setting 425°F…” until the oven acknowledges. Changing mode mid-cook needs the review step, because the oven restarts the cook.</p></div>
+  </div>
+
+  <h3 style="margin-top:24px">Alerts to pair with the card</h3>
+  <p>Shipped as blueprints, since no oven blueprints exist yet. Each cook gets one notification <code>tag</code>, so alerts replace each other instead of piling up.</p>
+  <div class="tablewrap"><table>
+    <thead><tr><th>Event</th><th>Level</th><th>Text</th><th>Actions</th></tr></thead>
+    <tbody>
+      <tr><td>Preheated</td><td>Time-sensitive</td><td>Oven is at 400°F. Put food in.</td><td>View oven · Stop</td></tr>
+      <tr><td>Timer: 5 min left</td><td>Passive, in Live Activity</td><td>About 5 minutes left on convection bake</td><td>+5 min · View camera</td></tr>
+      <tr><td>Food at target</td><td>Time-sensitive</td><td>Food is 145°F. Take it out and let it rest.</td><td>Stop · View camera</td></tr>
+      <tr><td>Done</td><td>Time-sensitive</td><td>Cooking is done. The oven has turned off.</td><td>View history</td></tr>
+      <tr><td>Heating with nobody around</td><td>Critical, off by default</td><td>The oven has been on for 45 min after its timer ended.</td><td>Stop</td></tr>
+      <tr><td>Countdown</td><td>Live Activity / Live Update</td><td>Stage track and chronometer; ends when the cook ends</td><td>Stop</td></tr>
+    </tbody>
+  </table></div>
+</section>
+
+<section id="contract">
+  <p class="eyebrow">11 · Data contract</p>
+  <h2>What the integration must expose for Glass to be fully live</h2>
+  <p>The inventory found five parsing bugs that affect the card today (a separate fix task is queued). Beyond those fixes, Glass needs these entities. Each design ships in stages: anything marked <span class="tag t-new">New</span> hides gracefully until it exists.</p>
+  <div class="tablewrap"><table>
+    <thead><tr><th>Entity</th><th>Purpose in the card</th><th>Source</th><th>Status</th></tr></thead>
+    <tbody>
+      <tr><td><code>climate.oven</code></td><td>Current/target temperature, heat/off, mode</td><td>10013, 10014–10016</td><td><span class="tag t-bad">Fix</span> target and mode for cooks started on the oven; <code>airfry</code> string</td></tr>
+      <tr><td><code>sensor.oven_phase</code></td><td>The state machine: off · preheating · ready · cooking · done</td><td>step <code>presentation_type</code>, 10017</td><td><span class="tag t-new">New</span></td></tr>
+      <tr><td><code>sensor.oven_progress</code></td><td>Preheat bar, cook progress</td><td><code>progress.percentage</code> (0–100)</td><td><span class="tag t-bad">Fix</span> parses an object</td></tr>
+      <tr><td><code>sensor.oven_done_at</code> (timestamp)</td><td>Countdown, “done at 6:42 PM”, Live Activity</td><td><code>cook_time_remaining</code>, <code>eta</code></td><td><span class="tag t-new">New</span></td></tr>
+      <tr><td><code>sensor.oven_estimate</code></td><td>Estimating / acquired / fallback</td><td><code>eta.status</code></td><td><span class="tag t-new">New</span></td></tr>
+      <tr><td><code>sensor.food_probe</code> + <code>number.probe_target</code></td><td>Doneness bar and presets</td><td>probe[]; command 11007</td><td><span class="tag t-ok">Exists</span> / <span class="tag t-new">New</span></td></tr>
+      <tr><td><code>number.oven_timer</code> or a <code>set_timer</code> action</td><td>Timer chips</td><td>command 11006</td><td><span class="tag t-new">New</span> (API has it)</td></tr>
+      <tr><td><code>sensor.oven_program</code></td><td>“Impossible burgers · step 2 of 3”</td><td><code>food.name</code>, local bundle strings</td><td><span class="tag t-new">New</span></td></tr>
+      <tr><td>Heater and fan attributes</td><td>Mode glyph lights the elements that are on</td><td><code>heating_configuration</code>, <code>conv_*</code></td><td><span class="tag t-new">New</span></td></tr>
+      <tr><td><code>binary_sensor.oven_connected</code></td><td>Offline and stale states</td><td>REST <code>connection_state</code> + telemetry age</td><td><span class="tag t-bad">Fix</span> expects “online”</td></tr>
+      <tr><td><code>binary_sensor.preheat_ready</code>, <code>cook_done</code></td><td>Alerts and blueprints</td><td>step change, 10017</td><td><span class="tag t-bad">Fix</span> ready never fires</td></tr>
+      <tr><td><code>binary_sensor.oven_door</code></td><td>Door bands on the temperature graph; “Door open · heating paused” in the status line; disarms a pending start</td><td>The oven’s door switch. The oven cuts its elements while the door is open and refuses to start (“Shut the Door”), so it knows. Not in the three captured cooks: june-local must report it</td><td><span class="tag t-bad">Required</span> new</td></tr>
+      <tr><td><code>sensor.oven_last_command</code></td><td>“Oven confirmed” and plain-language refusals</td><td>10020 ack status</td><td><span class="tag t-new">New</span></td></tr>
+      <tr><td><code>camera.oven</code> with <code>stream_source</code> + <code>switch.oven_camera</code></td><td><b>Required.</b> Still on every card size, time-boxed live view, “Turn on for 2 min” when idle</td><td><code>/media/stream.mjpg</code>, <code>/internal/camera/on</code></td><td><span class="tag t-bad">Required</span> still exists; stream and switch are new</td></tr>
+    </tbody>
+  </table></div>
+</section>
+
+<section id="rules">
+  <p class="eyebrow">12 · Design rules</p>
+  <h2>Twenty-one rules, each with a test</h2>
+  <ol class="rules">
+    <li><b>The hero number is the largest thing on the card.</b> Standard mode 56 px or more in a 500 px section (48 px floor in a 358 px phone section), glance mode 120 px or more, Fraunces with tabular figures. Target is half the size or less.<span class="test">Test: 4 of 5 people read the temperature within ±5° in a 3-second glance, at 2 m in glance mode.</span></li>
+    <li><b>Every state has a sentence, a pill word and a shape.</b> Colour is never the only signal.<span class="test">Test: every state is identifiable in a greyscale screenshot and under deuteranopia simulation.</span></li>
+    <li><b>Current versus target is a bar, never only a gauge.</b> A dot marks the current value because the scale doesn’t start at zero, and a tick marks the target.<span class="test">Test: faster and more accurate “how close?” answers than a 270° ring in A/B.</span></li>
+    <li><b>Stop is one tap, always visible, never confirmed.</b> At least 48 px, 2 grid rows in glance mode, labelled “Stop cooking”.<span class="test">Test: 5 of 5 people stop the oven within 2 s of being asked.</span></li>
+    <li><b>Starting heat takes two outcome-labelled steps.</b> Mode and temperature, then a review sheet that restates everything and expires after 5 minutes.<span class="test">Test: no single tap anywhere on the dashboard can start heating.</span></li>
+    <li><b>No drag-only control, no long-press, no swipe-only path.</b> Steppers and chips everywhere; any dial also has buttons. The idle tile pages swipe like the oven, but every page is also one tap away on its dot or arrow. Actions fire on release.<span class="test">Test: full operation by keyboard, and by single taps only.</span></li>
+    <li><b>Primary targets are 14 mm or larger.</b> About 72–84 px on phones; 48 px is the floor for anything tappable.<span class="test">Test: automated bounding-box audit.</span></li>
+    <li><b>Stale data looks stale.</b> After 30 s without an update, show the age; after 2 min, dim the number to 50% and say “Oven not responding”.<span class="test">Test: unplug the oven; the card changes within 30 s.</span></li>
+    <li><b>Commands show sending, confirmed or refused.</b> Pressed state within 100 ms, “Sending…” until the ack, a plain-language result after, and an error with a retry at 10 s.<span class="test">Test: with 3 s and 15 s injected latency, nobody double-taps Start.</span></li>
+    <li><b>Preheat progress never goes backwards.</b> Opening the door holds the bar and adds a “Door opened” note. “Ready” appears only when the sensor reaches target.<span class="test">Test: logged progress is monotonic; no false Ready in 20 cooks.</span></li>
+    <li><b>Estimates are honest.</b> Show “Estimating…” until there’s evidence. Round to 1 min under 10 min, 5 min under an hour, and hide beyond 4 hours. Count down in m:ss only for the last 5 minutes, and freeze on stale data.<span class="test">Test: displayed ETA error stays inside its rounding band in 80% of logged cooks.</span></li>
+    <li><b>Colour only for active or abnormal states.</b> Off is neutral, ember appears only while heating, green for ready or done, red only for faults.<span class="test">Test: an off oven renders with no accent colour.</span></li>
+    <li><b>Contrast holds in both themes.</b> Text 4.5:1, key numbers 7:1, bars, ticks and focus rings 3:1.<span class="test">Test: automated contrast check in HA default light and dark themes.</span></li>
+    <li><b>Screen readers hear milestones, not ticks.</b> The countdown uses <code>role="timer"</code>; one polite status region announces preheated, 5 min left, done and probe reached; faults use <code>role="alert"</code>.<span class="test">Test: 5 or fewer announcements in a 10-minute NVDA/VoiceOver cook.</span></li>
+    <li><b>The camera is always on the card, and never auto-plays.</b> Every size shows a camera still (or an honest “Camera off · Turn on” placeholder), refreshed at most every 2 s. Live view runs only when expanded, stops after 5 min, and every frame is labelled with its age.<span class="test">Test: the camera is visible at every density; the collapsed card uses no video bytes.</span></li>
+    <li><b>Calm at rest.</b> No animation while off; a slow warmth only while heating, removed under reduced motion; nothing flashes.<span class="test">Test: with reduced motion on, no element moves.</span></li>
+    <li><b>Always-on panels dim when idle.</b> Glance mode has a dark, low-luminance idle state with a small pixel shift every few minutes.<span class="test">Test: idle glance-mode luminance under 20% of active.</span></li>
+    <li><b>One alert per event, each tied to an action.</b> One tag per cook, a Live Activity for the countdown, no per-degree pushes.<span class="test">Test: 4 or fewer notifications in a normal cook with a probe.</span></li>
+    <li><b>Feels native.</b> Root is <code>&lt;ha-card&gt;</code>, sizes come from <code>getGridOptions</code> in multiples of 3 (Glass: 12 × 6 standard, 12 × 1 compact, 24 × 8 glance), content always fits the fixed box at any section width from 320 to 500 px, colours come from HA variables with July fallbacks, labels come from <code>hass.formatEntityState</code>, and the config has a visual editor.<span class="test">Test: card-mod works, and theme switches restyle it without a reload.</span></li>
+    <li><b>Every action names its oven when there is more than one.</b> Start, Stop, the review sheet and every alert say which oven; an oven that is heating is never hidden behind a switcher.<span class="test">Test: with two ovens, 5 of 5 people stop the right oven first time.</span></li>
+    <li><b>Plain words.</b> No June internals (“cook_bound”), no bare icons, active voice, and buttons that say what happens.<span class="test">Test: a cognitive walkthrough of start, stop, extend timer and “is it done?” finds no unclear labels.</span></li>
+  </ol>
+</section>
+
+<section id="validation">
+  <p class="eyebrow">13 · Validation plan</p>
+  <h2>Prove it with the people who will use it</h2>
+  <div class="flow">
+    <div class="step"><b>Week 1</b>Heuristic evaluation (3–5 reviewers, Nielsen’s 10) and a cognitive walkthrough of the four core tasks, on clickable mockups.</div>
+    <div class="step"><b>Weeks 2–4</b>Three RITE rounds × 5 people, at least half aged 65+. Round 1 puts Glass beside Status line. Tasks at arm’s length and at 2 m; one round with wet fingers.</div>
+    <div class="step"><b>Week 5</b>Glance test: a 3-second exposure, then “What is the oven doing? Is it safe to walk away?”</div>
+    <div class="step"><b>Beta</b>HACS pre-release to Project July testers, with cook logs to check estimate accuracy and false Ready rates.</div>
+  </div>
+  <p><b>Ship criteria:</b> 100% Stop success, SUS 80 or above (top-10% band; the average is 68), glance accuracy of 90% or better, and zero unintended starts across all sessions.</p>
+</section>
+
+<section id="open">
+  <p class="eyebrow">14 · Open questions</p>
+  <h2>What we still need to learn</h2>
+  <ul>
+    <li><b>Remote-start permission.</b> Does june-local honour the oven’s own “App Permissions” setting (<code>session-start-disabled</code>)? If not, should the card add its own arm-at-the-oven step, like GE and Miele?</li>
+    <li><b>Which modes accept remote start?</b> The stock app offered Bake and Roast only; only bake is proven in captures. Default to Bake and Roast until others are verified on a real oven.</li>
+    <li><b>Door state.</b> The oven detects its door: it cuts the heating elements while the door is open and refuses to start. So the card treats the door as real data: bands on the graph and “Door open · heating paused” in the status line. The open question is only where june-local reads it: from the oven’s telemetry, or from the oven software directly. None of the three captured cooks carries it.</li>
+    <li><b>Probe frames.</b> No capture includes a probe. The doneness UI needs real <code>sensor_data.probe</code> frames before it ships.</li>
+    <li><b>Estimates.</b> <code>eta.status</code> and <code>cook_time_remaining</code> never appeared in captures. If the oven doesn’t send them locally, the card must compute its own estimate or show time elapsed instead.</li>
+    <li><b>Unattended cooking.</b> Should the card, or a blueprint, turn the oven off automatically when it has been heating long after a timer ended? June planned this in 2019 and it may never have shipped.</li>
+    <li><b>Swiping for Settings.</b> The oven pages its tiles left and right and puts Settings after the last cook mode, and so does Glass. The older-adult research warns that swipes are hidden and hard, so every page is also one tap away on its dot or the arrows (WCAG 2.5.7). Those dots are 24 px targets, the WCAG minimum but below this study’s 48 px rule. Test whether owners find Settings on the last page, and whether the dots are big enough.</li>
+    <li><b>Mode tiles on a wall tablet.</b> Glass shows the oven’s mode tiles when idle. They only open the review step, but test whether owners read them as “start” buttons, especially on always-on panels.</li>
+    <li><b>Two ovens, one card.</b> Test whether people act on the wrong oven with the switcher, and whether the chip of a hot, unselected oven draws enough attention without flashing.</li>
+    <li><b>Camera when idle.</b> camerad only runs while cooking or when switched on. Should an idle card show the last frame from the previous cook (labelled with its age), or the “Camera off” placeholder? Does turning it on remotely need its own indicator on the oven?</li>
+    <li><b>Food detection.</b> The oven still detects food locally (it refuses to preheat with food inside). Could it also power a “food is in” cue on the card?</li>
+  </ul>
+</section>
+
+<section id="sources">
+  <p class="eyebrow">15 · Sources</p>
+  <h2>Where this comes from</h2>
+  <p class="small muted">A selection of about 110 of the roughly 250 sources the research strands reviewed. Paywalled standards (IEC 60335-2-6:2024 §22.51, UL 858 Supplement SA, IEC 60601-1-8) were summarised from secondary sources and should be confirmed before any compliance claim.</p>
+  <div class="refs">
+    <h4>Home Assistant</h4>
+    <ul>
+      <li>Mak, M. <a href="https://www.home-assistant.io/blog/2024/03/04/dashboard-chapter-1/">Dashboard chapter 1</a> and <a href="https://www.home-assistant.io/blog/2024/07/26/dashboard-chapter-2/">chapter 2</a>, 2024</li>
+      <li>HA developers, <a href="https://developers.home-assistant.io/docs/frontend/custom-ui/custom-card/">Custom card</a> and <a href="https://developers.home-assistant.io/docs/frontend/custom-ui/custom-card-feature/">custom card features</a></li>
+      <li>Bottein, P. <a href="https://developers.home-assistant.io/blog/2023/07/07/action-event-custom-cards/">Action event for custom cards</a>, 2023; <a href="https://developers.home-assistant.io/blog/2023/08/29/hass-format-state/">Entity state formatting</a>, 2023</li>
+      <li>Kragten, B. <a href="https://www.home-assistant.io/blog/2023/09/06/release-20239/">HA 2023.9</a> (thermostat dialog, tile features)</li>
+      <li>HA releases <a href="https://www.home-assistant.io/blog/2025/09/03/release-20259/">2025.9</a>, <a href="https://www.home-assistant.io/blog/2026/06/03/release-20266/">2026.6</a> (card picker), <a href="https://www.home-assistant.io/blog/2026/09/02/release-20269/">2026.9</a></li>
+      <li>Peleska, W. <a href="https://developers.home-assistant.io/blog/2026/03/25/frontend-component-updates-2026.4/">Frontend component updates 2026.4</a></li>
+      <li><a href="https://companion.home-assistant.io/docs/notifications/live-activities/">Companion: Live Activities &amp; Live Updates</a>; <a href="https://companion.home-assistant.io/docs/notifications/actionable-notifications/">actionable notifications</a></li>
+      <li><a href="https://github.com/orgs/home-assistant/discussions/1044">Discussion #1044: Add oven domain?</a>, 2025</li>
+      <li>Community cards: <a href="https://github.com/piitaya/lovelace-mushroom">Mushroom</a>, <a href="https://github.com/Clooos/Bubble-Card">Bubble Card</a>, <a href="https://github.com/dermotduffy/advanced-camera-card">Advanced Camera Card</a>, <a href="https://github.com/rianadon/timer-bar-card">timer-bar-card</a>, <a href="https://github.com/ADNPolymerase/ha-appliance-card">ha-appliance-card</a>, <a href="https://github.com/wpbezemer/ha-bbq-card">ha-bbq-card</a></li>
+    </ul>
+    <h4>June and comparable products</h4>
+    <ul>
+      <li><a href="https://designawards.core77.com/home-living/86478/June-Oven.html">Core77 Design Awards 2019: June Oven by Ammunition</a></li>
+      <li>Shivakumar, F. <a href="https://techcrunch.com/2016/11/15/the-june-oven-makes-the-art-of-cooking-a-science/">TechCrunch review</a>, 2016; Franke, S. <a href="https://www.reviewed.com/cooking/features/june-oven-review-heres-how-the-smart-oven-actually-works">Reviewed</a>, 2019; Miller, K. <a href="https://www.insidehook.com/food/june-oven-review">InsideHook</a>, 2022</li>
+      <li>Fingas, J. <a href="https://www.engadget.com/2019-08-14-june-ovens-accidentally-preheat-overnight.html">June ovens accidentally preheat overnight</a>, Engadget 2019; Albrecht, C. <a href="https://thespoon.tech/june-to-release-software-update-to-prevent-accidental-oven-preheating/">The Spoon</a>, 2019</li>
+      <li>Sheth, S. <a href="https://www.yankodesign.com/2026/08/16/weber-is-shutting-off-the-june-ovens-ai-camera-and-a-90-air-fryer-already-does-the-same-thing/">Weber is shutting off the June oven</a>, Yanko Design 2026</li>
+      <li><a href="https://products.geappliances.com/appliance/gea-support-search-content?contentId=34307">GE: Starting your oven remotely</a>; <a href="https://www.samsung.com/us/support/answer/ANS10002317/">Samsung SmartThings range</a>; Miele MobileStart; <a href="https://support.traeger.com/hc/en-us/articles/4407213234843-WiFIRE-Controller-Functions">Traeger WiFIRE</a></li>
+      <li><a href="https://support.google.com/googlenest/answer/9243193">Google Nest thermostat displays</a> and Farsight; <a href="https://www.dandad.org/awards/professional/2025/241030/google-nest-learning-thermostat-4th-gen/">D&amp;AD 2025, Nest 4th gen</a></li>
+      <li><a href="https://www.red-dot.org/project/thermomixr-tm7-cookidoor-85135">Red Dot 2025: Thermomix TM7 &amp; Cookidoo</a></li>
+      <li><a href="https://combustion.inc/pages/apps">Combustion Inc. app</a> and <a href="https://github.com/combustion-inc/combustion-documentation/blob/main/probe_ble_specification.rst">probe BLE spec</a>; <a href="https://support.meater.com/hc/en-us/articles/36914985836315">MEATER cook-time estimate</a>; <a href="https://docs.fireboard.io/app/alerts.html">FireBoard alerts</a>; <a href="https://www.reviewed.com/cooking/features/weber-connect-review">Weber Connect review</a></li>
+      <li><a href="https://anovaculinary.com/blogs/blog/how-to-use-the-anova-precision%E2%84%A2-oven-app">Anova Precision Oven app</a>; <a href="https://www.gearpatrol.com/home/a42385912/samsung-bespoke-ai-oven/">Samsung Bespoke AI Oven</a></li>
+    </ul>
+    <h4>Safety and standards</h4>
+    <ul>
+      <li><a href="https://webstore.iec.ch/en/publication/65424">IEC 60335-2-6:2024</a> (remote operation of ovens, 22.51)</li>
+      <li>Intertek, <a href="https://www.intertek.com.cn/eninfo_itemid_6496_lcid_40.html">UL 1026 revision (toaster-oven remote mode)</a>, 2015; <a href="https://www.intertek.com/standards-updates/ul-858-household-electric-ranges/">UL 858 update</a></li>
+      <li>Hall, S. &amp; McGree, T. <a href="https://content.nfpa.org/-/media/Project/Storefront/Catalog/Files/Research/NFPA-Research/US-Fire-Problem/Fire-causes/oscooking.pdf">Home Cooking Fires</a>, NFPA 2023</li>
+      <li><a href="https://csa-iot.org/newsroom/matter-1-3-specification-released/">CSA Matter 1.3</a>; <a href="https://developer.smartthings.com/docs/edge-device-drivers/matter/generated/clusters/OperationalState.html">Operational State</a>, <a href="https://developer.smartthings.com/docs/edge-device-drivers/matter/generated/clusters/OvenMode.html">Oven Mode</a>, <a href="https://developer.smartthings.com/docs/edge-device-drivers/matter/generated/clusters/OnOff.html">On/Off “Off only”</a></li>
+      <li><a href="https://www.aham.org/AHAM/Safety/Safety_Standards.aspx">AHAM safety standards</a>; <a href="https://www.isa.org/standards-and-publications/isa-standards/isa-101-standards">ISA-101 HMI</a>; <a href="https://www.jointcommission.org/en-us/knowledge-library/newsletters/sentinel-event-alert/issue-50">Joint Commission SEA 50, alarm safety</a></li>
+    </ul>
+    <h4>Usability and interaction design</h4>
+    <ul>
+      <li>Nielsen, J. <a href="https://www.nngroup.com/articles/ten-usability-heuristics/">10 usability heuristics</a>; <a href="https://www.nngroup.com/articles/response-times-3-important-limits/">Response times</a>; <a href="https://www.nngroup.com/articles/confirmation-dialog/">Confirmation dialogs</a>; <a href="https://www.nngroup.com/articles/progressive-disclosure/">Progressive disclosure</a></li>
+      <li>Harley, A. <a href="https://www.nngroup.com/articles/visibility-system-status/">Visibility of system status</a>; <a href="https://www.nngroup.com/articles/touch-target-size/">Touch targets</a>; <a href="https://www.nngroup.com/articles/gui-slider-controls/">Slider design</a></li>
+      <li>Laubheimer, P. <a href="https://www.nngroup.com/articles/dashboards-preattentive/">Dashboards</a>; <a href="https://www.nngroup.com/articles/cards-component/">Cards</a>; <a href="https://www.nngroup.com/articles/glanceable-fonts/">Typography for glanceable reading</a></li>
+      <li>Flaherty, K. <a href="https://www.nngroup.com/articles/indicators-validations-notifications/">Indicators, validations and notifications</a>, 2024; Moran, K. <a href="https://www.nngroup.com/articles/flat-ui-less-attention-cause-uncertainty/">Flat UI elements</a>, 2017</li>
+      <li>Norman, D. <a href="https://jnd.org/books/the-design-of-everyday-things-revised-and-expanded-edition/"><i>The Design of Everyday Things</i></a></li>
+      <li>Yablonski, J. <a href="https://lawsofux.com/">Laws of UX</a>; Vitsœ, <a href="https://www.vitsoe.com/rw/about/good-design">Dieter Rams: good design</a>; Wroblewski, L. <a href="https://www.lukew.com/ff/entry.asp?1962=">Obvious always wins</a></li>
+      <li>Weiser, M. &amp; Brown, J. S. <a href="https://calmtech.com/papers/designing-calm-technology">Designing calm technology</a>, 1995; Case, A. <a href="https://calmtech.com/">Calm Technology principles</a></li>
+      <li>Harel, D. <a href="https://www.sciencedirect.com/science/article/pii/0167642387900359">Statecharts</a>, 1987; <a href="https://stately.ai/docs">Stately / XState</a></li>
+      <li>Endsley, M. <a href="https://www.researchgate.net/publication/210198492">Toward a theory of situation awareness</a>, 1995; Lee, J. &amp; See, K. <a href="https://journals.sagepub.com/doi/10.1518/hfes.46.1.50_30392">Trust in automation</a>, 2004</li>
+      <li>Christensen, C. <a href="https://www.library.hbs.edu/working-knowledge/clay-christensens-milkshake-marketing">Jobs to be done</a>; <a href="https://www.designcouncil.org.uk/resources/the-double-diamond/">Design Council Double Diamond</a>; <a href="https://www.designkit.org/">IDEO.org Design Kit</a></li>
+    </ul>
+    <h4>Platform guidelines</h4>
+    <ul>
+      <li>Apple HIG: <a href="https://developer.apple.com/design/human-interface-guidelines/live-activities">Live Activities</a>, <a href="https://developer.apple.com/design/human-interface-guidelines/widgets">Widgets</a>, <a href="https://developer.apple.com/design/human-interface-guidelines/gauges">Gauges</a>, <a href="https://developer.apple.com/design/human-interface-guidelines/accessibility">Accessibility</a>, <a href="https://developer.apple.com/design/human-interface-guidelines/notifications">Notifications</a></li>
+      <li>Google: <a href="https://design.google/library/expressive-material-design-google-research">Expressive design research</a> (M3 Expressive); <a href="https://m3.material.io/components/progress-indicators/guidelines">M3 progress indicators</a>; <a href="https://developer.android.com/develop/ui/views/notifications/live-update">Android Live Updates</a></li>
+      <li><a href="https://fluent2.microsoft.design/motion">Microsoft Fluent 2 motion</a>; <a href="https://learn.microsoft.com/en-us/windows/apps/design/devices/designing-for-tv">Designing for TV (10-ft UI)</a></li>
+      <li><a href="https://carbondesignsystem.com/patterns/status-indicator-pattern/">IBM Carbon status indicators</a>; <a href="https://polaris-react.shopify.com/components/feedback-indicators/badge">Shopify Polaris badge</a>; <a href="https://atlassian.design/components/lozenge">Atlassian lozenge</a></li>
+      <li><a href="https://developer.amazon.com/en-US/alexa/alexa-haus/visual-design/apl-style-guide/iconography-typography">Amazon Alexa APL type scale</a>; <a href="https://developers.google.com/assistant/interactivecanvas/design">Google Interactive Canvas</a></li>
+    </ul>
+    <h4>Data visualisation and estimates</h4>
+    <ul>
+      <li>Few, S. <a href="https://www.perceptualedge.com/articles/misc/Bullet_Graph_Design_Spec.pdf">Bullet graph design specification</a>; <a href="http://www.perceptualedge.com/articles/visual_business_intelligence/our_fascination_with_all_things_circular.pdf">Our fascination with all things circular</a></li>
+      <li>Tufte, E. <a href="https://www.edwardtufte.com/notebook/sparkline-theory-and-practice-edward-tufte/">Sparkline theory and practice</a></li>
+      <li>Harrison, C. et al. <a href="https://chrisharrison.net/projects/progressbars/ProgBarHarrison.pdf">Rethinking the progress bar</a>, UIST 2007</li>
+      <li>Kay, M. et al. <a href="https://mucollective.northwestern.edu/project/when-ish-is-my-bus">When (ish) is my bus?</a>, CHI 2016; Padilla, L., Kay, M. &amp; Hullman, J. <a href="https://friendly.github.io/6135/papers/Uncertainty_Visualization_Padilla_Kay_Hullman_2020.pdf">Uncertainty visualization</a>, 2020</li>
+      <li>Matthews, T. et al. <a href="https://dl.acm.org/doi/10.1145/1142405.1142457">Designing and evaluating glanceable peripheral displays</a>, DIS 2006; Blascheck, T. et al. <a href="https://www.aviz.fr/smartwatchperception">Glanceable visualization</a>, TVCG 2019</li>
+      <li>Nuñez, J. et al. <a href="https://journals.plos.org/plosone/article?id=10.1371/journal.pone.0199239">cividis</a>, PLOS ONE 2018; Crameri, F. et al. <a href="https://www.nature.com/articles/s41467-020-19160-7">The misuse of colour in science communication</a>, 2020</li>
+      <li><a href="https://www.uber.com/us/en/blog/deepeta-how-uber-predicts-arrival-times/">Uber DeepETA</a>; <a href="https://www.americastestkitchen.com/how_tos/6369-all-about-carryover-cooking">ATK carryover cooking</a>; <a href="https://www.fsis.usda.gov/food-safety/safe-food-handling-and-preparation/food-safety-basics/safe-temperature-chart">USDA safe temperatures</a></li>
+    </ul>
+    <h4>Accessibility and older adults</h4>
+    <ul>
+      <li>W3C WCAG 2.2: <a href="https://www.w3.org/WAI/WCAG22/Understanding/target-size-minimum.html">2.5.8</a>, <a href="https://www.w3.org/WAI/WCAG22/Understanding/dragging-movements.html">2.5.7</a>, <a href="https://www.w3.org/WAI/WCAG22/Understanding/non-text-contrast.html">1.4.11</a>, <a href="https://www.w3.org/WAI/WCAG22/Understanding/pause-stop-hide.html">2.2.2</a>, <a href="https://www.w3.org/WAI/WCAG22/Understanding/status-messages.html">4.1.3</a>; <a href="https://www.w3.org/WAI/ARIA/apg/patterns/slider/">APG slider</a>; <a href="https://www.w3.org/WAI/older-users/">Older users</a></li>
+      <li>Kane, L. <a href="https://www.nngroup.com/articles/usability-for-senior-citizens/">Usability for older adults</a>, NN/g 2019; Nielsen, J. <a href="https://www.nngroup.com/articles/usability-seniors-improvements/">Usability for senior citizens</a>, 2013</li>
+      <li>Leitão, R. &amp; Silva, P. <a href="https://plopcon.org/proceedings/plop/2012/papers/05-leitao.pdf">Target and spacing sizes for older adults</a>, 2012; Yu, N. et al. <a href="https://pmc.ncbi.nlm.nih.gov/articles/PMC8872557/">Smart-home touch buttons and seniors</a>, 2022</li>
+      <li>Kobayashi, M. et al. <a href="https://opendl.ifip-tc6.org/db/conf/interact/interact2011-1/KobayashiHMAHI11.pdf">Elderly user evaluation of touchscreen interactions</a>, INTERACT 2011; Motti, L. et al. <a href="https://savie.ca/BaseConnaissances/upload/pdf/3032_mottietal_2013_interaction_techniques_for_older_adults_using_touchscreen_Index3032.pdf">Touch techniques for older adults</a>, 2013</li>
+      <li><a href="https://www.aarp.org/pri/topics/technology/internet-media-devices/2026-technology-trends-older-adults/">AARP 2026 Tech Trends</a>; <a href="https://archive.ada.gov/regs2010/2010ADAStandards/descriptions/table703.txt">ADA 703.5.5 character height</a>; <a href="https://www.home-assistant.io/integrations/fully_kiosk/">Fully Kiosk Browser integration</a></li>
+    </ul>
+    <h4>Notifications and interruptions</h4>
+    <ul>
+      <li>Iqbal, S. &amp; Horvitz, E. <a href="https://www.microsoft.com/en-us/research/publication/notifications-and-awareness-a-field-study-of-alert-usage-and-preferences/">Notifications and awareness</a>, CSCW 2010; <a href="https://www.microsoft.com/en-us/research/wp-content/uploads/2016/11/CHI_2007_Iqbal_Horvitz-1.pdf">Disruption and recovery</a>, CHI 2007</li>
+      <li>Kendrick, A. <a href="https://www.nngroup.com/articles/push-notification/">Push notifications</a>, NN/g 2018; Jaber, R. et al. <a href="https://dl.acm.org/doi/10.1145/3613904.3642183">Cooking with agents</a>, CHI 2024</li>
+      <li><a href="https://support.google.com/googlehome/answer/10065055">Google Home live view</a>; <a href="https://kb.arlo.com/000062226/Why-has-the-Arlo-app-stopped-live-streaming">Arlo live-stream limit</a>; <a href="https://www.home-assistant.io/dashboards/picture-entity/">HA picture-entity card</a></li>
+    </ul>
+    <h4>Project July primary sources</h4>
+    <ul>
+      <li>June Android app 1.24.1.11 (<code>com.junelife.companion</code>): resources, strings, colours, drawables, on-oven screen images</li>
+      <li>june-local relay captures, 22 Sept 2026 (<code>relay-frames-20260922-g/p.jsonl</code>); golocal <code>rest.go</code>, <code>hub.go</code>, <code>relay.go</code>, camerad</li>
+      <li>July Oven design system (<code>design-system/</code>), July companion app, <code>ha-june-oven</code> integration</li>
+    </ul>
+  </div>
+</section>
+</main>
+</div>
+<footer class="wrap">July Oven Card Study · Project July · a community project, not made by or affiliated with June or Weber. Mockups use July Oven design tokens; June palette and screen descriptions are for reference only.</footer>
+
+<script>
+(function () {
+  "use strict";
+  // ---------- Home Assistant Sections grid (frontend: hui-sections-view, hui-grid-section) ----------
+  // Section column: 320–500 px wide, 12 columns, 8 px gaps, 56 px rows. A card's height is fixed by
+  // its rows: rows × 56 + (rows − 1) × 8. Content must fit that box; it never grows the card.
+  const ROW = 56, GAP = 8, SECTION_GAP = 32;
+  const GRID = { A: [6, 6], B: [6, 8], C: [12, 6], D: [12, 7], E: [12, 5] };
+  let sectionW = 500;
+  let glassTheme = "auto";
+  let multiMode = "cards";
+  const colW = (secW, cc) => (secW - (cc - 1) * GAP) / cc;
+  const cardW = (cols, secW, cc) => cols * colW(secW, cc) + (cols - 1) * GAP;
+  const cardH = (rows) => rows * ROW + (rows - 1) * GAP;
+  function frame(inner, cols, rows, span = 1, secBase = sectionW, note = "") {
+    const secW = span * secBase + (span - 1) * SECTION_GAP, cc = 12 * span;
+    const w = cardW(cols, secW, cc), h = cardH(rows), cw = colW(secW, cc);
+    const bg = `repeating-linear-gradient(90deg,var(--gridc) 0 ${cw}px,transparent ${cw}px ${cw + GAP}px),repeating-linear-gradient(180deg,var(--gridc) 0 ${ROW}px,transparent ${ROW}px ${ROW + GAP}px)`;
+    return `<div class="scaler" data-w="${secW}" data-h="${h}"><div class="hasec" style="width:${secW}px;height:${h}px;background:${bg}"><div class="hacard" style="width:${w}px;height:${h}px">${inner}</div></div></div><p class="caption">${cols} × ${rows} grid cells in a ${secW} px section${span > 1 ? ` (spans ${span} columns)` : ""} · card ${Math.round(w)} × ${h} px${note}</p>`;
+  }
+  // A mockup is a picture to assistive tech; its buttons are unfocusable, but its tile list still scrolls.
+  const picture = (html) => `<div role="img" aria-label="Oven card mockup, ${S[current].pill[1].toLowerCase()}">${html.replace(/<button /g, '<button tabindex="-1" ')}</div>`;
+  function wirePagers() {
+    document.querySelectorAll(".tilewrap").forEach((wrap) => {
+      const track = wrap.querySelector(".tpages");
+      const dots = [...wrap.querySelectorAll(".dots [data-page]")];
+      const pageOf = () => Math.round(track.scrollLeft / Math.max(1, track.clientWidth));
+      const mark = () => dots.forEach((d, i) => (i === pageOf() ? d.setAttribute("aria-current", "true") : d.removeAttribute("aria-current")));
+      const go = (i) => { track.scrollLeft = Math.max(0, Math.min(dots.length - 1, i)) * track.clientWidth; mark(); };
+      track.addEventListener("scroll", mark, { passive: true });
+      dots.forEach((d) => d.addEventListener("click", () => go(+d.dataset.page)));
+      wrap.querySelectorAll(".dots [data-step]").forEach((a) => a.addEventListener("click", () => go(pageOf() + +a.dataset.step)));
+    });
+  }
+  function fitScalers(root = document) {
+    root.querySelectorAll(".scaler").forEach((el) => {
+      const inner = el.firstElementChild, natural = +el.dataset.w, h = +el.dataset.h;
+      const avail = el.parentElement.clientWidth || natural;
+      const s = Math.min(1, avail / natural);
+      inner.style.transform = s < 1 ? `scale(${s})` : "";
+      el.style.width = `${natural * s}px`;
+      el.style.height = `${h * s}px`;
+    });
+  }
+
+  // ---------- icons (July line style: 24px grid, 1.75 stroke) ----------
+  const svg = (inner, cls = "ico", extra = "") =>
+    `<svg class="${cls}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" ${extra}>${inner}</svg>`;
+  const I = {
+    oven: '<rect x="3.5" y="3.5" width="17" height="17" rx="2.5"/><path d="M3.5 8.5h17M7 6h2M13 6h4"/><rect x="7" y="11.5" width="10" height="6.5" rx="1.5"/>',
+    thermo: '<path d="M14 14.5V5a2.5 2.5 0 0 0-5 0v9.5a4 4 0 1 0 5 0Z"/><path d="M11.5 15.5a1 1 0 1 0 1 1 1 1 0 0 0-1-1Z" fill="currentColor" stroke="none"/>',
+    camera: '<path d="M3.5 8.5a2 2 0 0 1 2-2h1.2l1.1-1.7a1 1 0 0 1 .84-.46h6.72a1 1 0 0 1 .84.46l1.1 1.7h1.2a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2h-13a2 2 0 0 1-2-2Z"/><circle cx="12" cy="12.5" r="3.5"/>',
+    timer: '<circle cx="12" cy="13" r="7.5"/><path d="M12 9.5V13l2.5 1.5M9.5 3.5h5"/>',
+    stop: '<rect x="6.5" y="6.5" width="11" height="11" rx="2"/>',
+    expand: '<path d="M14 4.5h5.5V10M10 19.5H4.5V14M19.5 4.5 13.5 10.5M4.5 19.5l6-6"/>',
+    chevron: '<path d="m7 10 5 5 5-5"/>',
+    gear: '<circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1Z"/>'
+  };
+  const FRAME = '<rect x="3.5" y="5" width="17" height="14" rx="2.5"/>';
+  // The on-oven home screen: square tiles in pages swiped left/right, page 1 shared with the clock.
+  // Settings follows the last cook mode, as on the oven (… Slow Cook, Keep Warm, Settings).
+  const HOME = ["bake", "roast", "reheat", "broil", "toast", "airfry", "grill", "proof", "pizza", "dehydrate", "slowcook", "warm", "settings"];
+  const homeTile = (m) => m === "settings"
+    ? `<div class="etile util">${svg(I.gear, "")}<span>Settings</span></div>`
+    : `<div class="etile">${glyph(m, true, "")}<span>${MODES[m].n}</span></div>`;
+  // Pages of cols × rows square tiles, swiped left/right with page dots.
+  function homePages(cols = 2, rows = 2) {
+    const size = cols * rows, pages = [];
+    for (let k = 0; k < HOME.length; k += size) pages.push(HOME.slice(k, k + size));
+    const html = pages.map((keys) => `<div class="tpage" style="--cols:${cols};--rows:${rows}">${keys.map(homeTile).join("")}</div>`).join("");
+    return `<div class="tilewrap"><div class="tpages" aria-label="Cook modes and settings, swipe for more">${html}</div>${pageDots(pages.length)}</div>`;
+  }
+  // Clock and date centered at the top, as on the oven's home screen.
+  const ghead = (left = "", right = "") => `<div class="ghead fx"><div class="l">${left}</div><div class="c"><div class="big gclock">6:04</div><div class="sub gdate">Saturday 27 September</div></div><div class="r">${right}</div></div>`;
+  const MODES = {
+    bake: { n: "Bake", f: 1, e: '<path d="M7.5 15.5h9"/>' },
+    roast: { n: "Roast", f: 1, e: '<path d="M7.5 8.5h9M7.5 15.5h9"/>' },
+    broil: { n: "Broil", f: 1, e: '<path d="M7.5 8.5h9"/>' },
+    airfry: { n: "Air fry", f: 0, e: '<circle cx="12" cy="12" r="8.5"/><circle cx="12" cy="12" r="1.6"/><path d="M12 10.4V5.8M13.4 12.8l4 2.3M10.6 12.8l-4 2.3"/>' },
+    toast: { n: "Toast", f: 1, e: '<path d="M7 8.5h3.5M13.5 8.5H17M7 15.5h3.5M13.5 15.5H17"/>' },
+    reheat: { n: "Reheat", f: 0, e: '<path d="M8 19c-1.6-2.2 1.6-4.3 0-6.5S9.6 8.2 8 6M12 19c-1.6-2.2 1.6-4.3 0-6.5S13.6 8.2 12 6M16 19c-1.6-2.2 1.6-4.3 0-6.5S17.6 8.2 16 6"/>' },
+    warm: { n: "Keep warm", f: 1, e: '<circle cx="8.5" cy="12" r="1" fill="currentColor"/><circle cx="12" cy="12" r="1" fill="currentColor"/><circle cx="15.5" cy="12" r="1" fill="currentColor"/>' },
+    proof: { n: "Proof", f: 0, e: '<path d="M4.5 17c0-4.4 3.4-7.5 7.5-7.5s7.5 3.1 7.5 7.5a1.5 1.5 0 0 1-1.5 1.5H6A1.5 1.5 0 0 1 4.5 17Z"/>' },
+    dehydrate: { n: "Dehydrate", f: 0, e: '<circle cx="12" cy="12" r="3.5"/><path d="M12 3.5v2M12 18.5v2M3.5 12h2M18.5 12h2M6 6l1.4 1.4M16.6 16.6 18 18M6 18l1.4-1.4M16.6 7.4 18 6"/>' },
+    slowcook: { n: "Slow cook", f: 0, e: '<path d="M5.5 11h13v5.5a2.5 2.5 0 0 1-2.5 2.5H8a2.5 2.5 0 0 1-2.5-2.5Z"/><path d="M3.5 11h17M9.5 8h5M12 8V6.5"/>' },
+    grill: { n: "Grill", f: 1, e: '<path d="M7 16l4-8M11.5 16l4-8"/>' },
+    pizza: { n: "Pizza", f: 0, e: '<circle cx="12" cy="9" r="5.5"/><path d="M12 14.5V21M10 7.5h.01M13.5 10h.01"/>' }
+  };
+  function glyph(key, lit, cls = "ico") {
+    const g = MODES[key];
+    const col = lit ? "var(--ember)" : "currentColor";
+    const frameSvg = g.f ? `<g opacity="${lit ? 0.6 : 1}">${FRAME}</g>` : "";
+    const glow = lit ? ' style="filter:drop-shadow(0 0 3px var(--glow))"' : "";
+    return `<svg class="${cls}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${frameSvg}<g style="color:${col}"${glow}>${g.e}</g></svg>`;
+  }
+
+  // ---------- sample states (values from the 22 Sept bake capture, °F) ----------
+  const S = {
+    off: { k: "off", pill: ["p-off", "Off"], cav: 74, tgt: null, status: "Off", mode: null },
+    preheat: { k: "preheat", pill: ["p-heat", "Preheating"], cav: 312, tgt: 400, pct: 0.73, status: "Preheating — not ready yet", eta: "Ready in about 4 min", mode: "Convection bake" },
+    ready: { k: "ready", pill: ["p-ready", "Ready"], cav: 400, tgt: 400, pct: 1, status: "Ready — put food in", eta: "Timer starts when food goes in", mode: "Convection bake" },
+    cooking: { k: "cooking", pill: ["p-cook", "Cooking"], cav: 401, tgt: 400, status: "Cooking — 12 min left", left: "12:30", tpct: 0.5, doneAt: "6:42 PM", probe: { now: 128, tgt: 145, start: 45 }, mode: "Convection bake" },
+    done: { k: "done", pill: ["p-ready", "Done"], cav: 371, tgt: null, status: "Done — take food out", ago: "Finished 2 min ago", probe: { now: 146, tgt: 145, start: 45 }, mode: "Convection bake" },
+    offline: { k: "offline", pill: ["p-fault", "Offline"], cav: 401, tgt: 400, stale: true, status: "Oven not responding", ago: "Last update 3 min ago", mode: "Convection bake" }
+  };
+  const ACTIVE = new Set(["preheat", "ready", "cooking"]);
+  const pill = (s) => `<span class="pill ${s.pill[0]}">${s.k === "done" ? '<b aria-hidden="true">✓</b>' : '<i aria-hidden="true"></i>'}${s.pill[1]}</span>`;
+
+  const P = (v) => Math.max(0, Math.min(100, ((v - 50) / 450) * 100));
+  function bullet(s) {
+    const bands =
+      `<div class="band" style="left:0;width:${P(200)}%;background:color-mix(in srgb,var(--line) 55%,transparent)"></div>` +
+      `<div class="band" style="left:${P(200)}%;width:${P(350) - P(200)}%;background:var(--line)"></div>` +
+      `<div class="band" style="left:${P(350)}%;width:${100 - P(350)}%;background:color-mix(in srgb,var(--line-strong) 45%,var(--line))"></div>`;
+    const tgt = s.tgt ? `<div class="target" style="left:${P(s.tgt)}%"></div>` : "";
+    const proj = s.k === "preheat" ? `<div class="proj" style="left:${P(s.cav)}%;width:${P(s.tgt) - P(s.cav)}%"></div>` : "";
+    const mk = `<div class="marker" style="left:${P(s.cav)}%;${s.stale ? "opacity:.45" : ""}${s.k === "off" ? ";background:var(--muted)" : ""}"></div>`;
+    return `<div class="fx"><div class="bullet" role="img" aria-label="Oven ${s.cav}°F${s.tgt ? `, target ${s.tgt}°F` : ""}">${bands}${proj}${tgt}${mk}</div><div class="bscale"><span>50°</span><span>200°</span><span>350°</span><span>500°F</span></div></div>`;
+  }
+  function probeBar(p) {
+    const pct = Math.max(0, Math.min(1, (p.now - p.start) / (p.tgt - p.start)));
+    return `<div class="row fx" style="gap:10px">${svg(I.thermo)}<div style="flex:1;min-width:0"><div class="row between" style="font-size:14px"><span class="trunc"><b>Food ${p.now}°F</b> → ${p.tgt}°F</span><span class="muted">${p.now >= p.tgt ? "Reached" : Math.round(pct * 100) + "%"}</span></div><div style="height:8px;border-radius:4px;background:var(--sunken);border:1px solid var(--line);margin-top:4px;position:relative"><div class="pfill" style="position:absolute;inset:0 auto 0 0;width:${pct * 100}%;background:var(--heat);border-radius:4px"></div></div></div></div>`;
+  }
+  const timerBar = (extra = "") => `<div class="row fx" style="gap:10px"><div style="flex:1;min-width:0"><div style="height:12px;border-radius:6px;background:var(--sunken);border:1px solid var(--line);position:relative;overflow:hidden"><div style="position:absolute;inset:0 auto 0 0;width:50%;background:var(--ember)"></div></div><div class="bscale"><span>Started 6:17 PM</span><span>25 min timer</span></div></div>${extra}</div>`;
+
+  // ---------- oven interior scene (stands in for the camera still) ----------
+  let uid = 0;
+  function sceneInner(s) {
+    const heat = ACTIVE.has(s.k), id = "g" + ++uid;
+    const food = s.k === "cooking" || s.k === "done" || s.k === "offline";
+    const brown = s.k === "done" ? ["#8a4a1c", "#6d3714"] : ["#c98a4c", "#a86a33"];
+    return `<defs><radialGradient id="${id}" cx="50%" cy="0%" r="100%"><stop offset="0" stop-color="${heat ? "#8a3a14" : "#3a2c22"}"/><stop offset=".6" stop-color="#241710"/><stop offset="1" stop-color="#120c09"/></radialGradient></defs><rect width="400" height="300" fill="url(#${id})"/>${[60, 140, 220, 300].map((x) => `<rect x="${x}" y="18" width="60" height="7" rx="3.5" fill="${heat ? "#ffae63" : "#4a3a30"}"/>`).join("")}<path d="M30 214h340" stroke="#5a4a40" stroke-width="3"/><path d="M60 214v-6M140 214v-6M220 214v-6M300 214v-6" stroke="#5a4a40" stroke-width="3"/><rect x="85" y="186" width="230" height="22" rx="6" fill="#6a5a50"/>${food ? `<ellipse cx="150" cy="182" rx="42" ry="16" fill="${brown[0]}"/><ellipse cx="248" cy="182" rx="46" ry="17" fill="${brown[1]}"/>` : ""}`;
+  }
+  const scene = (s) => `<svg class="scene" viewBox="0 0 400 300" preserveAspectRatio="xMidYMid slice" aria-hidden="true" style="${s.stale ? "opacity:.45;filter:grayscale(.6)" : ""}">${sceneInner(s)}</svg>`;
+
+  // Camera component, required in every option. o.fill: take the space the card has left.
+  function cam(s, o = {}) {
+    const size = o.fill ? "flex:1;min-height:0;width:100%;" : o.fillH ? "height:100%;aspect-ratio:4/3;flex:none;" : `width:${o.w ? o.w + "px" : "100%"};aspect-ratio:${o.ratio || "4/3"};`;
+    const cls = `cam thumb${o.big ? " big" : ""}`;
+    if (s.k === "off") {
+      return `<div class="${cls}" style="${size}"><div class="off" style="gap:6px">${o.big ? svg(I.camera, "ico", 'style="width:30px;height:30px"') : ""}<span style="font-size:${o.big ? 15 : 12.5}px;text-align:center">${o.big ? "Camera runs while cooking" : "Camera off"}</span><button class="btn sm" type="button" style="min-height:40px;padding:6px 10px">${o.big ? "Turn on for 2 min" : "Turn on"}</button></div></div>`;
+    }
+    const age = s.stale ? (o.big ? "Last frame 3 min ago" : "3 min ago") : s.k === "done" ? (o.big ? "Stopped 2 min ago" : "2 min ago") : "Live";
+    return `<div class="${cls}" style="${size}">${scene(s)}<span class="badge${s.stale || s.k === "done" ? " stale" : ""}"><i></i>${age}</span><span class="xp">${svg(I.expand)}</span></div>`;
+  }
+
+  // ---------- Option A: Tile (HA tile + card features; feature rows are 42 px) ----------
+  function A(s) {
+    const map = { off: ["var(--sunken)", "var(--muted)"], preheat: ["var(--heat-soft)", "var(--heat)"], ready: ["var(--ready-soft)", "var(--ready)"], cooking: ["var(--ember-soft)", "var(--ember)"], done: ["var(--ready-soft)", "var(--ready)"], offline: ["var(--fault-soft)", "var(--fault)"] }[s.k];
+    const line = { off: "Off · 74 °F", preheat: "Preheating · 312 → 400 °F", ready: "Ready · 400 °F", cooking: "Cooking · 12:30 left", done: "Done · 2 min ago", offline: "Unavailable" }[s.k];
+    const step = `<div class="feat"><button type="button" aria-label="Lower target">−</button><span>400 °F</span><button type="button" aria-label="Raise target">+</button></div>`;
+    let feats = [];
+    if (s.k === "off") feats = [`<div class="feat sel">${glyph("bake", false)}<span style="flex:1">Bake · 350 °F</span>${svg(I.chevron)}</div>`, `<button class="feat btnf primary" type="button">Start cooking…</button>`];
+    else if (ACTIVE.has(s.k)) feats = [step, `<button class="feat btnf stop" type="button">${svg(I.stop)}Stop cooking</button>`];
+    else if (s.k === "done") feats = [`<button class="feat btnf" type="button">Dismiss</button>`];
+    else feats = [`<div class="feat" style="justify-content:flex-start;padding-inline:12px;font-weight:500">Hasn’t reported in 3 min</div>`];
+    return `<div class="mk fit ha"><div class="row" style="gap:10px;flex:none"><span style="width:36px;height:36px;flex:none;border-radius:50%;display:grid;place-items:center;background:${map[0]};color:${map[1]}">${svg(I.oven)}</span><div style="min-width:0"><div class="name trunc" style="font-size:14px">Kitchen oven</div><div class="sub trunc" style="font-size:13px">${line}</div></div></div>${cam(s).replace('class="cam thumb"', 'class="cam thumb fx"')}${feats.join("")}</div>`;
+  }
+
+  // ---------- Option B: Glass (always dark; camera is the oven window above the ring) ----------
+  function ringSvg(s, pct, color) {
+    const r = 86, c = 2 * Math.PI * r;
+    return `<svg viewBox="0 0 200 200" aria-hidden="true" style="width:100%;height:100%;display:block"><circle cx="100" cy="100" r="${r}" fill="none" stroke="var(--g-track)" stroke-width="11" ${s.k === "offline" ? 'stroke-dasharray="3 9"' : ""}/>${pct > 0 ? `<circle cx="100" cy="100" r="${r}" fill="none" stroke="${color}" stroke-width="11" stroke-linecap="round" stroke-dasharray="${(c * pct).toFixed(1)} ${c.toFixed(1)}" transform="rotate(-90 100 100)"/>` : ""}</svg>`;
+  }
+  function B(s) {
+    if (s.k === "off") {
+      return `<div class="mk fit glass g-${glassTheme}">${ghead()}${cam(s).replace('class="cam thumb"', 'class="cam thumb fx"')}${homePages(2, 2)}</div>`;
+    }
+    const cfg = {
+      preheat: [0.73, "var(--g-heat)", "312°", "of 400 °F", "Ready in about 4 min"],
+      ready: [1, "var(--g-ready)", "Ready", "400 °F", "Put food in; the timer starts then"],
+      cooking: [0.5, "var(--g-ember)", "12:30", "left", "Food 128 → 145 °F"],
+      done: [1, "var(--g-ready)", "Done", "2 min ago", "Food reached 146 °F"],
+      offline: [0, "", "401°", "3 min ago", "Oven not responding"]
+    }[s.k];
+    const btnStyle = "";
+    const btn = ACTIVE.has(s.k) ? `<button class="btn block fbtn gbtn" type="button" style="${btnStyle}">Stop cooking</button>` : s.k === "done" ? `<button class="btn block fbtn gbtn" type="button" style="${btnStyle}">Dismiss</button>` : `<button class="btn block fbtn gbtn" type="button" style="${btnStyle}">How to reconnect</button>`;
+    const face = `<div class="ringface"><div class="big" style="font-size:clamp(28px,13cqw,40px);${s.stale ? "opacity:.5" : ""}">${cfg[2]}</div><div class="sub" style="font-size:12.5px;margin-top:3px">${cfg[3]}</div></div>`;
+    return `<div class="mk fit glass g-${glassTheme}"><div class="row between" style="flex:none;gap:6px"><span class="name trunc" style="font-size:14px;min-width:0">Kitchen oven</span><span class="sub" style="font-size:12.5px;flex:none">${s.pill[1]}</span></div>${cam(s).replace('class="cam thumb"', 'class="cam thumb fx"')}<div class="ringbox"><div class="ringwrap">${ringSvg(s, cfg[0], cfg[1])}${face}</div></div><div class="trunc" style="text-align:center;font-size:14px;flex:none">${cfg[4]}</div>${btn}</div>`;
+  }
+
+  // ---------- Option C: Status line ----------
+  function C(s) {
+    const right = { off: "Oven is off", preheat: `→ <b>400 °F</b> · ${s.eta}`, ready: "Target reached", cooking: "Target <b>400 °F</b> · 12:30 left", done: "Cooling down", offline: `Last known · ${s.ago}` }[s.k];
+    let second = "";
+    if (s.k === "preheat") second = `<div class="chips fx"><span class="chip">${svg(I.timer)}25 min timer waiting</span></div>`;
+    if (s.k === "cooking") second = probeBar(s.probe);
+    if (s.k === "done") second = `<div class="chips fx"><span class="chip">${svg(I.thermo)}Food reached 146 °F</span></div>`;
+    const act = ACTIVE.has(s.k) ? `<button class="btn stop block fbtn" type="button">${svg(I.stop)}Stop cooking</button>`
+      : s.k === "off" ? `<button class="btn primary block fbtn" type="button">Start cooking…</button>`
+      : s.k === "done" ? `<button class="btn block fbtn" type="button">Dismiss</button>` : `<button class="btn block fbtn" type="button">How to reconnect</button>`;
+    return `<div class="mk fit"><div class="row between" style="flex:none"><span class="name">Kitchen oven</span>${pill(s)}</div><div class="trunc" style="font-weight:700;font-size:18px;flex:none">${s.status}</div><div class="herorow"><div style="flex:1;min-width:0;align-self:center"><div class="big${s.stale || s.k === "off" ? " stale" : ""}" style="font-size:64px">${s.cav}<span style="font-size:26px">°F</span></div><div class="sub" style="font-size:14px;line-height:1.35;margin-top:6px">${right}</div></div>${cam(s, { fillH: true })}</div>${bullet(s)}${second}${act}</div>`;
+  }
+
+  // ---------- Option D: Window ----------
+  function D(s) {
+    if (s.k === "off") {
+      return `<div class="mk fit" style="padding:8px"><div class="contain43">${cam(s, { big: true })}</div><div class="row between fx" style="padding:0 4px"><div style="min-width:0"><div class="name">Kitchen oven</div><div class="sub">Off · 74 °F</div></div><button class="btn primary fbtn" type="button">Start cooking…</button></div></div>`;
+    }
+    const badge = s.stale ? `<span class="badge stale"><i></i>Last frame 3 min ago</span>` : s.k === "done" ? `<span class="badge stale"><i></i>Camera stopped · 2 min ago</span>` : `<span class="badge"><i></i>Live</span>`;
+    const ov = { preheat: `<div class="big" style="font-size:44px">312°<span style="font-size:20px"> → 400 °F</span></div><div style="font-size:14.5px">Preheating · ready in about 4 min</div>`, ready: `<div class="big" style="font-size:44px">400°F</div><div style="font-size:14.5px">Ready — put food in</div>`, cooking: `<div class="big" style="font-size:44px">12:30 <span style="font-size:20px">left</span></div><div style="font-size:14.5px">Food 128 °F → 145 °F · oven 401 °F</div>`, done: `<div class="big" style="font-size:40px">Done</div><div style="font-size:14.5px">Food reached 146 °F · take it out</div>`, offline: `<div class="big" style="font-size:36px">Not responding</div><div style="font-size:14.5px">Last update 3 min ago</div>` }[s.k];
+    const ctr = ACTIVE.has(s.k) ? `<button class="btn stop fbtn" type="button" style="flex:1">${svg(I.stop)}Stop cooking</button>${s.k === "cooking" ? '<button class="btn fbtn" type="button">+5 min</button>' : ""}<button class="btn fbtn" type="button" aria-label="Expand camera" style="min-width:52px;padding:0">${svg(I.expand)}</button>` : s.k === "done" ? `<button class="btn fbtn" type="button" style="flex:1">Dismiss</button>` : `<button class="btn fbtn" type="button" style="flex:1">How to reconnect</button>`;
+    return `<div class="mk fit" style="padding:8px"><div class="contain43"><div class="cam thumb">${scene(s)}${badge}<div class="ov">${ov}</div></div></div><div class="row fx" style="gap:8px">${ctr}</div></div>`;
+  }
+
+  // ---------- Option E: Timeline ----------
+  function E(s) {
+    const head = { off: ["Nothing cooking", "Oven is off · 74 °F"], preheat: ["Ready in about 4 min", "312 °F now · target 400 °F"], ready: ["Ready — put food in", "25 min timer starts when food goes in"], cooking: ["12:30 left", "Done about 6:42 PM"], done: ["Done", "Finished 2 min ago"], offline: ["Oven not responding", "Last update 3 min ago"] }[s.k];
+    const seg = { off: [0, 0, 0], preheat: [0.73, 0, 0], ready: [1, 0, 0], cooking: [1, 0.5, 0], done: [1, 1, 1], offline: [1, 0.5, 0] }[s.k];
+    const cur = { preheat: 0, ready: 0, cooking: 1, done: 2, offline: 1 }[s.k];
+    const segs = seg.map((v, i) => `<div class="${v >= 1 && i !== cur ? "done" : ""}"><b style="width:${v * 100}%;${s.stale ? "opacity:.45" : ""}"></b></div>`).join("");
+    const labels = ["Preheat", "Cook · 25 min", "Done"].map((l, i) => `<span class="${i === cur ? "cur" : ""}">${l}</span>`).join("");
+    const act = ACTIVE.has(s.k) ? `<button class="btn stop block fbtn" type="button">${svg(I.stop)}Stop cooking</button>` : s.k === "off" ? `<button class="btn primary block fbtn" type="button">Start cooking…</button>` : s.k === "done" ? `<button class="btn block fbtn" type="button">Dismiss</button>` : `<button class="btn block fbtn" type="button">How to reconnect</button>`;
+    return `<div class="mk fit"><div class="row between" style="flex:none"><span class="sub trunc" style="font-weight:600">${s.mode ? s.mode + " · 400 °F" : "Kitchen oven"}</span>${pill(s)}</div><div class="herorow">${cam(s, { fillH: true })}<div style="min-width:0;align-self:center"><div class="big${s.stale ? " stale" : ""}" style="font-size:clamp(24px,7cqw,34px)">${head[0]}</div><div class="sub" style="margin-top:4px;font-size:14px">${head[1]}</div></div></div><div class="fx"><div class="track" style="margin:0 0 6px">${segs}</div><div class="tlabels">${labels}</div></div>${s.k === "cooking" ? probeBar(s.probe) : ""}${act}</div>`;
+  }
+
+  // ---------- Recommended: Glass, revised (appearance: auto follows HA, light, dark) ----------
+  const GCFG = {
+    preheat: [0.73, "var(--g-heat)", null, null],
+    ready: [1, "var(--g-ready)", "Ready", "400 °F"],
+    cooking: [0.5, "var(--g-ember)", "12:30", "left"],
+    done: [1, "var(--g-ready)", "Done", "2 min ago"],
+    offline: [0, "", "401°", "3 min ago"]
+  };
+  const GLINE = { off: "Oven is off · 74 °F", preheat: "Convection bake · ready in about 4 min", ready: "Put food in; the 25 min timer starts then", cooking: "Convection bake 400 °F · done about 6:42 PM", done: "Food reached 146 °F · take it out", offline: "Last update 3 min ago · check the oven is on" };
+  const gbar = (s) => `<div class="gbar fx" role="img" aria-label="Oven ${s.cav}°F, target ${s.tgt}°F"><div class="gtrack"><div class="gtick" style="left:${P(s.tgt)}%"></div><div class="gdot" style="left:${P(s.cav)}%"></div></div><div class="gscale"><span>${s.cav} °F now</span><span>${s.tgt} °F target</span></div></div>`;
+  // Cook history (22 Sept bake capture: minutes, °F). The door comes from the oven's door switch:
+  // the oven cuts its elements while the door is open, so june-local must report it (Data contract).
+  const HIST = {
+    cav: [[0, 74], [2, 170], [4, 250], [6, 312], [8, 365], [10, 392], [11, 400], [13, 400], [13.6, 352], [14.6, 380], [16, 399], [20, 401], [24, 400], [28, 401], [30, 401]],
+    probe: [[12, 45], [15, 62], [18, 84], [21, 101], [24, 113], [27, 122], [30, 128]],
+    door: [13.4, 14.8], foodTgt: 145
+  };
+  // Glass temperature graph: oven in ember, food in ink, food target dashed, each door opening a
+  // shaded band labelled in a lane above the lines, end values in words (Tufte: direct labels).
+  // o.axes adds a °F scale and minutes; o.h fixes the plot height, otherwise it fills its box.
+  function gchart(s, o = {}) {
+    const done = s.k === "done";
+    const cav = done ? [...HIST.cav, [32, 401], [33, 384], [34, 371]] : HIST.cav;
+    const probe = done ? [...HIST.probe, [32, 138], [34, 146]] : HIST.probe;
+    const end = done ? 34 : 30;
+    const x = (m) => (m / end) * 200, y = (v) => 4 + (1 - (v - 40) / 440) * 92;
+    const pc = (m) => +((m / end) * 100).toFixed(2);
+    const path = (pts) => pts.map((p, i) => `${i ? "L" : "M"}${x(p[0]).toFixed(1)} ${y(p[1]).toFixed(1)}`).join(" ");
+    const last = (a) => a[a.length - 1][1];
+    const [d0, d1] = HIST.door;
+    const food = done ? `Food ${last(probe)}° · reached` : `Food ${last(probe)}° → ${HIST.foodTgt}°`;
+    const ln = (v, extra) => `<line x1="0" x2="200" y1="${y(v)}" y2="${y(v)}" vector-effect="non-scaling-stroke" ${extra}/>`;
+    const grid = o.axes ? [100, 200, 300, 400].map((v) => ln(v, 'stroke="var(--g-tile-line)" stroke-width="1"')).join("") : "";
+    const ylab = o.axes ? [100, 200, 300, 400].map((v) => `<span class="yl" style="top:${y(v)}%">${v}°</span>`).join("") : "";
+    const xlab = o.axes ? `<div class="xl">${[0, 10, 20, 30].map((m) => `<span style="left:${pc(m)}%">${m}${m === 30 ? " min" : ""}</span>`).join("")}</div>` : "";
+    return `<div class="gchart fx${o.axes ? " axes" : ""}${o.h ? "" : " fill"}" role="img" aria-label="Temperature graph: oven ${last(cav)}°F; ${food.replace("→", "of").replace("°", "°F")}; the door was opened at ${Math.round(d0)} minutes and heating paused">` +
+      `<div class="lane"><span class="dlab" style="left:${pc((d0 + d1) / 2)}%">Door</span></div>` +
+      `<div class="plot"${o.h ? ` style="height:${o.h}px"` : ""}><div class="band" style="left:${pc(d0)}%;width:${(pc(d1) - pc(d0)).toFixed(2)}%"></div>${ylab}` +
+      `<svg viewBox="0 0 200 100" preserveAspectRatio="none" aria-hidden="true">${grid}<line x1="${x(HIST.probe[0][0])}" x2="200" y1="${y(HIST.foodTgt)}" y2="${y(HIST.foodTgt)}" stroke="var(--g-ink)" stroke-opacity=".45" stroke-width="1.5" stroke-dasharray="3 4" vector-effect="non-scaling-stroke"/><path d="${path(cav)}" fill="none" stroke="var(--g-ember)" stroke-width="2.25" vector-effect="non-scaling-stroke"/><path d="${path(probe)}" fill="none" stroke="var(--g-ink)" stroke-width="2.75" vector-effect="non-scaling-stroke"/></svg>` +
+      `<i class="end ko" style="top:${y(last(cav))}%"></i><i class="end kf" style="top:${y(last(probe))}%"></i></div>${xlab}` +
+      `<div class="gkey"><span class="ko">Oven ${last(cav)}°</span><span class="kf">${food}</span></div></div>`;
+  }
+  // Page dots with arrows (the oven's swipe pages); shared by the idle tiles and the cooking pages.
+  const pageDots = (n) => `<div class="dots"><button type="button" class="arr" data-step="-1" aria-label="Previous page">‹</button>${Array.from({ length: n }, (_, i) => `<button type="button" data-page="${i}" aria-label="Page ${i + 1} of ${n}"${i === 0 ? ' aria-current="true"' : ""}><i></i></button>`).join("")}<button type="button" class="arr" data-step="1" aria-label="Next page">›</button></div>`;
+  // Quick add while a timer runs: one group, "min" said once. Each tap shows the new end time
+  // with Undo, so a wrong tap costs nothing (Nielsen: user control and freedom).
+  const gadd = (h) => `<div class="gadd" role="group" aria-label="Add time to the timer" style="height:${h}px"><button type="button" aria-label="Add 1 minute">+1</button><button type="button" aria-label="Add 5 minutes">+5</button><button type="button" aria-label="Add 10 minutes">+10 <small>min</small></button></div>`;
+  function ringFace(s) {
+    const c = [...GCFG[s.k]];
+    if (s.k === "preheat") { c[2] = `${s.cav}°`; c[3] = `of ${s.tgt} °F`; c[0] = (s.cav - 74) / (s.tgt - 74); }
+    return `<div class="ringwrap">${ringSvg(s, c[0], c[1])}<div class="ringface"><div class="big" style="font-size:31cqw;${s.stale ? "opacity:.5" : ""}">${c[2]}</div><div class="sub" style="font-size:max(12.5px,7cqw);margin-top:3px">${c[3]}</div></div></div>`;
+  }
+  // With more than one oven, Start and Stop say which oven they act on.
+  function gAction(s, h, oven = "") {
+    const st = `min-height:${h}px;height:${h}px`;
+    const stop = `<button class="btn block fbtn gbtn" type="button" style="${st}">${svg(I.stop)}${oven ? `Stop the ${oven}` : "Stop cooking"}</button>`;
+    if (s.k === "cooking") return `<div class="gact fx">${stop}${gadd(h)}</div>`;
+    if (ACTIVE.has(s.k)) return stop;
+    if (s.k === "done") return `<button class="btn block fbtn gbtn" type="button" style="${st}">Dismiss</button>`;
+    if (s.k === "offline") return `<button class="btn block fbtn gbtn" type="button" style="${st}">How to reconnect</button>`;
+    return `<button class="btn block fbtn gbtn primary" type="button" style="${st}">${oven ? `Start the ${oven}…` : "Start cooking…"}</button>`;
+  }
+  // Several ovens: chips name every oven with its live state; the selected one fills the card.
+  // Each chip: state in colour, shape and word; a heating oven that is not selected keeps its own Stop.
+  const MKR = { off: "off", preheat: "heat", ready: "ready", cooking: "cook", done: "ready", offline: "fault" };
+  const CHIPTXT = { off: (s) => `Off · ${s.cav}°`, preheat: (s) => `Preheating · ${s.cav}°`, ready: () => "Ready · put food in", cooking: () => "Cooking · 12:30 left", done: () => "Done", offline: () => "Offline · 3 min" };
+  // An oven that is off shrinks to a small, unfilled pill: marker, name and "Off" on one line.
+  // Selection is an ink underline (HA's tab indicator), never a fill, so it can't read as a state.
+  const ovenChip = (s, label, selected) => s.k === "off"
+    ? `<div class="ovenchip idle${selected ? " sel" : ""}"><button type="button" role="tab" aria-selected="${selected}" class="csel"><span class="mkr off"></span><span class="ctext"><b>${label}</b><span class="t">&nbsp;· Off</span></span></button></div>`
+    : `<div class="ovenchip${selected ? " sel" : ""}"><button type="button" role="tab" aria-selected="${selected}" class="csel"><span class="mkr ${MKR[s.k]}"></span><span class="ctext"><b>${label}</b><span class="t">${CHIPTXT[s.k](s)}</span></span></button>${!selected && ACTIVE.has(s.k) ? `<button type="button" class="cstop" aria-label="Stop the ${label} oven">Stop</button>` : ""}</div>`;
+  const ovenChips = (s) => `<div class="ovens fx" role="tablist" aria-label="Ovens">${ovenChip(s, "Kitchen", true)}${ovenChip({ ...S.preheat, cav: 280, tgt: 350 }, "Garage", false)}</div>`;
+  function G(s, density = "standard", theme = glassTheme, o = {}) {
+    const cls = `mk fit glass g-${theme}${s.k === "preheat" || s.k === "cooking" ? " glowpulse" : ""}`;
+    const name = o.name || "Kitchen oven";
+    const oven = o.multi ? "Kitchen oven" : o.several ? name : "";
+    const status = o.multi ? `Kitchen · ${s.status}` : s.status;
+    const head = o.multi ? ovenChips(s) : `<div class="row between fx" style="gap:8px"><span class="name trunc" style="min-width:0">${name}</span>${pill(s)}</div>`;
+    const hasGraph = s.k === "cooking" || s.k === "done";
+    const extra = s.k === "preheat" || s.k === "ready" ? gbar(s) : s.k === "cooking" ? probeBar(s.probe) : "";
+    if (density === "compact") {
+      const txt = (o.name ? o.name + " · " : "") + { off: `Off · ${s.cav} °F · camera off`, preheat: `Preheating · ${s.cav} → ${s.tgt} °F · live`, ready: "Ready · put food in · live", cooking: "Cooking · 12:30 left · live", done: "Done · camera stopped 2 min ago", offline: "Not responding · last frame 3 min ago" }[s.k];
+      const c = s.k === "preheat" ? [(s.cav - 74) / (s.tgt - 74), "var(--g-heat)"] : GCFG[s.k] || [0, ""];
+      const mini = `<div style="width:44px;height:44px;flex:none">${ringSvg(s, c[0], c[1])}</div>`;
+      const thumb = s.k === "off" ? `<div class="cam thumb" style="height:100%;aspect-ratio:4/3;flex:none"><div class="off">${svg(I.camera, "ico", 'style="width:18px;height:18px"')}</div></div>` : `<div class="cam thumb" style="height:100%;aspect-ratio:4/3;flex:none">${scene(s)}<span class="dot${s.stale || s.k === "done" ? " stale" : ""}"></span></div>`;
+      const who = o.name ? ` the ${o.name} oven` : "";
+      const b = ACTIVE.has(s.k) ? `<button class="btn gbtn" type="button" aria-label="Stop${who}" style="min-height:0;height:100%;padding:0 14px">Stop</button>` : s.k === "off" ? `<button class="btn gbtn primary" type="button" aria-label="Start${who}…" style="min-height:0;height:100%;padding:0 12px">Start…</button>` : "";
+      return `<div class="${cls}" style="padding:4px 6px;flex-direction:row;align-items:center;gap:10px">${mini}${thumb}<div class="trunc" style="flex:1;min-width:0;font-weight:700;font-size:15px">${txt}</div>${b}</div>`;
+    }
+    if (density === "glance") {
+      if (s.k === "off") {
+        return `<div class="${cls}" style="padding:20px;flex-direction:row;gap:24px"><div style="flex:1.1;min-width:0;display:flex;flex-direction:column;justify-content:center"><div class="big" style="font-size:150px;font-weight:400">6:04</div><div class="sub" style="font-size:22px;margin-top:10px">Saturday 27 September</div></div><div style="flex:1;min-width:0;display:flex;flex-direction:column;gap:10px">${head}<div class="trunc fx" style="font-weight:700;font-size:28px">Off</div><div class="contain43">${cam(s, { big: true })}</div><div class="trunc fx sub" style="font-size:16px">${GLINE.off}</div>${gAction(s, 56)}</div></div>`;
+      }
+      return `<div class="${cls}" style="padding:20px;flex-direction:row;gap:24px"><div class="ringbox" style="flex:1.1">${ringFace(s)}</div><div style="flex:1;min-width:0;display:flex;flex-direction:column;gap:10px">${head}<div class="trunc fx" style="font-weight:700;font-size:28px">${s.status}</div><div class="contain43">${cam(s, { big: true })}</div><div class="trunc fx sub" style="font-size:16px">${GLINE[s.k]}</div>${hasGraph ? gchart(s, { h: 64 }) : extra}${gAction(s, hasGraph ? 72 : 120)}</div></div>`;
+    }
+    if (s.k === "off") {
+      // Idle: the oven's home screen. Clock centered, the camera window opposite the oven's
+      // name, and the mode tiles across the full width below (not squeezed beside the camera).
+      const camWin = `<button type="button" class="camwin" aria-label="Camera off. Open the camera to turn it on">${svg(I.camera)}<span>Off</span></button>`;
+      const left = o.multi
+        ? `<span class="sub" style="font-size:13px">Oven ${s.cav} °F</span>`
+        : `<span class="name trunc" style="display:block">${name}</span><span class="row" style="gap:6px;margin-top:4px">${pill(s)}<span class="sub" style="font-size:13px">${s.cav} °F</span></span>`;
+      const top = (o.multi ? ovenChips(s) : "") + ghead(left, camWin);
+      const [cols, rows] = sectionW >= 500 ? [4, 2] : [3, 2];
+      return `<div class="${cls}">${top}${homePages(cols, rows)}</div>`;
+    }
+    const nowView = `<div class="ringbox" style="flex:1.15">${ringFace(s)}</div><div style="flex:1;min-width:0;display:flex;flex-direction:column;gap:8px"><div class="contain43">${cam(s)}</div><div class="trunc fx sub" style="font-size:13.5px">${GLINE[s.k]}</div>${extra}</div>`;
+    // Cooking or done: swipe to the temperature graph, as on the oven. Status and Stop stay put;
+    // the card returns to page 1 after 30 s so a wall tablet never rests on the graph.
+    const middle = hasGraph
+      ? `<div class="tilewrap"><div class="tpages" aria-label="Now and temperature graph, swipe to switch"><div class="tpage cpage">${nowView}</div><div class="tpage cpage">${gchart(s, { axes: true })}</div></div>${pageDots(2)}</div>`
+      : `<div style="flex:1;min-height:0;display:flex;gap:14px">${nowView}</div>`;
+    return `<div class="${cls}">${head}<div class="trunc fx" style="font-weight:700;font-size:17px">${status}</div>${middle}${gAction(s, 48, oven)}</div>`;
+  }
+
+  // ---------- temperature graph for the panel ----------
+  function graph() {
+    const W = 360, Hh = 180, L = 34, R = 10, T = 10, B = 24;
+    const x = (m) => L + (m / 32) * (W - L - R), y = (t) => T + (1 - (t - 40) / 420) * (Hh - T - B);
+    const cav = [[0, 74], [2, 170], [4, 250], [6, 312], [8, 365], [10, 392], [11, 400], [13, 400], [13.6, 352], [14.6, 380], [16, 399], [20, 401], [24, 400], [28, 401], [30, 401]];
+    const probe = [[12, 45], [15, 62], [18, 84], [21, 101], [24, 113], [27, 122], [30, 128]];
+    const path = (pts) => pts.map((p, i) => `${i ? "L" : "M"}${x(p[0]).toFixed(1)} ${y(p[1]).toFixed(1)}`).join(" ");
+    const grid = [100, 200, 300, 400].map((t) => `<line x1="${L}" x2="${W - R}" y1="${y(t)}" y2="${y(t)}" stroke="var(--line)"/><text x="${L - 6}" y="${y(t) + 4}" text-anchor="end" font-size="10" fill="var(--muted)">${t}°</text>`).join("");
+    const xt = [0, 10, 20, 30].map((m) => `<text x="${x(m)}" y="${Hh - 6}" text-anchor="middle" font-size="10" fill="var(--muted)">${m} min</text>`).join("");
+    return `<svg viewBox="0 0 ${W} ${Hh}" width="100%" role="img" aria-label="Temperature graph: oven reached 400°F in 11 minutes, dipped when the door opened at 13 minutes, food at 128°F of 145°F after 30 minutes" style="display:block"><rect x="${x(13.4)}" y="${T}" width="${x(14.8) - x(13.4)}" height="${Hh - T - B}" fill="var(--sunken)"/><text x="${x(14.1)}" y="${T + 10}" text-anchor="middle" font-size="9" fill="var(--muted)">door</text>${grid}${xt}<line x1="${L}" x2="${W - R}" y1="${y(400)}" y2="${y(400)}" stroke="var(--ember)" stroke-dasharray="4 4" opacity=".7"/><line x1="${x(12)}" x2="${W - R}" y1="${y(145)}" y2="${y(145)}" stroke="var(--ink)" stroke-opacity=".5" stroke-dasharray="2 4"/><path d="${path(cav)}" fill="none" stroke="var(--ember)" stroke-width="2.5"/><path d="${path(probe)}" fill="none" stroke="var(--ink)" stroke-width="2.75"/><circle cx="${x(30)}" cy="${y(401)}" r="4" fill="var(--ember)"/><circle cx="${x(30)}" cy="${y(128)}" r="4" fill="var(--ink)"/><text x="${x(30) - 6}" y="${y(401) - 8}" text-anchor="end" font-size="11" font-weight="700" fill="var(--ink)">Oven 401°</text><text x="${x(30) - 6}" y="${y(128) + 16}" text-anchor="end" font-size="11" font-weight="700" fill="var(--ink)">Food 128° → 145°</text></svg>`;
+  }
+  const stepper = (v, h = 56) =>
+    `<div class="row" style="gap:8px"><button class="btn sm" type="button" aria-label="Lower target" style="min-width:${h}px;min-height:${h}px;padding:0;font-size:22px">−</button><div style="flex:1;text-align:center"><div class="big" style="font-size:26px">${v}°F</div><div class="sub" style="font-size:12.5px">Target</div></div><button class="btn sm" type="button" aria-label="Raise target" style="min-width:${h}px;min-height:${h}px;padding:0;font-size:22px">+</button></div>`;
+
+  // ---------- panel pages (an HA adaptive dialog, not a grid card) ----------
+  const PAGES = {
+    now: () => `<div class="row between" style="gap:12px;align-items:stretch"><div><div class="big" style="font-size:56px">12:30</div><div class="sub">left · done about 6:42 PM</div><div style="margin-top:6px">${pill(S.cooking)}</div></div>${cam(S.cooking, { w: 150 })}</div><div class="track">${'<div class="done"><b style="width:100%"></b></div><div><b style="width:50%"></b></div><div><b style="width:0"></b></div>'}</div><div class="tlabels"><span>Preheat</span><span class="cur">Cook · 25 min</span><span>Done</span></div><div style="margin-top:12px">${graph()}</div><div class="divider"></div>${stepper(400)}<div class="chips" style="margin-top:10px"><span class="chip">+1 min</span><span class="chip">+5 min</span><span class="chip">+10 min</span><span class="chip">${svg(I.thermo)}Food target 145 °F</span></div><button class="btn stop block" type="button" style="margin-top:12px">${svg(I.stop)}Stop cooking</button>`,
+    cook: () => `<h4>1 · Mode</h4><div class="mtiles">${Object.keys(MODES).map((m) => `<div class="mtile" aria-pressed="${m === "bake"}">${glyph(m, m === "bake", "")}${MODES[m].n}</div>`).join("")}</div><p class="sub small" style="margin:8px 0 14px">Remote start offered for Bake and Roast first; other modes once verified on a real oven.</p><h4>2 · Temperature</h4>${stepper(400)}<div class="chips" style="margin-top:8px">${[325, 350, 375, 400, 425, 450].map((t) => `<span class="chip${t === 400 ? " on" : ""}">${t}°</span>`).join("")}<span class="chip on">Convection</span></div><h4 style="margin-top:14px">3 · Timer and food probe (optional)</h4><div class="chips">${["None", "10", "15", "20", "25", "30", "45", "60"].map((t) => `<span class="chip${t === "25" ? " on" : ""}">${t === "None" ? t : t + " min"}</span>`).join("")}</div><div class="chips" style="margin-top:6px">${["No probe", "Medium-rare 135°", "Medium 140°", "Pork & fish 145°", "Poultry 165°"].map((t, i) => `<span class="chip${i === 0 ? " on" : ""}">${t}</span>`).join("")}</div><div class="sheet" style="margin-top:16px"><p class="eyebrow" style="margin-bottom:6px">Review</p><p style="margin:0 0 6px;font-weight:700;font-size:18px">Convection bake at 400 °F</p><ul class="small" style="margin:0 0 12px"><li>Preheats first. We’ll tell you when it’s ready.</li><li>The 25 min timer starts when food goes in.</li><li><b>Make sure the oven is empty and the door is closed.</b></li></ul><div class="row" style="gap:8px"><button class="btn primary" type="button" style="flex:1">Start preheating</button><button class="btn" type="button">Not now</button></div><p class="sub small" style="margin:8px 0 0">This review expires in 5 min.</p></div>`,
+    camera: () => `${cam(S.cooking, { w: 380, ratio: "4/3", big: true }).replace("width:380px;", "width:100%;")}<div class="row between" style="margin-top:10px;flex-wrap:wrap;gap:8px"><div class="chips"><span class="pill p-cook"><i></i>Camera on</span><span class="pill p-off"><i></i>1 person watching</span></div><button class="btn sm" type="button">Stop live view</button></div><p class="sub small" style="margin-top:10px">Live here, for 5 minutes at a time; it stops when cooking ends. The dashboard card shows a still that refreshes every 2 s.</p>`,
+    settings: () => `<div class="sgroup">Alerts</div><p class="sub small" style="margin:0 0 4px">Sent to phones signed in to Home Assistant. Each one is an automation you can change.</p>${[["Preheated", "Oven is at 400 °F. Put food in.", 1], ["5 minutes left", "Shows on the lock screen countdown", 1], ["Food reached its target", "Take it out and let it rest", 1], ["Done", "The oven has turned off", 1], ["Oven left on", "Still heating 45 min after its timer ended", 0]].map((r) => `<div class="srow"><span>${r[0]}<br><span class="d">${r[1]}</span></span><span class="sw8${r[2] ? " on" : ""}"></span></div>`).join("")}<div class="sgroup">Camera</div><div class="srow"><span>Turn the camera on during every cook</span><span class="sw8 on"></span></div><div class="srow"><span>Live view<br><span class="d">Stops after 5 minutes, and when cooking ends</span></span><span class="d">Fixed</span></div><div class="sgroup">Starting from Home Assistant</div><div class="srow"><span>Remote start<br><span class="d">To change this, use Settings › App Permissions on the oven’s own screen.</span></span><span class="pill p-ready"><i></i>Allowed</span></div><div class="sgroup">About this oven</div>${[["Name", "Kitchen oven"], ["Model", "June Oven (2nd gen)"], ["Oven software", "22.06"], ["Local server", "june-local · connected"], ["Address", "192.168.1.75"]].map((r) => `<div class="srow"><span class="d">${r[0]}</span><span>${r[1]}</span></div>`).join("")}<div class="row" style="gap:8px;flex-wrap:wrap;margin-top:12px"><button class="btn sm" type="button">Card look and size</button><button class="btn sm" type="button">Oven connection</button><button class="btn sm" type="button">Help</button></div><p class="sub small" style="margin-top:8px">Card look opens the card editor. Oven connection opens the integration’s Configure screen.</p>`,
+    history: () => `<div style="display:grid;gap:8px">${[["Convection bake · 400 °F", "Today 6:04 PM · 38 min · food 146 °F", "Started from Kitchen tablet"], ["Toast · level 5", "Today 7:42 AM · 4 min", "Started on the oven"], ["Air fry · 400 °F", "Yesterday 6:30 PM · 18 min · stopped early", "Started from Alex’s phone"]].map((r) => `<div class="panel" style="padding:10px 12px"><div style="font-weight:700">${r[0]}</div><div class="sub" style="font-size:13.5px">${r[1]}</div><div class="sub" style="font-size:13.5px">${r[2]}</div></div>`).join("")}</div><div style="margin-top:12px">${graph()}</div>`
+  };
+
+  // ---------- wiring ----------
+  const R = { A, B, C, D, E };
+  let current = "preheat";
+  function render() {
+    document.querySelectorAll(".slot").forEach((el) => {
+      if (el.dataset.opt === "M") {
+        const garage = { ...S.preheat, cav: 280, tgt: 350 };
+        const views = {
+          cards: `<div class="themes"><figure><figcaption>Kitchen oven · its own card</figcaption>${picture(frame(G(S[current], "standard", glassTheme, { name: "Kitchen oven", several: true }), 12, 6))}</figure><figure><figcaption>Garage oven · its own card</figcaption>${picture(frame(G(garage, "standard", glassTheme, { name: "Garage oven", several: true }), 12, 6))}</figure></div>`,
+          switcher: `<figure style="margin:0;max-width:560px;margin-inline:auto"><figcaption style="font-size:13.5px;font-weight:700;margin-bottom:8px">One card with an oven switcher · 12 × 7</figcaption>${picture(frame(G(S[current], "standard", glassTheme, { multi: true }), 12, 7))}</figure>`,
+          list: `<figure style="margin:0;max-width:560px;margin-inline:auto"><figcaption style="font-size:13.5px;font-weight:700;margin-bottom:8px">List · one compact row per oven</figcaption>${picture(frame(G(S[current], "compact", glassTheme, { name: "Kitchen" }), 12, 1))}${picture(frame(G(garage, "compact", glassTheme, { name: "Garage" }), 12, 1))}</figure>`
+        };
+        el.innerHTML = views[multiMode];
+        return;
+      }
+      if (el.dataset.opt === "G3") {
+        el.innerHTML = `<div class="themes">${[["auto", "Match Home Assistant (follows this page’s theme)"], ["light", "Light"], ["dark", "Dark · the oven’s glass"]].map(([t, label]) => `<figure class="${t === glassTheme ? "sel" : ""}"><figcaption>${label}${t === glassTheme ? " · selected" : ""}</figcaption>${picture(frame(G(S[current], "standard", t), 12, 6))}</figure>`).join("")}</div>`;
+        return;
+      }
+      const [c, r] = GRID[el.dataset.opt];
+      el.innerHTML = picture(frame(R[el.dataset.opt](S[current]), c, r));
+    });
+    const d = document.getElementById("densityRow");
+    if (d) {
+      d.innerHTML =
+        `<figure style="flex:1 1 100%">${picture(frame(G(S[current], "glance"), 24, 8, 2, 500, " · <b>Glance</b>, wall tablet read from 2–3 m"))}</figure>` +
+        `<figure style="flex:1 1 320px">${picture(frame(G(S[current], "standard"), 12, 6, 1, sectionW, " · <b>Standard</b>"))}</figure>` +
+        `<figure style="flex:1 1 320px">${picture(frame(G(S[current], "compact"), 12, 1, 1, sectionW, " · <b>Compact</b>, one grid row"))}</figure>`;
+    }
+    document.querySelectorAll("#stateSeg button").forEach((b) => b.setAttribute("aria-pressed", String(b.dataset.s === current)));
+    document.querySelectorAll("#widthSeg button").forEach((b) => b.setAttribute("aria-pressed", String(+b.dataset.w === sectionW)));
+    document.querySelectorAll("#themeSeg button").forEach((b) => b.setAttribute("aria-pressed", String(b.dataset.t === glassTheme)));
+    fitScalers();
+    wirePagers();
+  }
+  document.querySelectorAll("#stateSeg button").forEach((b) =>
+    b.addEventListener("click", () => { current = b.dataset.s; render(); try { localStorage.setItem("hearth-state", current); } catch (e) {} })
+  );
+  document.querySelectorAll("#widthSeg button").forEach((b) =>
+    b.addEventListener("click", () => { sectionW = +b.dataset.w; render(); })
+  );
+  document.querySelectorAll("#themeSeg button").forEach((b) =>
+    b.addEventListener("click", () => { glassTheme = b.dataset.t; render(); })
+  );
+  document.querySelectorAll("#multiSeg button").forEach((b) =>
+    b.addEventListener("click", () => {
+      multiMode = b.dataset.m;
+      document.querySelectorAll("#multiSeg button").forEach((x) => x.setAttribute("aria-pressed", String(x === b)));
+      const y = document.getElementById("multiYaml");
+      if (y) y.textContent = multiMode;
+      render();
+    })
+  );
+  try { const saved = localStorage.getItem("hearth-state"); if (saved && S[saved]) current = saved; } catch (e) {}
+  render();
+  let rt;
+  window.addEventListener("resize", () => { clearTimeout(rt); rt = setTimeout(() => fitScalers(), 80); });
+
+  const body = document.getElementById("panelBody");
+  const gear = document.getElementById("panelSettings");
+  function page(p) {
+    document.querySelectorAll("#panelTabs button").forEach((b) => b.setAttribute("aria-selected", String(b.dataset.p === p)));
+    if (gear) gear.setAttribute("aria-pressed", String(p === "settings"));
+    body.innerHTML = `<div inert>${PAGES[p]()}</div>`;
+  }
+  document.querySelectorAll("#panelTabs button").forEach((b) => b.addEventListener("click", () => page(b.dataset.p)));
+  if (gear) gear.addEventListener("click", () => page("settings"));
+  const show = document.getElementById("showSettings");
+  if (show) show.addEventListener("click", () => {
+    page("settings");
+    const panel = document.getElementById("panelMock");
+    const bar = document.querySelector(".stagebar");
+    window.scrollTo({ top: panel.getBoundingClientRect().top + window.scrollY - (bar ? bar.offsetHeight : 0) - 16, behavior: "smooth" });
+    if (gear) gear.focus({ preventScroll: true });
+  });
+  page("now");
+})();
+</script>
+</body></html>
