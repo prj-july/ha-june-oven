@@ -28,7 +28,8 @@
  *   camera_fps: 1                       # camera pictures per second (0.5, 1, 2 or 5)
  *   hide_name: true                     # tuck the name into the icon after 5 s
  *   clock: auto | 12 | 24               # the idle clock
- * theme, camera_fps, hide_name, clock and each oven's icon can also be changed in the card's own
+ *   mode_order: oven | used             # cook mode tiles in the oven's order, or most used first
+ * theme, camera_fps, hide_name, clock, mode_order and each oven's icon can also be changed in the card's own
  * Settings; those choices are kept in this browser and the config above is the starting point.
  */
 (() => {
@@ -42,6 +43,8 @@
   const STARTABLE = [["bake", "Bake"], ["roast", "Roast"], ["broil", "Broil"], ["airfry", "Air fry"], ["toast", "Toast"]];
   const TILES = [...STARTABLE, ["camera", "Camera"], ["settings", "Settings"]];
   const UTIL = ["camera", "settings"];
+  const ORDERS = [["oven", "Oven's order"], ["used", "Most used first"]];
+  const USES_KEY = "july-oven-card:uses";
   const MODE_LABEL = {
     bake: "Bake", roast: "Roast", broil: "Broil", airfry: "Air fry", toast: "Toast", reheat: "Reheat", warm: "Keep warm",
     slow_cook: "Slow cook", dehydrate: "Dehydrate", proof: "Proof", pizzaiolo: "Pizza", sous_vide: "Sous vide", grill: "Grill"
@@ -304,11 +307,11 @@
   }
 
   // Two rows of tiles, as on the oven. Six tiles fit one page: 3 × 2 on a standard card, one row on a wall.
-  function idle(m, clock, date, page, size, nb) {
-    const cols = size === "wall" ? Math.min(7, TILES.length) : TILES.length <= 6 ? 3 : 4;
-    const rows = Math.min(2, Math.ceil(TILES.length / cols));
+  function idle(m, clock, date, page, size, nb, tiles = TILES) {
+    const cols = size === "wall" ? Math.min(7, tiles.length) : tiles.length <= 6 ? 3 : 4;
+    const rows = Math.min(2, Math.ceil(tiles.length / cols));
     const pages = [];
-    for (let i = 0; i < TILES.length; i += cols * rows) pages.push(TILES.slice(i, i + cols * rows));
+    for (let i = 0; i < tiles.length; i += cols * rows) pages.push(tiles.slice(i, i + cols * rows));
     const n = pages.length;
     const tile = ([k, label]) => {
       const util = UTIL.includes(k);
@@ -391,6 +394,7 @@
         ${setRow("Appearance", "", seg("theme", THEMES, p.theme, "Appearance"))}
         ${setRow("Camera frame rate", "Pictures per second in the camera window. Higher rates load more pictures from Home Assistant.", seg("camera_fps", FPS_OPTIONS.map((v) => [v, `${v} fps`]), p.camera_fps, "Camera frame rate"))}
         ${setRow("Oven name", "", seg("hide_name", [["true", "Tuck into the icon"], ["false", "Always show"]], String(p.hide_name), "Oven name"))}
+        ${setRow("Cook modes", "Most used first counts the cooks started from this card, per oven, in this browser.", seg("mode_order", ORDERS, p.mode_order, "Cook mode order"))}
         ${setRow("Clock", "", seg("clock", CLOCKS, p.clock, "Clock"))}
         ${setRow(`Icon for ${m.name}`, "", `<div class="d2-icons" role="radiogroup" aria-label="Icon for ${esc(m.name)}">${icons}</div>`)}
         <div class="d2-set-acts"><button class="d2-ghost" data-act="set-ha" data-oven="${esc(m.ids.climate)}">Oven in Home Assistant</button><button class="d2-ghost" data-act="set-reset">Reset</button></div>
@@ -480,7 +484,7 @@
       for (const item of config.entities || []) add(typeof item === "string" ? { entity: item } : item);
       for (const n of [2, 3, 4]) add({ entity: config[`entity_${n}`], icon: config[`icon_${n}`], name: config[`name_${n}`] });
       for (const o of ovens) if (!String(o.entity).startsWith("climate.")) throw new Error(`${o.entity} is not a climate entity. Choose the oven itself.`);
-      this._config = { theme: "auto", display_mode: "auto", load_fonts: true, camera_fps: 1, hide_name: true, clock: "auto", ...config };
+      this._config = { theme: "auto", display_mode: "auto", load_fonts: true, camera_fps: 1, hide_name: true, clock: "auto", mode_order: "oven", ...config };
       this._ovenConf = ovens;
       this._ovens = ovens.map((o) => o.entity);
       // The oven last picked in this card, and the card's own settings, are remembered in this browser.
@@ -616,7 +620,7 @@
       const nb = { tucked: this._tucked && this._hideName(), open: !!(this._sheet && this._sheet.kind === "menu") };
       let body;
       if (size === "compact") body = compact(focus, { multi: false }, this._busy[focus.ids.climate]);
-      else body = focus.key === "off" ? idle(focus, clock, date, this._page, size, nb) : run(focus, { size, multi }, this._busy[focus.ids.climate], nb);
+      else body = focus.key === "off" ? idle(focus, clock, date, this._page, size, nb, this._tiles(focus.ids.climate)) : run(focus, { size, multi }, this._busy[focus.ids.climate], nb);
       this._multi = multi;
       this._focusId = focus.ids.climate;
 
@@ -702,6 +706,26 @@
       return Number.isFinite(v) && v > 0 ? Math.min(10, Math.max(0.1, v)) : 1;
     }
 
+    // Cooks started from the card, per oven and mode. Kept apart from the settings, so Reset keeps them.
+    _uses() {
+      try { const u = JSON.parse(localStorage.getItem(USES_KEY)); return u && typeof u === "object" ? u : {}; } catch (e) { return {}; }
+    }
+
+    _countUse(oven, mode) {
+      const u = this._uses();
+      u[oven] = u[oven] || {};
+      u[oven][mode] = (u[oven][mode] || 0) + 1;
+      try { localStorage.setItem(USES_KEY, JSON.stringify(u)); } catch (e) { /* private window: not counted */ }
+    }
+
+    // Mode tiles: the oven's order, or most used first (ties keep the oven's order). Camera and Settings stay last.
+    _tiles(oven) {
+      if (this._pref("mode_order") !== "used") return TILES;
+      const n = this._uses()[oven] || {};
+      const modes = STARTABLE.map((t, i) => [t, i]).sort((a, b) => (n[b[0][0]] || 0) - (n[a[0][0]] || 0) || a[1] - b[1]).map(([t]) => t);
+      return [...modes, ...TILES.filter(([k]) => UTIL.includes(k))];
+    }
+
     _savePrefs() {
       try { localStorage.setItem(this._prefsKey, JSON.stringify(this._prefs)); } catch (e) { /* private window: not remembered */ }
     }
@@ -783,7 +807,7 @@
       const now = Date.now();
       const m = this._model(this._conf(s.oven), now);
       if (s.kind === "review") el.innerHTML = review(s, m.name, m.unit, now, this._multi);
-      else if (s.kind === "settings") el.innerHTML = settingsSheet({ theme: this._theme(), camera_fps: this._fps(), hide_name: this._hideName(), clock: String(this._pref("clock")), icon: this._prefs.icons[s.oven] || this._conf(s.oven).icon }, m);
+      else if (s.kind === "settings") el.innerHTML = settingsSheet({ theme: this._theme(), camera_fps: this._fps(), hide_name: this._hideName(), clock: String(this._pref("clock")), mode_order: this._pref("mode_order") === "used" ? "used" : "oven", icon: this._prefs.icons[s.oven] || this._conf(s.oven).icon }, m);
       else if (s.kind === "camera") el.innerHTML = cameraSheet(m);
       else if (s.kind === "menu") el.innerHTML = menuSheet(this._allOvens().map((o) => this._model(o, now)), s.oven, s.pos);
       const first = el.querySelector(s.kind === "menu" ? '.d2-mi[aria-checked="true"]' : ".d2-icbtn");
@@ -1020,6 +1044,7 @@
       for (const [service, data] of steps) {
         if (!(await this._call("climate", service, data, r.oven))) { r.busy = false; if (this._sheet === r) this._renderOver(); return; }
       }
+      this._countUse(r.oven, r.mode);
       this._toast(`Preheating to ${r.temp}°`);
       if (this._sheet === r) this._closeSheet();
     }
