@@ -118,7 +118,8 @@ report its door yet.
   and × to close. While the oven is off it says "Camera off": Home Assistant answers 503 for a
   camera that is off.
 - **Settings** opens in the card: appearance, camera frame rate, the name, cook mode order, the
-  clock, the oven's icon, and a link to the oven's device page. Choices are kept per browser; YAML
+  clock, icons, and a link to the oven's device page. Icons have one row per June oven in Home
+  Assistant (the current one open): the 12 icons, or any `mdi:` icon typed in. Choices are kept per browser; YAML
   is the default.
 - **Most used first** (off by default) orders the mode tiles by the cooks started from the card,
   counted per oven in that browser when Start succeeds. Ties keep the oven's order; Camera and
