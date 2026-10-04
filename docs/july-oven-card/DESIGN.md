@@ -78,12 +78,18 @@ From the brief and R2, checked on every change:
 | Top right | **Stop**: red (#c62828, white label 5.6:1), exactly as wide as the camera. With several ovens it reads "Stop / Kitchen" |
 | Under the header | The large number in Barlow Condensed, with the degree sign at half size. Under it, the status mark, word and a short unit-free qualifier ("· left", "· holding", "· food · target 145°") |
 | Then | The progress bar (heat line), then two short lines (projection, facts) |
-| Right column | The camera, 4:3 and uncropped, with its top level with the top of the degree sign. A corner label reads **LIVE**, or the picture's age in amber |
+| Right column | The camera, 4:3 and uncropped, spanning from the top of the degree sign to the foot of the bar. A corner label reads **LIVE**, or the picture's age in amber |
 | Bottom band | **+1 · +5 · +10 min**, only while a timer runs: drawn 36 px tall with a 48 px tap area, well away from Stop |
 
 The number, bar and camera sit at the same height in every running state: preheating, ready,
 cooking, probe cook, door open, done and offline. The group is anchored under the header rather
 than centred, so text that wraps, or the quick-add buttons, never shift it.
+
+The camera's size follows the number group, not the card's width, so both edges line up in any
+box from 358 px wide, however tall. The number gives up at most 10% of its size to make that fit
+and never runs into the camera. Timers over an hour ("1:05:00") use a smaller number in the same
+box. Below about 340 px, where two status lines are kept free, the camera keeps its foot on the bar
+and starts a little lower. On the wall size the camera is still taller than the number group.
 
 **States**
 
@@ -159,6 +165,7 @@ name, in its row, and on its pill.
 | 09-28 | Two rows of idle tiles, centred between the date and the dots | Lead's request; tiles size to both width and height |
 | 09-28 | Start names the oven; the picked oven is remembered; per-oven icons | Lead's requests (temperature on off pills declined as too verbose) |
 | 10-03 | Re-check registration every 2 s (v0.3.1) | Firefox: another card's scoped-registry polyfill replaced `window.customElements` after the card loaded |
+| 10-03 | Size the camera from the number group (v0.3.2) | On boxes other than 12 × 6 at 500 px the camera ended up to 48 px short of the bar |
 | 10-03 | Keep the repository name `ha-june-oven`, domain `june_oven`, name "June Oven" | Drop-in replacement for upstream jclima/ha-june-oven; easy to merge upstream fixes |
 
 ## Open questions
