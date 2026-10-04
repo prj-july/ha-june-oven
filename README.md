@@ -369,8 +369,9 @@ Sizes on a sections dashboard:
 What the card does:
 
 - **Oven icon:** lights orange while the oven heats and white (the text
-  colour) while it is off. The name beside it tucks into the icon after 5
-  seconds and comes back when you hover over it. Tap the icon for the oven
+  colour) while it is off. On the home screen with the cook modes, the name
+  beside it tucks into the icon after 5 seconds and comes back when you hover
+  over it; during a cook the name always shows. Tap the icon for the oven
   menu.
 - **Status:** shows the oven's state in words, with a mark and colour:
   preheating, ready, cooking, done, or offline. The large number is the

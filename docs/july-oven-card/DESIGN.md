@@ -148,8 +148,10 @@ report its door yet.
 
 **The oven's icon.** Every oven has one (`oven` by default). It is the oven's lamp: orange with
 a glow while it heats, the text colour (white on the glass) while it is off, grey when offline.
-It replaces the idle "Off" mark. The name beside it tucks into the icon 5 s after the card loads
-or another oven is picked, and comes back on hover, keyboard focus, or with the menu open. Tapping
+It replaces the idle "Off" mark. On the home screen (the mode tiles) the name beside it tucks into
+the icon 5 s after the screen appears or another oven is picked, and comes back on hover, keyboard
+focus, or with the menu open. During a cook (preheating to done, and offline) the name always
+shows. Tapping
 it opens a menu of every June oven in Home Assistant, each with its lamp, name and state; picking
 one shows it (an oven the card doesn't list takes the first oven's place).
 
@@ -186,7 +188,7 @@ name, in its row, and on its pill.
 | 10-03 | Re-check registration every 2 s (v0.3.1) | Firefox: another card's scoped-registry polyfill replaced `window.customElements` after the card loaded |
 | 10-03 | Size the camera from the number group (v0.3.2) | On boxes other than 12 × 6 at 500 px the camera ended up to 48 px short of the bar |
 | 10-03 | Keep the repository name `ha-june-oven`, domain `june_oven`, name "June Oven" | Drop-in replacement for upstream jclima/ha-june-oven; easy to merge upstream fixes |
-| 10-04 | The icon is the oven's lamp and opens an oven menu; the name tucks into it after 5 s; no idle "Off" mark (v0.4.0) | Lead's request: calmer top row, every oven one tap away |
+| 10-04 | The icon is the oven's lamp and opens an oven menu; the name tucks into it after 5 s on the home screen only; no idle "Off" mark (v0.4.0) | Lead's request: calmer top row, every oven one tap away |
 | 10-04 | Camera becomes a tile and opens a floating window in the card | Lead's request: Home Assistant's camera dialog offered a broken snapshot download while the oven was off |
 | 10-04 | Settings open in the card, kept per browser | Lead's request: the device page's sensor list was not settings |
 | 10-04 | Review gets a slider and a typed temperature | Lead's request |
