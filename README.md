@@ -324,12 +324,19 @@ entity: climate.kitchen_oven
 | Option | Default | What it does |
 | --- | --- | --- |
 | `entity` | required | The oven's climate entity |
-| `icon` | none | An icon shown next to the oven's name: one of `oven`, `kitchen`, `house`, `garage`, `basement`, `apartment`, `cabin`, `patio`, `office`, `camper`, `bread`, `star`, or any `mdi:` icon |
+| `icon` | `oven` | The oven's icon, which also shows whether it is on: one of `oven`, `kitchen`, `house`, `garage`, `basement`, `apartment`, `cabin`, `patio`, `office`, `camper`, `bread`, `star`, or any `mdi:` icon |
 | `entities` | none | More ovens for the same card, as entity IDs or as `{entity, icon, name}`. The oven that is heating gets the full card; other heating ovens get a row with their own Stop; ovens that are off share one row of small buttons |
 | `theme` | `auto` | `auto` follows your Home Assistant theme; `light`; or `dark`, the oven's own glass |
 | `display_mode` | `auto` | `auto` picks the layout from the card's size; or `standard`, `wall` (wall tablets read from across the room), `compact` (one row) |
 | `name` | device or area name | The name shown on the card |
 | `load_fonts` | `true` | Loads Barlow from Google Fonts; set `false` to use system fonts |
+| `camera_fps` | `1` | Pictures per second in the camera window: `0.5`, `1`, `2` or `5` |
+| `hide_name` | `true` | Tucks the oven's name into its icon 5 seconds after the card loads |
+| `clock` | `auto` | The idle clock: `auto` follows your language, or `12` / `24` |
+
+`theme`, `camera_fps`, `hide_name`, `clock` and each oven's icon can also be
+changed from the card's own **Settings** tile. Those choices are kept in that
+browser; the YAML values are the starting point.
 
 Several ovens, each with its own icon:
 
@@ -346,7 +353,8 @@ entities:
 ```
 
 The visual editor offers up to four ovens, each with an icon, under **More
-ovens**. Tap another oven's row or button to show it in full. The card
+ovens**. Tap another oven's row or button to show it in full, or tap the
+oven's icon for a menu of every June oven in Home Assistant. The card
 remembers the oven you picked in that browser. With more than one oven, Start
 and Stop always name the oven they act on.
 
@@ -359,19 +367,29 @@ Sizes on a sections dashboard:
 
 What the card does:
 
+- **Oven icon:** lights orange while the oven heats and white (the text
+  colour) while it is off. The name beside it tucks into the icon after 5
+  seconds and comes back when you hover over it. Tap the icon for the oven
+  menu.
 - **Status:** shows the oven's state in words, with a mark and colour:
   preheating, ready, cooking, done, or offline. The large number is the
   temperature, or the time left while a timer runs.
 - **Stop:** the red **Stop** always sits at the top right and is never
   confirmed.
 - **Add time:** **+1 / +5 / +10 min** appear only while a timer runs.
-- **Camera:** the camera still refreshes every 2 seconds while the oven is
-  heating. A corner label shows **LIVE**, or how old the picture is. Tap it for
-  the full camera view.
+- **Camera:** the camera picture refreshes at the chosen frame rate (1 per
+  second by default) while the oven is heating. A corner label shows **LIVE**,
+  or how old the picture is. Tap it, or the **Camera** tile, to open a larger
+  camera window inside the card; **×** or Escape closes it. June's camera is a
+  series of still pictures the oven sends while it heats, not a video stream,
+  so the window says "Camera off" while the oven is off.
 - **Idle:** the card shows the oven's home screen: the clock and the cook
-  modes. A mode opens a review with the temperature. Nothing heats until you
-  press **Start preheating**, and the review closes itself after 5 minutes.
-  **Settings**, the last tile, opens the oven's device page.
+  modes. A mode opens a review where you set the temperature with the slider,
+  with − and +, or by tapping the number and typing it. Nothing heats until
+  you press **Start preheating**, and the review closes itself after 5 minutes.
+  **Settings**, the last tile, opens the card's settings: appearance, camera
+  frame rate, the name, the clock and the oven's icon, with a link to the
+  oven's device page.
 - **Refusals:** when the oven refuses a command, the card says why in plain
   words. For example: remote start is off, or the door is open.
 
