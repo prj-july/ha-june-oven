@@ -24,7 +24,7 @@
  */
 (() => {
   "use strict";
-  const VERSION = "0.3.1";
+  const VERSION = "0.3.2";
   const DOMAIN = "june_oven";
   const TAG = "july-oven-card";
   if (customElements.get(TAG)) return;
@@ -309,7 +309,7 @@
       <div class="d2-name d2-title" data-act="more" data-oven="${esc(m.ids.climate)}">${m.oic}${esc(m.name)}</div>
       <div class="d2-foot">${action(m, o, busy)}</div>
       <div class="d2-up" data-act="more" data-oven="${esc(m.ids.climate)}">
-        <div class="d2-hero${m.heroText ? " is-text" : ""}${m.stale ? " is-stale" : ""}">${deg(esc(m.hero))}</div>
+        <div class="d2-hero${m.heroText ? " is-text" : ""}${!m.heroText && String(m.hero).length > 5 ? " is-long" : ""}${m.stale ? " is-stale" : ""}">${deg(esc(m.hero))}</div>
         <div class="d2-sline">${status(m)}${m.qual ? `<span class="d2-q">· ${esc(m.qual)}</span>` : ""}</div>
       </div>
       <div class="d2-barrow">${bar(m)}</div>
@@ -453,7 +453,7 @@
     }
 
     connectedCallback() {
-      this._ro = new ResizeObserver(() => this._measure());
+      this._ro = new ResizeObserver(() => { this._measure(); this._syncRows(); });
       this._ro.observe(this);
       this._tick = setInterval(() => this._render(), 15000);
       this._camTimer = setInterval(() => this._refreshCameras(), CAMERA_REFRESH_MS);
@@ -491,6 +491,15 @@
         this._html = "";
         this._render();
       }
+    }
+
+    // Other ovens' Stop buttons match the top Stop, whose width follows the main camera.
+    _syncRows() {
+      const root = this._root.querySelector(".d2-multi");
+      if (!root) return;
+      const col = root.querySelector(".d2-run .d2-camcol");
+      if (col && col.offsetWidth) root.style.setProperty("--rowcamw", `${col.offsetWidth}px`);
+      else root.style.removeProperty("--rowcamw");
     }
 
     // Several ovens: the focused oven is the one the user picked, else the first that is heating.
@@ -540,6 +549,7 @@
       const scroll = pager ? pager.scrollLeft : 0;
       this._html = html;
       this._root.innerHTML = html;
+      this._syncRows();
       const newPager = this.shadowRoot.querySelector(".d2-pager");
       if (newPager) {
         newPager.scrollLeft = scroll || this._page * newPager.clientWidth;
@@ -743,6 +753,16 @@
 .c-d2 .d2-low>:not(.d2-spark){flex:none}
 .c-d2 .d2-low>.d2-a{margin-top:0}
 .c-d2 .d2-camcol{grid-column:2;grid-row:3/6;align-self:start;min-width:0;position:relative;margin-top:calc(var(--hs) * .047)}
+/* Standard: the camera spans from the top of the degree sign to the foot of the bar, so its size
+   follows the number group (number, status line, gap, bar: --hs * .793 + --k). The number gives up
+   at most 10% of its old size to make that fit; past that the camera keeps its foot on the bar and
+   starts lower. The camera never takes the number's room: 1.84em is "12:30", the widest number. */
+.c-d2.d2-standard .d2-run{--k:calc(var(--slh) + var(--rg) + 6px);--w:calc(100cqw - 2 * var(--px) - var(--cg) - 4px);
+  --hsn:min(26cqw,27cqh,calc((66cqw - 2 * var(--px) - var(--cg) - 4px) / 1.84));
+  --hs:min(var(--hsn),max(calc(var(--hsn) * .9),calc((var(--w) - var(--k) * 4 / 3) / 2.897)));
+  --camw:min(calc((var(--hs) * .793 + var(--k)) * 4 / 3),calc(var(--w) - var(--hs) * 1.84))}
+.c-d2.d2-standard .d2-camcol{grid-row:3/5;align-self:end;margin-top:0}
+.c-d2 .d2-hero.is-long{font-size:calc(var(--hs) * .75);line-height:calc(var(--hs) * .84)}
 /* Every running state keeps the number box the same height, so the bar and camera never move:
    Done's text hero sits at the foot of a number-sized box, and on narrow cards two status lines
    are reserved because long qualifiers wrap there. */
@@ -904,7 +924,7 @@
 .c-d2 .d2-other .d2-crow{width:100%;height:56px;padding:0 16px;gap:10px}
 /* Other ovens' rows use the main pane's columns, so their Stop sits centred under the camera window
    (same column, its own width, never stretched) */
-.c-d2 .d2-other .d2-crow{display:grid;grid-template-columns:auto auto minmax(0,1fr) var(--camw);align-items:center;column-gap:10px}
+.c-d2 .d2-other .d2-crow{display:grid;grid-template-columns:auto auto minmax(0,1fr) var(--rowcamw,var(--camw));align-items:center;column-gap:10px}
 .c-d2 .d2-other .d2-crow>.d2-stop{grid-column:4;justify-self:stretch;width:100%}
 .c-d2 .d2-other .d2-chero,.c-d2 .d2-other .d2-cname,.c-d2 .d2-other .d2-st b{color:var(--fg2)}
 @container (max-width:400px){.c-d2 .d2-other .d2-ccam{display:none}}
