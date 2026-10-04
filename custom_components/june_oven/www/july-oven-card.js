@@ -34,7 +34,7 @@
  */
 (() => {
   "use strict";
-  const VERSION = "0.4.1";
+  const VERSION = "0.4.2";
   const DOMAIN = "june_oven";
   const TAG = "july-oven-card";
   if (customElements.get(TAG)) return;
@@ -385,13 +385,18 @@
   const setRow = (label, help, body) => `<div class="d2-set-row"><div class="d2-set-l">${esc(label)}</div>${body}${help ? `<div class="d2-set-h">${esc(help)}</div>` : ""}</div>`;
 
   // One row per oven (every June oven in Home Assistant); the open row shows the icon choices.
+  // One row per oven (every June oven in Home Assistant): its icon, lit as on the card, its name and
+  // state. The open row edits that oven only, and says so.
   function iconRows(ovens, open) {
     return ovens.map(({ m, icon }) => {
-      const id = esc(m.ids.climate), isOpen = m.ids.climate === open, cur = icon || "oven";
+      const id = esc(m.ids.climate), isOpen = m.ids.climate === open, cur = icon || "oven", name = esc(m.name);
       const mdi = String(cur).startsWith("mdi:") ? cur : "";
-      const choices = isOpen ? `<div class="d2-ic-pick"><div class="d2-icons" role="radiogroup" aria-label="Icon for ${esc(m.name)}">${Object.entries(OVEN_ICONS).map(([k, [label]]) => `<button class="d2-ici" role="radio" aria-checked="${k === cur}" data-act="set" data-k="icon" data-oven="${id}" data-v="${k}" aria-label="${label}" title="${label}">${ovenIcon(k)}</button>`).join("")}</div>
-        <input class="d2-mdi" type="text" data-oven="${id}" value="${esc(mdi)}" placeholder="Or any mdi: icon, such as mdi:stove" autocomplete="off" spellcheck="false" aria-label="Any mdi: icon for ${esc(m.name)}"></div>` : "";
-      return `<div class="d2-ic-row${isOpen ? " is-open" : ""}"><button class="d2-ic-head" data-act="set-iconfor" data-oven="${id}" aria-expanded="${isOpen}"><span class="d2-ic-cur">${ovenIcon(cur)}</span><span class="d2-ic-n">${esc(m.name)}</span><span class="d2-ic-chev" aria-hidden="true">${isOpen ? "−" : "+"}</span></button>${choices}</div>`;
+      const state = m.key === "offline" ? "Offline" : m.heating ? m.word : "Off";
+      const choices = isOpen ? `<div class="d2-ic-pick" id="d2-ic-${id.replace(/\W/g, "_")}">
+        <div class="d2-ic-cap">Icon for <b>${name}</b></div>
+        <div class="d2-icons" role="radiogroup" aria-label="Icon for ${name}">${Object.entries(OVEN_ICONS).map(([k, [label]]) => `<button class="d2-ici" role="radio" aria-checked="${k === cur}" data-act="set" data-k="icon" data-oven="${id}" data-v="${k}" aria-label="${label} for ${name}" title="${label}">${ovenIcon(k)}</button>`).join("")}</div>
+        <label class="d2-ic-cap d2-mdi-l">Or any mdi: icon for <b>${name}</b><input class="d2-mdi" type="text" data-oven="${id}" value="${esc(mdi)}" placeholder="mdi:stove" autocomplete="off" spellcheck="false"></label></div>` : "";
+      return `<div class="d2-ic-row l-${lamp(m)}${isOpen ? " is-open" : ""}"><button class="d2-ic-head" data-act="set-iconfor" data-oven="${id}" aria-expanded="${isOpen}" aria-label="${name}, ${state}: ${isOpen ? "close" : "change"} its icon"><span class="d2-lamp">${ovenIcon(cur)}</span><span class="d2-ic-n">${name}</span><span class="d2-ic-s">${esc(state)}</span><span class="d2-ic-go">${isOpen ? "Done" : "Change"}</span></button>${choices}</div>`;
     }).join("");
   }
 
@@ -405,8 +410,9 @@
         ${setRow("Oven name", "", seg("hide_name", [["true", "Tuck into the icon"], ["false", "Always show"]], String(p.hide_name), "Oven name"))}
         ${setRow("Cook modes", "Most used first counts the cooks started from this card, per oven, in this browser.", seg("mode_order", ORDERS, p.mode_order, "Cook mode order"))}
         ${setRow("Clock", "", seg("clock", CLOCKS, p.clock, "Clock"))}
-        ${setRow(ovens.length > 1 ? "Oven icons" : "Oven icon", "", `<div class="d2-ic-list">${iconRows(ovens, open)}</div>`)}
+        ${setRow("Oven icons", "Each oven's icon on the card. Tap an oven to change its icon.", `<div class="d2-ic-list">${iconRows(ovens, open)}</div>`)}
         <div class="d2-set-acts"><button class="d2-ghost" data-act="set-ha" data-oven="${esc(m.ids.climate)}">Oven in Home Assistant</button><button class="d2-ghost" data-act="set-reset">Reset</button></div>
+        <div class="d2-set-ver">July Oven card ${VERSION}</div>
       </div>
     </div>`;
   }
@@ -1409,16 +1415,25 @@ ha-card{height:100%;overflow:hidden;background:none;border:none;box-shadow:none;
 .c-d2 .d2-ici .d2-oic{width:24px;height:24px;margin:0;color:inherit}
 .c-d2 .d2-ic-list{display:flex;flex-direction:column;gap:6px}
 .c-d2 .d2-ic-row{border-radius:12px;box-shadow:inset 0 0 0 1px var(--line)}
-.c-d2 .d2-ic-row.is-open{box-shadow:inset 0 0 0 1px var(--chipb)}
-.c-d2 .d2-ic-head{display:flex;align-items:center;gap:10px;width:100%;min-height:48px;padding:0 12px;font:500 16px/20px var(--f);color:var(--fg);text-align:left}
-.c-d2 .d2-ic-cur .d2-oic{width:24px;height:24px;margin:0;color:var(--fg)}
-.c-d2 .d2-ic-n{flex:1 1 auto;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.c-d2 .d2-ic-chev{flex:none;width:20px;text-align:center;font:400 20px/1 var(--f);color:var(--fg2)}
-.c-d2 .d2-ic-pick{padding:0 10px 10px}
-.c-d2 .d2-mdi{display:block;width:100%;height:40px;margin-top:8px;padding:0 12px;border:0;border-radius:10px;box-shadow:inset 0 0 0 1px var(--chipb);background:none;font:400 15px/1 var(--f);color:var(--fg);outline:none}
+.c-d2 .d2-ic-row.is-open{box-shadow:inset 0 0 0 1.5px var(--ember);background:color-mix(in srgb,var(--ember) 6%,transparent)}
+.c-d2 .d2-ic-head{display:flex;align-items:center;gap:10px;width:100%;min-height:52px;padding:0 12px;font:500 16px/20px var(--f);color:var(--fg);text-align:left}
+.c-d2 .d2-ic-head .d2-oic{width:26px;height:26px;margin:0;color:var(--fg);--mdc-icon-size:26px}
+.c-d2 .d2-ic-row.l-on .d2-ic-head .d2-oic{color:var(--ember);filter:drop-shadow(0 0 3px var(--glow))}
+.c-d2 .d2-ic-row.l-lost .d2-ic-head .d2-oic{color:var(--grey)}
+.c-d2 .d2-ic-n{flex:1 1 auto;min-width:0;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.c-d2 .d2-ic-s{flex:none;font:600 12px/16px var(--f);letter-spacing:.07em;text-transform:uppercase;color:var(--fg2)}
+.c-d2 .d2-ic-row.l-on .d2-ic-s{color:var(--ember)}
+.c-d2 .d2-ic-go{flex:none;min-width:58px;padding:6px 10px;border-radius:8px;box-shadow:inset 0 0 0 1px var(--chipb);font:500 13px/1 var(--f);text-align:center;color:var(--fg)}
+.c-d2 .d2-ic-row.is-open .d2-ic-go{background:var(--ember);box-shadow:none;color:#1a0a02}
+.c-d2 .d2-ic-pick{padding:2px 12px 12px}
+.c-d2 .d2-ic-cap{display:block;font:400 13px/18px var(--f);color:var(--fg2);margin:0 0 6px}
+.c-d2 .d2-ic-cap b{font-weight:600;color:var(--fg)}
+.c-d2 .d2-mdi-l{margin:10px 0 0}
+.c-d2 .d2-mdi{display:block;width:100%;height:40px;margin-top:6px;padding:0 12px;border:0;border-radius:10px;box-shadow:inset 0 0 0 1px var(--chipb);background:none;font:400 15px/1 var(--f);color:var(--fg);outline:none}
 .c-d2 .d2-mdi:focus{box-shadow:inset 0 0 0 1.5px var(--ember)}
 .c-d2 .d2-mdi::placeholder{color:var(--fg2)}
-.c-d2.d2-wall .d2-ic-head{min-height:60px;font-size:20px}
+.c-d2 .d2-set-ver{padding-top:10px;font:400 12px/16px var(--f);color:var(--fg2);text-align:center}
+.c-d2.d2-wall .d2-ic-head{min-height:64px;font-size:20px}
 .c-d2 .d2-set-acts{display:flex;flex-wrap:wrap;gap:8px;padding-top:10px;border-top:1px solid var(--line)}
 .c-d2 .d2-set-acts .d2-ghost{flex:1 1 auto;height:44px}
 .c-d2.d2-wall .d2-seg button{min-height:52px;font-size:19px}
