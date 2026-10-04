@@ -119,7 +119,9 @@ report its door yet.
   camera that is off.
 - **Settings** opens in the card: appearance, camera frame rate, the name, cook mode order, the
   clock, icons, and a link to the oven's device page. Icons have one row per June oven in Home
-  Assistant (the current one open): the 12 icons, or any `mdi:` icon typed in. Choices are kept per browser; YAML
+  Assistant, each with its icon (lit as on the card), name, state and a Change button; the open row
+  (the current oven at first) is outlined in ember and labels its grid and `mdi:` field "Icon for
+  <oven>". The card's version shows at the foot of Settings. Choices are kept per browser; YAML
   is the default.
 - **Most used first** (off by default) orders the mode tiles by the cooks started from the card,
   counted per oven in that browser when Start succeeds. Ties keep the oven's order; Camera and
@@ -195,6 +197,7 @@ name, in its row, and on its pill.
 | 10-04 | Review gets a slider and a typed temperature | Lead's request |
 | 10-04 | Optional "most used first" order for the mode tiles, counted on Start | Lead's request; a review opened and cancelled is not a use |
 | 10-04 | Equal margins on every side, measured to the ink | Lead's request: the gap above the name read tighter than the sides and bottom |
+| 10-04 | Oven icon rows name the oven they edit, with state and Change/Done; version in Settings (v0.4.2) | Lead's feedback: the picker read as a generic icon picker |
 | 10-04 | Sheets (review, settings, camera, menu) in their own layer over the card | Re-renders would otherwise interrupt a slider drag or typing |
 | 10-04 | Camera edge: a faint inside ring like the tiles, Stop-matched corners; empty pictures hidden (v0.4.1) | Lead's pick over borderless; the uneven ring was Chrome's outline around an empty image, clipped by the corners |
 
