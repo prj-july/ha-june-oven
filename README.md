@@ -333,8 +333,9 @@ entity: climate.kitchen_oven
 | `camera_fps` | `1` | Pictures per second in the camera window: `0.5`, `1`, `2` or `5` |
 | `hide_name` | `true` | Tucks the oven's name into its icon 5 seconds after the card loads |
 | `clock` | `auto` | The idle clock: `auto` follows your language, or `12` / `24` |
+| `mode_order` | `oven` | Cook mode tiles in the oven's order, or `used`: most used first, counting the cooks started from the card on that oven in that browser |
 
-`theme`, `camera_fps`, `hide_name`, `clock` and each oven's icon can also be
+`theme`, `camera_fps`, `hide_name`, `clock`, `mode_order` and each oven's icon can also be
 changed from the card's own **Settings** tile. Those choices are kept in that
 browser; the YAML values are the starting point.
 
@@ -388,7 +389,8 @@ What the card does:
   with − and +, or by tapping the number and typing it. Nothing heats until
   you press **Start preheating**, and the review closes itself after 5 minutes.
   **Settings**, the last tile, opens the card's settings: appearance, camera
-  frame rate, the name, the clock and the oven's icon, with a link to the
+  frame rate, the name, cook mode order (the oven's, or most used first), the
+  clock and the oven's icon, with a link to the
   oven's device page.
 - **Refusals:** when the oven refuses a command, the card says why in plain
   words. For example: remote start is off, or the door is open.
