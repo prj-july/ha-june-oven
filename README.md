@@ -330,7 +330,7 @@ entity: climate.kitchen_oven
 | `display_mode` | `auto` | `auto` picks the layout from the card's size; or `standard`, `wall` (wall tablets read from across the room), `compact` (one row) |
 | `name` | device or area name | The name shown on the card |
 | `load_fonts` | `true` | Loads Barlow from Google Fonts; set `false` to use system fonts |
-| `camera_fps` | `1` | Pictures per second in the camera window: `0.5`, `1`, `2` or `5` |
+| `camera_fps` | `15` | Pictures per second in the camera window: `1`, `5`, `10` or `15`. `1` is the stock June app's rate |
 | `hide_name` | `true` | Tucks the oven's name into its icon 5 seconds after the card loads |
 | `clock` | `auto` | The idle clock: `auto` follows your language, or `12` / `24` |
 | `mode_order` | `oven` | Cook mode tiles in the oven's order, or `used`: most used first, counting the cooks started from the card on that oven in that browser |
@@ -379,8 +379,9 @@ What the card does:
 - **Stop:** the red **Stop** always sits at the top right and is never
   confirmed.
 - **Add time:** **+1 / +5 / +10 min** appear only while a timer runs.
-- **Camera:** the camera picture refreshes at the chosen frame rate (1 per
-  second by default) while the oven is heating. A corner label shows **LIVE**,
+- **Camera:** the camera picture on the card refreshes once a second while the
+  oven is heating; the camera window uses the chosen frame rate (15 per second by
+  default). A corner label shows **LIVE**,
   or how old the picture is. Tap it, or the **Camera** tile, to open a larger
   camera window inside the card; **×** or Escape closes it. June's camera is a
   series of still pictures the oven sends while it heats, not a video stream,
