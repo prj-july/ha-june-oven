@@ -331,11 +331,15 @@ entity: climate.kitchen_oven
 | `name` | device or area name | The name shown on the card |
 | `load_fonts` | `true` | Loads Barlow from Google Fonts; set `false` to use system fonts |
 | `camera_fps` | `15` | Pictures per second in the camera window: `1`, `5`, `10` or `15`. `1` is the stock June app's rate |
+| `columns` | `auto` | Cook mode columns on the home screen: `auto` or `1`–`7` |
+| `rows` | `auto` | Cook mode rows: `auto` or `1`–`3`; modes that don't fit go on more pages |
+| `scale` | `100` | Card size in percent, `80`–`150`: text, buttons and spacing |
+| `icon_size` | `large` | Cook mode tiles: `small`, `medium`, `large` or `fill` (as big as the layout allows) |
 | `hide_name` | `true` | Tucks the oven's name into its icon 5 seconds after the card loads |
 | `clock` | `auto` | The idle clock: `auto` follows your language, or `12` / `24` |
 | `mode_order` | `oven` | Cook mode tiles in the oven's order, or `used`: most used first, counting the cooks started from the card on that oven in that browser |
 
-`theme`, `camera_fps`, `hide_name`, `clock`, `mode_order` and every oven's icon can also be
+`theme`, `camera_fps`, `hide_name`, `clock`, `mode_order`, `columns`, `rows`, `scale`, `icon_size` and every oven's icon can also be
 changed from the card's own **Settings** tile. Those choices are kept in that
 browser; the YAML values are the starting point.
 
