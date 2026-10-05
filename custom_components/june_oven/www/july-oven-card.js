@@ -202,7 +202,7 @@
   }
 
   /** Everything the card shows for one oven, from Home Assistant state. */
-  function ovenModel(hass, ids, name, now, dismissed, icon) {
+  function ovenModel(hass, ids, name, now, dismissed, icon, food) {
     const st = (id) => (id ? hass.states[id] : undefined);
     const c = st(ids.climate);
     const unit = (hass.config && hass.config.unit_system && hass.config.unit_system.temperature) || "°F";
@@ -220,6 +220,22 @@
     const progress = usable(st(ids.progress)) ? num(st(ids.progress)) : null;
     const probe = usable(st(ids.probe)) ? round(num(st(ids.probe))) : null;
     const probeTgt = usable(st(ids.probeTarget)) ? round(num(st(ids.probeTarget))) : null;
+    // An external food sensor (e.g. a Combustion probe) stands in for the
+    // June wired probe when configured: shown as the food temperature,
+    // compared against food_target, and able to auto-stop the cook.
+    let foodT = probe, foodTgt = probeTgt;
+    if (food && food.sensor) {
+      const fs = st(food.sensor);
+      if (usable(fs) && Number.isFinite(+fs.state)) {
+        const eu = String((fs.attributes && fs.attributes.unit_of_measurement) || "");
+        const wantsF = unit === "°F" || unit === "F";
+        let v = +fs.state;
+        if (/°?F\b/i.test(eu) && !wantsF) v = (v - 32) * 5 / 9;
+        else if (/°?C\b/i.test(eu) && wantsF) v = v * 9 / 5 + 32;
+        foodT = round(v);
+        if (food.target != null && Number.isFinite(+food.target)) foodTgt = round(+food.target);
+      }
+    }
     const completedSt = st(ids.completed);
     const completed = usable(completedSt) ? Date.parse(completedSt.state) : NaN;
     const lang = (hass.locale && hass.locale.language) || hass.language || undefined;
@@ -227,7 +243,7 @@
 
     // When this cook began: from the elapsed sensor, else when the oven left "off".
     const since = elapsed !== null ? now - elapsed * 1000 : c && c.state !== "off" ? Date.parse(c.last_changed) : NaN;
-    const m = { name, oic: ovenIcon(icon), ids, unit, tgt, cur, probe, since, modeLabel, chips: false, action: null, heroText: false, stale: false, qual: null, a: "", b: "", camera: "live", frameAge: "LIVE" };
+    const m = { name, oic: ovenIcon(icon), ids, unit, tgt, cur, probe, since, modeLabel, chips: false, action: null, heroText: false, stale: false, qual: null, a: "", b: "", camera: "live", frameAge: "LIVE", food: { temp: foodT, target: foodTgt } };
     if (offline) {
       const seen = conn ? Date.parse(conn.last_changed) : c ? Date.parse(c.last_updated) : NaN;
       const since = Number.isFinite(seen) ? ago(now - seen) : "a while ago";
@@ -256,7 +272,7 @@
     }
     if (phase === "cooking") {
       Object.assign(m, { key: "cooking", word: "Cooking", tone: "heat", icon: "cooking", heating: true, action: "stop" });
-      const facts = `${modeLabel}${tgt !== null ? ` ${tgt} ${unit}` : ""}${probe !== null ? ` · food ${probe}°` : ""}`;
+      const facts = `${modeLabel}${tgt !== null ? ` ${tgt} ${unit}` : ""}${foodT !== null ? ` · food ${foodT}°` : ""}`;
       if (remaining !== null) {
         const total = remaining + (elapsed || 0);
         return Object.assign(m, {
@@ -264,10 +280,10 @@
           a: `Done at ${clock(now + remaining * 1000)}`, b: facts, chips: true
         });
       }
-      if (probe !== null && probeTgt !== null) {
+      if (foodT !== null && foodTgt !== null) {
         return Object.assign(m, {
-          hero: `${probe}°`, qual: `food · target ${probeTgt}°`,
-          bar: [progress !== null ? progress / 100 : clamp01(probe / Math.max(1, probeTgt)), "heat"],
+          hero: `${foodT}°`, qual: `food · target ${foodTgt}°`,
+          bar: [progress !== null ? progress / 100 : clamp01(foodT / Math.max(1, foodTgt)), "heat"],
           a: `${modeLabel}${tgt !== null ? ` at ${tgt} ${unit}` : ""}`, b: elapsed !== null ? `Cooking for ${Math.round(elapsed / 60)} min` : ""
         });
       }
@@ -281,7 +297,7 @@
       const since = ago(now - completed);
       return Object.assign(m, {
         key: "done", word: "Done", tone: "ok", icon: "done", heroText: true, hero: "Take food out", bar: [1, "done"],
-        a: `Done ${since}`, b: probe !== null ? `Food ${probe} ${unit} · ${modeLabel}` : modeLabel,
+        a: `Done ${since}`, b: foodT !== null ? `Food ${foodT} ${unit} · ${modeLabel}` : modeLabel,
         action: "dismiss", camera: "still", frameAge: since, completed
       });
     }
@@ -564,7 +580,7 @@
       for (const item of config.entities || []) add(typeof item === "string" ? { entity: item } : item);
       for (const n of [2, 3, 4]) add({ entity: config[`entity_${n}`], icon: config[`icon_${n}`], name: config[`name_${n}`] });
       for (const o of ovens) if (!String(o.entity).startsWith("climate.")) throw new Error(`${o.entity} is not a climate entity. Choose the oven itself.`);
-      this._config = { theme: "dark", display_mode: "auto", load_fonts: true, camera_fps: 15, hide_name: true, clock: "auto", mode_order: "oven", columns: "auto", rows: "auto", scale: 100, icon_size: "large", ...config };
+      this._config = { theme: "dark", display_mode: "auto", load_fonts: true, camera_fps: 15, hide_name: true, clock: "auto", mode_order: "oven", columns: "auto", rows: "auto", scale: 100, icon_size: "large", food_sensor: "", food_target: null, food_auto_stop: false, ...config };
       this._ovenConf = ovens;
       this._ovens = ovens.map((o) => o.entity);
       // The oven last picked in this card, and the card's own settings, are remembered in this browser.
@@ -618,6 +634,26 @@
       this._hass = hass;
       if (!this._measured) this._measure();
       this._render();
+      this._foodAutoStop();
+    }
+
+    // External food sensor: stop the oven once the configured entity reaches
+    // food_target. Fires once per cook and re-arms when the oven goes idle.
+    _foodAutoStop() {
+      const cfg = this._config || {};
+      if (!cfg.food_auto_stop || !cfg.food_sensor || cfg.food_target == null || !this._hass) return;
+      this._probeFired = this._probeFired || {};
+      for (const o of this._ovens) {
+        const m = this._model(this._conf(o), Date.now());
+        const f = m && m.food ? m.food : null;
+        if (!m || m.key !== "cooking" || !f || f.temp == null || f.target == null || f.temp < f.target) {
+          delete this._probeFired[o];
+          continue;
+        }
+        if (this._probeFired[o]) continue;
+        this._probeFired[o] = true;
+        this._call("climate", "turn_off", {}, o, `Food reached ${f.target}${m.unit} - oven stopped`);
+      }
     }
 
     connectedCallback() {
@@ -1012,7 +1048,10 @@
     _model(o, now = Date.now()) {
       const hass = this._hass;
       const ids = ovenEntities(hass, o.entity);
-      return ovenModel(hass, ids, ovenName(hass, ids, o), now, this._dismissed[o.entity], this._prefs.icons[o.entity] || o.icon);
+      const food = this._config.food_sensor
+        ? { sensor: this._config.food_sensor, target: this._config.food_target ?? null }
+        : null;
+      return ovenModel(hass, ids, ovenName(hass, ids, o), now, this._dismissed[o.entity], this._prefs.icons[o.entity] || o.icon, food);
     }
 
     // Every June oven in Home Assistant: the card's own first, then the rest.
