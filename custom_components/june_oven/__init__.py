@@ -25,6 +25,7 @@ from .const import (
     PLATFORMS,
 )
 from .coordinator import JuneDataUpdateCoordinator
+from .history import CookHistory, async_setup_history
 from .protocol import build_endpoints
 
 _LOGGER = logging.getLogger(__name__)
@@ -34,6 +35,7 @@ CONFIG_SCHEMA = cv.config_entry_only_config_schema(DOMAIN)
 
 async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
     """Serve the July Oven card and load it on every dashboard."""
+    async_setup_history(hass)
     if hass.http is None:
         # No web server (scripts, some tests): there is no dashboard to serve.
         return True
@@ -75,7 +77,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         ssl_option=ssl_option,
         token_callback=save_tokens,
     )
-    coordinator = JuneDataUpdateCoordinator(hass, client)
+    coordinator = JuneDataUpdateCoordinator(hass, entry, client)
 
     try:
         await client.async_refresh_token()
@@ -87,6 +89,8 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         await client.async_stop()
         raise ConfigEntryNotReady(str(err)) from err
 
+    coordinator.history = CookHistory(hass, entry, client)
+    await coordinator.history.async_load()
     entry.runtime_data = coordinator
     client.async_start_websocket()
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)

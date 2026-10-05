@@ -210,6 +210,7 @@ name, in its row, and on its pill.
 | 10-05 | Air fry tile: the fan spins up while the pointer is on the tile and, on leaving, eases to a stop on the next third of a turn, so it rests exactly as drawn (the three blades are identical); off with reduced motion (v0.4.9) | Lead's request |
 | 10-05 | Hover fades: a mode tile's glow, and the Camera/Settings glyph brightening (new; they had no visible hover before), fade in and out over 0.35 s; oven menu rows fade their highlight (v0.4.9) | Lead asked for graceful hover instead of popping in |
 | 10-05 | Settings › Food probe: per oven, the June probe or any Home Assistant temperature sensor (Combustion probes' Core Temperature listed first); YAML `probe:`; the card and the wall graph use it for food temperature, with no probe target. The wall graph also stays up on the Done screen, frozen at the finish (v0.4.10) | Lead asked to use a Combustion probe; the graph vanished once a cook finished |
+| 10-05 | History tile and sheet: every cook the integration saved (mode or program, time, length, result, picture), newest first; a cook opens its picture, whole temperature curve and details, and can be deleted. The integration keeps the history (Home Assistant storage, newest 200, pictures in the media folder), with options to turn it or the pictures off (v0.5.0) | Lead asked to save a history of each cook with whatever the oven reports |
 
 ## Open questions
 

@@ -8,8 +8,9 @@
  * name tucks into the icon 5 s after the home screen (the mode tiles) appears and comes back on
  * hover; during a cook it always shows. The icon opens a menu of every June oven in Home Assistant.
  * Idle shows the oven's home screen: a clock and pages of mode tiles. A tile opens a review that
- * must be confirmed within 5 minutes (UL 1026). Camera and Settings are the last tiles; both open
- * in the card: a floating camera window, and settings saved in this browser.
+ * must be confirmed within 5 minutes (UL 1026). Camera, History and Settings are the last tiles; all
+ * open in the card: a floating camera window, the cook history the integration keeps, and settings
+ * saved in this browser.
  *
  * Plain web component, no build step. Config:
  *   type: custom:july-oven-card
@@ -40,15 +41,15 @@
  */
 (() => {
   "use strict";
-  const VERSION = "0.4.10";
+  const VERSION = "0.5.0";
   const DOMAIN = "june_oven";
   const TAG = "july-oven-card";
   if (customElements.get(TAG)) return;
 
   // Cook primitives the integration can start (const.DEFAULT_MODES), in the oven's order.
   const STARTABLE = [["bake", "Bake"], ["roast", "Roast"], ["broil", "Broil"], ["airfry", "Air fry"], ["toast", "Toast"]];
-  const TILES = [...STARTABLE, ["camera", "Camera"], ["settings", "Settings"]];
-  const UTIL = ["camera", "settings"];
+  const TILES = [...STARTABLE, ["camera", "Camera"], ["history", "History"], ["settings", "Settings"]];
+  const UTIL = ["camera", "history", "settings"];
   const ORDERS = [["oven", "Oven's order"], ["used", "Most used first"]];
   const ICON_SIZES = [["small", "Small"], ["medium", "Medium"], ["large", "Large"], ["fill", "Fill"]];
   const ICON_SCALE = { small: 0.7, medium: 0.85, large: 1, fill: 100 };
@@ -101,6 +102,7 @@
     stop: svg("0 0 16 16", '<rect x="2.5" y="2.5" width="11" height="11" rx="2" fill="currentColor"/>', "d2-ic"),
     check: svg("0 0 24 24", '<path d="M5 12.5l4.5 4.5L19 7.5" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/>', "d2-ic"),
     camOff: svg("0 0 24 24", '<path d="M3 7.5h3l1.6-2h6.8l1.6 2h3a1 1 0 0 1 1 1v9a1 1 0 0 1-1 1H3a1 1 0 0 1-1-1v-9a1 1 0 0 1 1-1z" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/><circle cx="12" cy="13" r="3.2" fill="none" stroke="currentColor" stroke-width="1.7"/><path d="M3.5 3.5l17 17" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>', "d2-ic"),
+    back: svg("0 0 24 24", '<path d="M14.5 5.5 8 12l6.5 6.5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>', "d2-ic"),
     close: svg("0 0 24 24", '<path d="M6 6l12 12M18 6 6 18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>', "d2-ic"),
     minus: svg("0 0 24 24", '<path d="M6 12h12" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>', "d2-ic"),
     plus: svg("0 0 24 24", '<path d="M6 12h12M12 6v12" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>', "d2-ic")
@@ -112,6 +114,7 @@
     toast: g("M10 11h7M20.5 11h7M31 11h7M10 37h7M20.5 37h7M31 37h7"),
     airfry: '<circle cx="24" cy="24" r="12.5" class="thin"/><g class="d2-fan">' + [0, 120, 240].map((a) => `<path class="fill" transform="rotate(${a} 24 24)" d="M24 24c-1.5-5.5 1-9.5 5-9.2 2.6.3 2.8 4.4-5 9.2z"/>`).join("") + "</g>",
     camera: '<path class="thin" d="M9 16.5h6.5l3-4h11l3 4H39a2.5 2.5 0 0 1 2.5 2.5v15a2.5 2.5 0 0 1-2.5 2.5H9A2.5 2.5 0 0 1 6.5 34V19A2.5 2.5 0 0 1 9 16.5z"/><circle class="thin" cx="24" cy="26.5" r="6.5"/>',
+    history: '<path class="thin" d="M12.2 17.5A13 13 0 1 1 11 26"/><path class="thin" d="M11.5 11v6.8h6.8"/><path d="M24 17v7.5l5 3"/>',
     settings: '<circle cx="24" cy="24" r="9" class="thin"/><circle cx="24" cy="24" r="3.5" class="thin"/>' + [0, 45, 90, 135, 180, 225, 270, 315].map((a) => `<path transform="rotate(${a} 24 24)" d="M24 11.5v3.5"/>`).join("")
   };
   const glyph = (k) => `<svg class="d2-glyph" viewBox="0 0 48 48" aria-hidden="true" focusable="false">${GLYPH[k] || ""}</svg>`;
@@ -512,6 +515,109 @@
       </div>`;
   }
 
+
+  // ---- cook history (kept by the integration; see history.py) ----
+  const HIST_PAGE = 30;
+  const toUnit = (c, unit) => (c === null || c === undefined || !Number.isFinite(+c) ? null : Math.round(unit === "°C" ? +c : (+c * 9) / 5 + 32));
+  const cookName = (r) => MODE_LABEL[r.name] || titleCase(r.name) || "Cook";
+  const cookMins = (s) => (s >= 3600 ? `${Math.floor(s / 3600)} h ${Math.round((s % 3600) / 60)} min` : `${Math.max(1, Math.round(s / 60))} min`);
+  function cookWhen(iso, lang, withTime = true) {
+    const d = new Date(iso), today = new Date();
+    const day = (x) => new Date(x.getFullYear(), x.getMonth(), x.getDate()).getTime();
+    const diff = Math.round((day(today) - day(d)) / 86400000);
+    const date = diff === 0 ? "Today" : diff === 1 ? "Yesterday" : d.toLocaleDateString(lang, diff < 7 ? { weekday: "long" } : { weekday: "short", month: "short", day: "numeric", year: d.getFullYear() === today.getFullYear() ? undefined : "numeric" });
+    return withTime ? `${date}, ${d.toLocaleTimeString(lang, { hour: "numeric", minute: "2-digit" })}` : date;
+  }
+
+  // The whole cook: oven (and food) temperature from start to end, with the last target.
+  function cookGraph(r, unit, ext) {
+    const W = 300, H = 90, t1 = Math.max(60, r.duration_s || 0);
+    const cav = [], food = [];
+    for (const [t, c, f] of r.samples || []) {
+      const a = toUnit(c, unit), b = toUnit(f, unit);
+      if (a !== null) cav.push([t, a]);
+      if (b !== null) food.push([t, b]);
+    }
+    if (!r.samples) return `<div class="d2-hd-graph is-loading" aria-hidden="true"></div>`;
+    const foodPts = food.length ? food : (ext || []).filter(([t]) => t >= 0 && t <= t1);
+    const tgt = toUnit(r.target_c, unit);
+    const vals = [...cav, ...foodPts].map(([, v]) => v);
+    if (!vals.length) return `<div class="d2-hd-nog">No temperature readings were saved for this cook.</div>`;
+    if (tgt !== null) vals.push(tgt);
+    let lo = Math.min(...vals), hi = Math.max(...vals);
+    const pad = Math.max(8, (hi - lo) * 0.08);
+    lo -= pad; hi += pad;
+    const x = (t) => ((Math.min(t1, Math.max(0, t)) / t1) * W).toFixed(1), y = (v) => (H - ((v - lo) / (hi - lo)) * H).toFixed(1);
+    const line = (pts, cls) => (pts.length ? `<polyline class="${cls}" points="${pts.map(([t, v]) => `${x(t)},${y(v)}`).join(" ")}" vector-effect="non-scaling-stroke"/>` : "");
+    const target = tgt !== null ? `<line class="sp-tgt" x1="0" x2="${W}" y1="${y(tgt)}" y2="${y(tgt)}" vector-effect="non-scaling-stroke"/>` : "";
+    const keys = `<span class="d2-sp-key k-oven"><i></i>Oven</span>${foodPts.length ? `<span class="d2-sp-key k-food"><i></i>Food</span>` : ""}${tgt !== null ? `<span class="d2-sp-key k-tgt"><i></i>Target ${tgt}°</span>` : ""}`;
+    return `<div class="d2-hd-graph" role="img" aria-label="Oven${foodPts.length ? " and food" : ""} temperature during the cook"><svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="none" aria-hidden="true" focusable="false">${target}${line(foodPts, "sp-food")}${line(cav, "sp-oven")}</svg>
+      <div class="d2-hd-axis" aria-hidden="true"><span>0</span><span>${esc(cookMins(t1))}</span></div><div class="d2-sp-cap">${keys}</div></div>`;
+  }
+
+  function cookRow(r, unit, lang, pic) {
+    const tgt = toUnit(r.target_c, unit), done = r.outcome === "done";
+    const face = pic ? `<img src="${esc(pic)}" alt="" loading="lazy">` : `<span class="d2-face">${glyph(GLYPH[r.name] ? r.name : "history")}</span>`;
+    const probe = r.probe && r.probe.peak_c !== null ? ` · food ${toUnit(r.probe.peak_c, unit)}°` : "";
+    return `<button class="d2-hr" data-act="hist-open" data-id="${esc(r.id)}" aria-label="${esc(cookName(r))}, ${esc(cookWhen(r.started, lang))}, ${done ? "finished" : "stopped"}. Show details">
+      <span class="d2-hr-pic">${face}</span>
+      <span class="d2-hr-m"><span class="d2-hr-t">${esc(cookName(r))}${tgt !== null ? ` · ${tgt}°` : ""}</span><span class="d2-hr-s">${esc(cookWhen(r.started, lang))} · ${esc(cookMins(r.duration_s || 0))}${esc(probe)}</span></span>
+      <span class="d2-hr-o${done ? " is-done" : ""}">${done ? "Done" : "Stopped"}</span></button>`;
+  }
+
+  function cookDetail(r, s, unit, lang, pic, ext) {
+    const u = (c) => { const v = toUnit(c, unit); return v === null ? null : `${v}°`; };
+    const targets = (r.targets_c || []).map((c) => toUnit(c, unit)).filter((v) => v !== null);
+    const stat = (k, v) => (v === null || v === undefined || v === "" ? "" : `<div class="d2-hd-st"><dt>${esc(k)}</dt><dd>${esc(v)}</dd></div>`);
+    const clock = (iso) => new Date(iso).toLocaleTimeString(lang, { hour: "numeric", minute: "2-digit" });
+    const p = r.probe || {};
+    const confirm = s.confirm === r.id;
+    return `<div class="d2-hd${r.picture ? " has-pic" : ""}">
+      ${r.picture ? `<div class="d2-hd-pic">${pic ? `<img src="${esc(pic)}" alt="The food when the cook ended">` : ""}</div>` : ""}
+      ${cookGraph(r, unit, ext)}
+      <dl class="d2-hd-stats">
+        ${stat("Result", r.outcome === "done" ? "Finished" : "Stopped early")}
+        ${stat("Time", `${clock(r.started)} – ${clock(r.ended)} · ${cookMins(r.duration_s || 0)}`)}
+        ${stat("Target", targets.length ? targets.map((v) => `${v}°`).join(" → ") : null)}
+        ${stat("Preheat", r.preheat_s !== null && r.preheat_s !== undefined ? cookMins(r.preheat_s) : null)}
+        ${stat("Hottest", u(r.peak_c))}
+        ${stat("Timer", r.timer_s ? cookMins(r.timer_s) : null)}
+        ${stat("Food probe", p.peak_c !== null && p.peak_c !== undefined ? `${u(p.final_c ?? p.peak_c)} at the end${p.peak_c !== p.final_c ? `, ${u(p.peak_c)} highest` : ""}` : null)}
+        ${stat("Probe target", u(p.target_c))}
+        ${stat("Program", r.program ? `${cookName(r)} (June program ${r.plan_id ?? "?"})` : null)}
+      </dl>
+      ${r.joined ? `<div class="d2-sh-note">Home Assistant found this cook already running, so it starts when Home Assistant first saw it.</div>` : ""}
+      <div class="d2-hd-acts">${confirm
+        ? `<button class="d2-ghost" data-act="hist-cancel">Keep</button><button class="d2-ghost is-danger" data-act="hist-del" data-id="${esc(r.id)}">Delete this cook</button>`
+        : `<button class="d2-ghost" data-act="hist-del" data-id="${esc(r.id)}">Delete…</button>`}</div>
+    </div>`;
+  }
+
+  function historySheet(s, m, d, pics, exts, lang) {
+    const open = d && d.records && s.open ? d.records.find((r) => r.id === s.open) : null;
+    const head = open
+      ? `<div class="d2-sh-head"><button class="d2-icbtn" data-act="hist-back" aria-label="Back to the history">${I.back}</button><div class="d2-hd-ht"><div class="d2-sh-t">${esc(cookName(open))}</div><div class="d2-sh-s">${esc(cookWhen(open.started, lang))}</div></div>
+          <button class="d2-icbtn" data-act="sheet-close" aria-label="Close the history">${I.close}</button></div>`
+      : `<div class="d2-sh-head"><div><div class="d2-sh-t">History</div><div class="d2-sh-s">${esc(m.name)}${d && d.records && d.records.length ? ` · ${d.records.length} cook${d.records.length > 1 ? "s" : ""}` : ""}</div></div>
+          <button class="d2-icbtn" data-act="sheet-close" aria-label="Close the history">${I.close}</button></div>`;
+    let body;
+    if (!d || (d.loading && !d.records)) body = `<div class="d2-hist-msg">Loading…</div>`;
+    else if (d.error) body = `<div class="d2-hist-msg"><b>History isn't available</b>${esc(d.error)}</div>`;
+    else if (open) body = cookDetail(open, s, m.unit, lang, open.picture ? pics[open.id] : "", exts[open.id]);
+    else if (!d.records.length) body = `<div class="d2-hist-msg"><b>${d.enabled ? "No cooks yet" : "History is off"}</b>${d.enabled ? `Each cook is saved here when it ends, with its temperatures${d.pictures ? " and a picture" : ""}.` : "Turn on Keep a cook history in this oven's options in Home Assistant."}</div>${d.enabled ? "" : `<div class="d2-set-acts"><button class="d2-ghost" data-act="set-ha" data-oven="${esc(m.ids.climate)}">Oven in Home Assistant</button></div>`}`;
+    else {
+      const shown = d.records.slice(0, s.limit);
+      const confirm = s.confirm === "all";
+      body = `<div class="d2-hist">${shown.map((r) => cookRow(r, m.unit, lang, r.picture ? pics[r.id] : "")).join("")}</div>
+        ${d.records.length > shown.length ? `<button class="d2-link" data-act="hist-more">Show ${Math.min(HIST_PAGE, d.records.length - shown.length)} more</button>` : ""}
+        ${d.enabled ? "" : `<div class="d2-sh-note">History is off: new cooks aren't saved. Turn it on in this oven's options in Home Assistant.</div>`}
+        <div class="d2-set-acts">${confirm
+          ? `<button class="d2-ghost" data-act="hist-cancel">Keep</button><button class="d2-ghost is-danger" data-act="hist-clear">Delete all ${d.records.length}</button>`
+          : `<button class="d2-ghost" data-act="hist-clear">Clear history…</button>`}</div>`;
+    }
+    return `<div class="d2-sheet d2-set d2-hsheet" role="dialog" aria-modal="true" aria-label="${esc(m.name)} cook history">${head}<div class="d2-set-list">${body}</div></div>`;
+  }
+
   function menuSheet(models, focus, pos) {
     const items = models.map((m) => `<button class="d2-mi l-${lamp(m)}" role="menuitemradio" aria-checked="${m.ids.climate === focus}" data-act="pick" data-oven="${esc(m.ids.climate)}"><span class="d2-lamp">${m.oic}</span><span class="d2-mi-n">${esc(m.name)}</span><span class="d2-mi-s">${esc(m.key === "offline" ? "Offline" : m.heating ? m.word : "Off")}</span>${m.ids.climate === focus ? I.check : ""}</button>`).join("");
     return `<div class="d2-menu-back" data-act="sheet-close"></div>
@@ -539,6 +645,9 @@
       this._size = "standard";
       this._imgs = {};
       this._hist = {};
+      this._cooks = {};
+      this._pics = {};
+      this._cookExt = {};
       this._html = "";
     }
 
@@ -843,6 +952,105 @@
       return h;
     }
 
+    // ---- cook history ----
+    _loadCooks(oven) {
+      const d = this._cooks[oven] = { ...(this._cooks[oven] || {}), loading: true, error: "" };
+      const done = () => { if (this._sheet && this._sheet.kind === "history" && this._sheet.oven === oven) this._histRender(); };
+      this._hass.callWS({ type: "june_oven/cook_history", entity_id: oven }).then((res) => {
+        Object.assign(d, { loading: false, enabled: !!res.enabled, pictures: !!res.pictures, entry: res.entry_id, records: Array.isArray(res.records) ? res.records : [] });
+        done();
+        this._signPics(oven);
+      }).catch((err) => {
+        d.loading = false;
+        d.error = err && err.code === "unknown_command" ? "Update the June Oven integration to 0.5.0 or later, then restart Home Assistant." : (err && err.message) || "Home Assistant didn't answer.";
+        done();
+      });
+    }
+
+    // Pictures are served to signed-in users only, so each one gets a signed link.
+    _signPics(oven) {
+      const d = this._cooks[oven], s = this._sheet;
+      if (!d || !d.records || !s || s.kind !== "history") return;
+      const want = s.open ? d.records.filter((r) => r.id === s.open) : d.records.slice(0, s.limit);
+      want.filter((r) => r.picture && this._pics[r.id] === undefined).forEach((r) => {
+        this._pics[r.id] = "";
+        this._hass.callWS({ type: "auth/sign_path", path: `/api/june_oven/cook_picture/${d.entry}/${encodeURIComponent(r.id)}`, expires: 3600 })
+          .then((res) => {
+            this._pics[r.id] = res.path;
+            const img = this._overEl.querySelector(`.d2-hr[data-id="${r.id}"] .d2-hr-pic`);
+            if (img && !img.querySelector("img")) img.innerHTML = `<img src="${esc(res.path)}" alt="" loading="lazy">`;
+            else if (this._sheet && this._sheet.open === r.id) this._histRender();
+          })
+          .catch(() => { delete this._pics[r.id]; });
+      });
+    }
+
+    // The list leaves out each cook's temperature curve; it is fetched when the cook is opened.
+    _loadCookCurve(r) {
+      if (r.samples || r.curveLoading) return;
+      r.curveLoading = true;
+      const oven = this._sheet.oven;
+      this._hass.callWS({ type: "june_oven/cook_history", entity_id: oven, record_id: r.id })
+        .then((res) => { r.samples = (res.record && res.record.samples) || []; })
+        .catch(() => { r.samples = []; })
+        .finally(() => { r.curveLoading = false; if (this._sheet && this._sheet.open === r.id) this._histRender(); });
+    }
+
+    // Another thermometer's readings are not in the record: Home Assistant's history has them.
+    _loadCookExt(r) {
+      const o = this._conf(this._sheet.oven), probe = this._probeFor(o);
+      if (!probe || (r.probe && r.probe.peak_c !== null) || this._cookExt[r.id] !== undefined) return;
+      this._cookExt[r.id] = null;
+      const t0 = Date.parse(r.started);
+      this._hass.callWS({ type: "history/history_during_period", start_time: r.started, end_time: r.ended, entity_ids: [probe], minimal_response: true, no_attributes: true, significant_changes_only: false })
+        .then((res) => {
+          const pts = ((res && res[probe]) || []).map((x) => [((x.lu || x.lc || 0) * 1000 - t0) / 1000, Math.round(+x.s)]).filter(([t, v]) => Number.isFinite(v) && t > -60);
+          this._cookExt[r.id] = pts.length ? pts : null;
+          if (pts.length && this._sheet && this._sheet.open === r.id) this._histRender();
+        }).catch(() => {});
+    }
+
+    _histRender() {
+      const s = this._sheet;
+      const list = this._overEl.querySelector(".d2-set-list");
+      const top = list ? list.scrollTop : 0;
+      this._renderOver();
+      const again = this._overEl.querySelector(".d2-set-list");
+      if (again && s) { again.scrollTop = s.jump !== undefined ? s.jump : top; delete s.jump; }
+    }
+
+    async _histAct(act, el) {
+      const s = this._sheet, d = s && this._cooks[s.oven];
+      if (!s || s.kind !== "history" || !d || !d.records) return;
+      const list = this._overEl.querySelector(".d2-set-list");
+      if (act === "hist-open") {
+        s.listTop = list ? list.scrollTop : 0;
+        s.open = el.dataset.id; s.confirm = null; s.jump = 0;
+        const r = d.records.find((x) => x.id === s.open);
+        if (r) { this._loadCookExt(r); this._loadCookCurve(r); }
+        this._histRender();
+        return this._signPics(s.oven);
+      }
+      if (act === "hist-back") { s.open = null; s.confirm = null; s.jump = s.listTop || 0; return this._histRender(); }
+      if (act === "hist-more") { s.limit += HIST_PAGE; this._histRender(); return this._signPics(s.oven); }
+      if (act === "hist-cancel") { s.confirm = null; return this._histRender(); }
+      if (act === "hist-del" || act === "hist-clear") {
+        const id = act === "hist-del" ? el.dataset.id : "all";
+        if (s.confirm !== id) { s.confirm = id; return this._histRender(); }
+        try {
+          await this._hass.callWS({ type: "june_oven/cook_history/delete", entity_id: s.oven, ...(id === "all" ? {} : { record_id: id }) });
+        } catch (err) {
+          s.confirm = null; this._histRender();
+          return this._toast(`Couldn't delete: ${(err && err.message) || "no answer from Home Assistant"}`);
+        }
+        d.records = id === "all" ? [] : d.records.filter((r) => r.id !== id);
+        s.confirm = null;
+        if (id !== "all") { s.open = null; s.jump = s.listTop || 0; }
+        this._toast(id === "all" ? "History cleared" : "Cook deleted");
+        return this._histRender();
+      }
+    }
+
     // ---- the Air fry fan: spins up on hover, then coasts to rest where it started ----
     // It stops on a whole third of a turn: the three blades look the same at 0°, 120° and 240°, so the
     // resting fan is drawn exactly as before. State is kept per oven, so a re-render mid-spin carries on.
@@ -1127,6 +1335,7 @@
       else if (s.kind === "settings") el.innerHTML = settingsSheet({ theme: this._theme(), camera_fps: this._fps(), hide_name: this._hideName(), clock: String(this._pref("clock")), mode_order: this._pref("mode_order") === "used" ? "used" : "oven", layout: this._layoutInfo(s.oven), scale: Math.round(this._ui() * 100), icon_size: this._iconSize() }, m,
         this._allOvens().map((o) => ({ m: this._model(o, now), icon: this._prefs.icons[o.entity] || o.icon, probe: this._probeFor(o) })), s.iconFor || s.oven, probeChoices(this._hass));
       else if (s.kind === "camera") el.innerHTML = cameraSheet(m);
+      else if (s.kind === "history") el.innerHTML = historySheet(s, m, this._cooks[s.oven], this._pics, this._cookExt, (this._hass.locale && this._hass.locale.language) || this._hass.language || undefined);
       else if (s.kind === "menu") el.innerHTML = menuSheet(this._allOvens().map((o) => this._model(o, now)), s.oven, s.pos);
       const first = el.querySelector(s.kind === "menu" ? '.d2-mi[aria-checked="true"]' : ".d2-icbtn");
       if (first && s.byKey) first.focus();
@@ -1217,6 +1426,8 @@
         return;
       }
       if (act === "settings") return this._openSheet({ kind: "settings", oven, byKey });
+      if (act === "history") { this._openSheet({ kind: "history", oven, byKey, open: null, limit: HIST_PAGE, confirm: null }); return this._loadCooks(oven); }
+      if (act.startsWith("hist-")) return this._histAct(act, el);
       if (act === "set") return this._setPref(el.dataset.k, el.dataset.v, oven);
       if (act === "set-iconfor") { this._sheet.iconFor = this._sheet.iconFor === oven || (!this._sheet.iconFor && this._sheet.oven === oven) ? "-" : oven; return this._prefsChanged(true); }
       if (act === "set-reset") { this._prefs = { icons: {}, probes: {} }; this._hist = {}; this._measure(); return this._prefsChanged(); }
@@ -1828,6 +2039,58 @@ ha-card{height:100%;overflow:hidden;background:none;border:none;box-shadow:none;
 .c-d2 .d2-cv-pill.is-old{background:rgba(0,0,0,.66);color:#fbbf24}
 .c-d2 .d2-cv-pill[hidden]{display:none}
 .c-d2 .d2-cv-x{background:rgba(0,0,0,.45);color:#fff}
+.c-d2 .d2-hsheet .d2-set-list{display:flex;flex-direction:column}
+.c-d2 .d2-hd-ht{flex:1;min-width:0}
+.c-d2 .d2-hd-ht .d2-sh-t{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.c-d2 .d2-hist{display:flex;flex-direction:column}
+.c-d2 .d2-hr{display:flex;align-items:center;gap:min(12px,3cqw);width:100%;min-height:64px;padding:8px 0;border-top:1px solid var(--line);text-align:left}
+.c-d2 .d2-hr:first-child{border-top:0}
+.c-d2 .d2-hr-pic{flex:none;width:clamp(44px,18cqw,64px);aspect-ratio:4/3;border-radius:9px;overflow:hidden;display:flex;align-items:center;justify-content:center}
+.c-d2 .d2-hr-pic img{width:100%;height:100%;object-fit:cover;display:block;background:var(--win)}
+.c-d2 .d2-hr-pic .d2-face{--tile:min(44px,100%);background:linear-gradient(180deg,var(--uA),var(--uB));box-shadow:inset 0 0 0 1px var(--uRim)}
+.c-d2 .d2-hr-pic .d2-glyph{stroke:var(--uGlyph);filter:none}
+.c-d2 .d2-hr-m{flex:1;min-width:0;display:flex;flex-direction:column;gap:2px}
+.c-d2 .d2-hr-t{font:600 16px/21px var(--f);color:var(--fg);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;transition:color .35s ease}
+.c-d2 .d2-hr-s{font:400 13px/17px var(--f);color:var(--fg2);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.c-d2 .d2-hr:hover .d2-hr-t,.c-d2 .d2-hr:focus-visible .d2-hr-t{color:var(--ember)}
+.c-d2 .d2-hr-o{flex:none;padding:5px 7px;border-radius:6px;font:600 11px/1 var(--f);letter-spacing:.06em;text-transform:uppercase;color:var(--fg2);box-shadow:inset 0 0 0 1px var(--line)}
+.c-d2 .d2-hr-o.is-done{color:var(--green);box-shadow:inset 0 0 0 1px color-mix(in srgb,var(--green) 45%,transparent)}
+.c-d2 .d2-hsheet .d2-link{align-self:center}
+.c-d2 .d2-hist-msg{display:flex;flex-direction:column;gap:6px;padding:28px 8px;text-align:center;font:400 14px/19px var(--f);color:var(--fg2)}
+.c-d2 .d2-hist-msg b{font:600 17px/22px var(--f);color:var(--fg)}
+.c-d2 .d2-hd{display:flex;flex-direction:column;gap:14px;padding-top:2px}
+.c-d2 .d2-hd-pic{border-radius:12px;overflow:hidden;background:var(--win);aspect-ratio:4/3;max-height:min(300px,42cqh);box-shadow:inset 0 0 0 1px var(--rim)}
+.c-d2 .d2-hd-pic img{width:100%;height:100%;object-fit:cover;display:block}
+.c-d2 .d2-hd-graph svg{display:block;width:100%;height:96px;overflow:visible}
+.c-d2 .d2-hd-graph polyline{fill:none;stroke:var(--ember);stroke-width:2.5;stroke-linejoin:round;filter:drop-shadow(0 0 3px var(--glow))}
+.c-d2 .d2-hd-graph polyline.sp-food{stroke:var(--food);filter:none}
+.c-d2 .d2-hd-graph .sp-tgt{stroke:var(--fg2);stroke-width:1;stroke-dasharray:4 4;opacity:.7}
+.c-d2 .d2-hd-axis{display:flex;justify-content:space-between;margin-top:4px;font:400 12px/14px var(--f);color:var(--fg2)}
+.c-d2 .d2-sp-key.k-tgt i{height:0;background:none;border-top:1px dashed var(--fg2)}
+.c-d2 .d2-hd-graph .d2-sp-cap{flex-wrap:wrap;row-gap:4px;font-size:13px}
+.c-d2 .d2-hd-graph.is-loading{height:122px}
+.c-d2 .d2-hd-nog{font:400 13px/17px var(--f);color:var(--fg2)}
+.c-d2 .d2-hd-stats{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:12px 16px;margin:0}
+.c-d2 .d2-hd-st dt{font:600 11px/14px var(--f);letter-spacing:.06em;text-transform:uppercase;color:var(--fg2)}
+.c-d2 .d2-hd-st dd{margin:3px 0 0;font:500 15px/20px var(--f);color:var(--fg)}
+.c-d2 .d2-hd-acts{display:flex;gap:8px;padding:10px 0 var(--py);border-top:1px solid var(--line)}
+.c-d2 .d2-hd-acts .d2-ghost,.c-d2 .d2-hsheet .d2-set-acts .d2-ghost{flex:1 1 auto;height:44px}
+.c-d2 .d2-ghost.is-danger{background:#c62828;color:#fff;box-shadow:none}
+.c-d2.d2-wall .d2-hr{min-height:84px;gap:16px}
+.c-d2.d2-wall .d2-hr-pic{width:92px;height:69px;border-radius:12px}
+.c-d2.d2-wall .d2-hr-pic .d2-face{--tile:60px}
+.c-d2.d2-wall .d2-hr-t{font-size:20px;line-height:26px}
+.c-d2.d2-wall .d2-hr-s{font-size:16px;line-height:21px}
+.c-d2.d2-wall .d2-hr-o{font-size:13px;padding:6px 9px}
+.c-d2.d2-wall .d2-hist-msg,.c-d2.d2-wall .d2-hd-nog{font-size:16px;line-height:22px}
+.c-d2.d2-wall .d2-hd-graph svg{height:140px}
+.c-d2.d2-wall .d2-hd.has-pic{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);grid-auto-flow:row dense;column-gap:24px;row-gap:14px;align-items:start}
+.c-d2.d2-wall .d2-hd.has-pic>*{grid-column:2}
+.c-d2.d2-wall .d2-hd.has-pic>.d2-hd-pic{grid-column:1;grid-row:1 / span 3;max-height:none}
+.c-d2.d2-wall .d2-hd.has-pic>.d2-hd-acts,.c-d2.d2-wall .d2-hd.has-pic>.d2-sh-note{grid-column:1 / -1}
+.c-d2.d2-wall .d2-hd-st dt{font-size:13px;line-height:17px}
+.c-d2.d2-wall .d2-hd-st dd{font-size:19px;line-height:25px}
+.c-d2.d2-wall .d2-hd-stats{grid-template-columns:repeat(auto-fill,minmax(200px,1fr))}
 .c-d2.d2-wall .d2-cv-bar{font-size:22px;line-height:28px;padding:10px 10px 26px 20px}
 .c-d2.d2-wall .d2-cv-pill{font-size:15px;padding:5px 9px}
 /* Oven menu */

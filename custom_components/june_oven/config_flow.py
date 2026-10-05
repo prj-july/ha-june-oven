@@ -42,6 +42,8 @@ from .const import (
     CONF_DEFAULT_TEMP_F,
     CONF_DEVICE_NAME,
     CONF_ENDPOINT,
+    CONF_HISTORY,
+    CONF_HISTORY_PICTURES,
     CONF_VERIFY_SSL,
     DEFAULT_DEVICE_NAME,
     DEFAULT_MODE,
@@ -119,12 +121,18 @@ def _options_schema(
     endpoint: str = "",
     verify_ssl: bool = True,
     ca_cert: str = "",
+    history: bool = True,
+    history_pictures: bool = True,
 ) -> vol.Schema:
     return vol.Schema(
         {
             **_server_fields(endpoint=endpoint, verify_ssl=verify_ssl, ca_cert=ca_cert),
             vol.Required(CONF_DEFAULT_MODE, default=default_mode): MODE_SELECTOR,
             vol.Required(CONF_DEFAULT_TEMP_F, default=default_temp_f): TEMP_SELECTOR,
+            vol.Required(CONF_HISTORY, default=history): BooleanSelector(),
+            vol.Required(
+                CONF_HISTORY_PICTURES, default=history_pictures
+            ): BooleanSelector(),
         }
     )
 
@@ -296,6 +304,8 @@ class JuneOvenOptionsFlow(OptionsFlow):
                 endpoint=str(values.get(CONF_ENDPOINT, "")),
                 verify_ssl=bool(values.get(CONF_VERIFY_SSL, True)),
                 ca_cert=str(values.get(CONF_CA_CERT, "")),
+                history=bool(values.get(CONF_HISTORY, True)),
+                history_pictures=bool(values.get(CONF_HISTORY_PICTURES, True)),
             ),
             errors=errors,
             description_placeholders=SERVER_PLACEHOLDERS,

@@ -71,3 +71,7 @@ jobs:
         run: >-
           python -m unittest discover -s tests
           -p "test_config_flow_compatibility.py" -v
+      - name: Exercise cook history
+        run: >-
+          python -m unittest discover -s tests
+          -p "test_history.py" -v

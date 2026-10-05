@@ -27,6 +27,7 @@ from aiohttp import (
 )
 
 from .const import DEFAULT_MODES
+from .cooklog import CookRecorder, utcnow
 from .protocol import (
     JUNE_APP_VERSION,
     JUNE_CLIENT_ID,
@@ -182,6 +183,7 @@ class JuneState:
 
 TokenCallback = Callable[[JuneIdentity], None]
 UpdateCallback = Callable[[JuneState], None]
+CookCallback = Callable[[dict[str, Any]], None]
 
 
 class JuneClient:
@@ -218,6 +220,9 @@ class JuneClient:
         self._preheat = PreheatWatch()
         self._command_lock = asyncio.Lock()
         self._last_camera_wake = 0.0
+        self._recorder = CookRecorder()
+        # Called with each finished cook's record (see cooklog.py).
+        self.cook_callback: CookCallback | None = None
 
     def set_update_callback(self, callback: UpdateCallback) -> None:
         """Set the callback used for push updates."""
@@ -442,9 +447,9 @@ class JuneClient:
         self._last_camera_wake = now
         return True
 
-    async def async_fetch_camera_image(self) -> bytes | None:
+    async def async_fetch_camera_image(self, *, wake: bool = True) -> bytes | None:
         """Fetch the most recent trusted camera image."""
-        if self.endpoints.local and not self.state.active:
+        if wake and self.endpoints.local and not self.state.active:
             await self.async_wake_camera()
         url = self._camera_url(self.state.snapshot_url)
         if not url:
@@ -646,6 +651,7 @@ class JuneClient:
         # june-local keeps serving the last plan after a cook ends.
         if plan is None or not self.state.active:
             return
+        self._recorder.plan(plan.name, plan.plan_id, plan.session_id)
         if plan.plan_id is not None:
             self.state.plan_id = plan.plan_id
         if plan.name is not None:
@@ -706,7 +712,18 @@ class JuneClient:
             self._last_cancelled = False
             self.state.done = False
             self.state.ready = False
-        elif was_active and not active:
+            self._recorder.start(utcnow())
+        elif not active:
+            self._recorder.idle()
+        if was_active and not active:
+            record = self._recorder.finish(
+                self.state, utcnow(), cancelled=self._last_cancelled
+            )
+            if record is not None and self.cook_callback is not None:
+                try:
+                    self.cook_callback(record)
+                except Exception:  # history must never break updates
+                    _LOGGER.exception("Could not save the cook to the history")
             if not self._last_cancelled:
                 self.state.last_cook_completed = datetime.now(UTC)
                 self._start_pulse("done")
@@ -725,6 +742,8 @@ class JuneClient:
                 self.state.target_temp_c = None
 
     def _start_pulse(self, field: str) -> None:
+        if field == "ready":
+            self._recorder.ready(utcnow())
         setattr(self.state, field, True)
         existing = self._pulse_tasks.get(field)
         if existing:
@@ -748,6 +767,7 @@ class JuneClient:
         self.state.cook_phase = cook_phase(
             self.state.active, self._presentation, self._label_type
         )
+        self._recorder.observe(self.state, utcnow())
         if self.update_callback:
             self.update_callback(self.state)
 
