@@ -204,6 +204,7 @@ name, in its row, and on its pill.
 | 10-04 | A cut-off oven name scrolls (back and forth, about 40 px/s, edges faded) while hovered or focused; only when it overflows; not with reduced motion (v0.4.3) | Lead's request: a long name was unreadable even on hover |
 | 10-04 | Camera frame rate 1, 5, 10 or 15 fps, default 15, noting 1 fps is the stock June app; card pictures refresh at most once a second, only the camera window runs faster (v0.4.4) | Lead's request. The oven sends about one new still a second, so higher rates mostly re-fetch the same picture; capping the card's small pictures keeps the default from loading 5 pictures a second whenever a cook is on screen |
 | 10-05 | Wall layout: oven and food temperature graph for the current cook (at most the last hour) under the camera, from Home Assistant's recorder plus live readings; target as a dashed line; tap opens more-info (v0.4.5) | Lead asked about the graph (a SHOULD in the brief) and it had only existed in the study; under the camera it never meets the +1/+5/+10 chips |
+| 10-05 | Dark is the default look; new cards write theme dark, size automatic and Barlow fonts on, so the editor shows them; in a panel view the glass runs to the bottom of the window (above the edit bar while editing) (v0.4.6) | Lead's requests. A missing toggle reads as off in Home Assistant's editor, so the defaults are written into new cards |
 
 ## Open questions
 

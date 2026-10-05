@@ -326,7 +326,7 @@ entity: climate.kitchen_oven
 | `entity` | required | The oven's climate entity |
 | `icon` | `oven` | The oven's icon, which also shows whether it is on: one of `oven`, `kitchen`, `house`, `garage`, `basement`, `apartment`, `cabin`, `patio`, `office`, `camper`, `bread`, `star`, or any `mdi:` icon |
 | `entities` | none | More ovens for the same card, as entity IDs or as `{entity, icon, name}`. The oven that is heating gets the full card; other heating ovens get a row with their own Stop; ovens that are off share one row of small buttons |
-| `theme` | `auto` | `auto` follows your Home Assistant theme; `light`; or `dark`, the oven's own glass |
+| `theme` | `dark` | `dark`, the oven's own glass; `light`; or `auto`, which follows your Home Assistant theme |
 | `display_mode` | `auto` | `auto` picks the layout from the card's size; or `standard`, `wall` (wall tablets read from across the room), `compact` (one row) |
 | `name` | device or area name | The name shown on the card |
 | `load_fonts` | `true` | Loads Barlow from Google Fonts; set `false` to use system fonts |
@@ -363,6 +363,7 @@ Sizes on a sections dashboard:
 
 - **Standard:** 12 × 6.
 - **Wall tablet:** full width × 8.
+- **Panel view:** the card fills the view, down to the bottom of the window.
 - **Compact:** 12 × 1.
 - **Several ovens:** one extra row per oven.
 

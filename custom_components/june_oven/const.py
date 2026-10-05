@@ -41,7 +41,7 @@ POLL_INTERVAL_SECONDS: Final = 60
 
 # The bundled Lovelace card, served by the integration (see www/).
 CARD_URL: Final = "/june_oven/july-oven-card.js"
-CARD_VERSION: Final = "0.4.5"
+CARD_VERSION: Final = "0.4.6"
 
 PLATFORMS: Final[tuple[str, ...]] = (
     "binary_sensor",

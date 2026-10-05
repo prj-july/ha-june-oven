@@ -21,7 +21,7 @@
  *       icon: apartment
  *       name: Studio
  *   Icons: oven, kitchen, house, garage, basement, apartment, cabin, patio, office, camper, bread, star
- *   theme: auto | light | dark          # auto follows the Home Assistant theme
+ *   theme: dark | light | auto          # dark (default) is the oven's glass; auto follows the Home Assistant theme
  *   display_mode: auto | standard | wall | compact
  *   name: Kitchen                       # optional; defaults to the device or area name
  *   load_fonts: true                    # Barlow fonts from Google Fonts (system fonts if off)
@@ -34,7 +34,7 @@
  */
 (() => {
   "use strict";
-  const VERSION = "0.4.5";
+  const VERSION = "0.4.6";
   const DOMAIN = "june_oven";
   const TAG = "july-oven-card";
   if (customElements.get(TAG)) return;
@@ -491,7 +491,8 @@
 
     static getStubConfig(hass) {
       const hit = Object.values((hass && hass.entities) || {}).find((e) => e.platform === DOMAIN && e.entity_id.startsWith("climate."));
-      return { entity: hit ? hit.entity_id : "", theme: "auto" };
+      // The defaults are written out so the editor shows them (a missing toggle reads as off there).
+      return { entity: hit ? hit.entity_id : "", theme: "dark", display_mode: "auto", load_fonts: true };
     }
 
     static getConfigForm() {
@@ -533,7 +534,7 @@
       for (const item of config.entities || []) add(typeof item === "string" ? { entity: item } : item);
       for (const n of [2, 3, 4]) add({ entity: config[`entity_${n}`], icon: config[`icon_${n}`], name: config[`name_${n}`] });
       for (const o of ovens) if (!String(o.entity).startsWith("climate.")) throw new Error(`${o.entity} is not a climate entity. Choose the oven itself.`);
-      this._config = { theme: "auto", display_mode: "auto", load_fonts: true, camera_fps: 15, hide_name: true, clock: "auto", mode_order: "oven", ...config };
+      this._config = { theme: "dark", display_mode: "auto", load_fonts: true, camera_fps: 15, hide_name: true, clock: "auto", mode_order: "oven", ...config };
       this._ovenConf = ovens;
       this._ovens = ovens.map((o) => o.entity);
       // The oven last picked in this card, and the card's own settings, are remembered in this browser.
@@ -566,6 +567,17 @@
       this._layout = value;
       this._html = "";
       this._render();
+      if (this.isConnected) this._measure();
+    }
+
+    // Home Assistant sets editMode while the dashboard is being edited (a panel view then has an edit bar).
+    set editMode(value) {
+      this._editMode = !!value;
+      if (this.isConnected) this._measure();
+    }
+
+    get editMode() {
+      return this._editMode;
     }
 
     get layout() {
@@ -588,6 +600,7 @@
       this.shadowRoot.addEventListener("change", this._onChange = (e) => this._handleChange(e));
       // On the window, so Escape closes a sheet even when nothing in the card has focus.
       window.addEventListener("keydown", this._onKey = (e) => this._handleKey(e));
+      window.addEventListener("resize", this._onResize = () => this._measure());
       // A long oven name scrolls while the pointer (or focus) is on it.
       this.shadowRoot.addEventListener("pointerover", this._onOver = (e) => this._nameHover(e, true));
       this.shadowRoot.addEventListener("pointerout", this._onOut = (e) => this._nameHover(e, false));
@@ -611,6 +624,7 @@
       if (this._onInput) this.shadowRoot.removeEventListener("input", this._onInput);
       if (this._onChange) this.shadowRoot.removeEventListener("change", this._onChange);
       if (this._onKey) window.removeEventListener("keydown", this._onKey);
+      if (this._onResize) window.removeEventListener("resize", this._onResize);
       if (this._onOver) { this.shadowRoot.removeEventListener("pointerover", this._onOver); this.shadowRoot.removeEventListener("focusin", this._onOver); }
       if (this._onOut) { this.shadowRoot.removeEventListener("pointerout", this._onOut); this.shadowRoot.removeEventListener("focusout", this._onOut); }
       clearTimeout(this._marqTimer);
@@ -627,6 +641,10 @@
       // No height from the parent (masonry view, editor preview): give the card its own, and keep it.
       if (this._layout !== "grid" && r.height < 24 && !this._autoHeight) this._autoHeight = true;
       this._collapsed = !!this._autoHeight && this._layout !== "grid";
+      // A panel view gives the card the whole view: the glass runs to the bottom of the window (above
+      // the edit bar while editing).
+      const panelH = this._layout === "panel" ? Math.max(376, Math.round(window.innerHeight - Math.max(0, r.top + window.scrollY) - (this.editMode ? 59 : 0))) : 0;
+      if (panelH !== this._panelH) { this._panelH = panelH; this._html = ""; this._render(); }
       if (!mode || mode === "auto") {
         if (!this._collapsed && r.height < 120) size = "compact";
         else if (r.width >= 700 && (this._collapsed || r.height >= 440)) size = "wall";
@@ -696,7 +714,7 @@
         rows = loud.map((m) => `<div class="d2-other" data-act="focus" data-oven="${esc(m.ids.climate)}" role="button" tabindex="0" aria-label="Show ${esc(m.name)}">${compact(m, { multi: true }, this._busy[m.ids.climate])}</div>`).join("") +
           (quiet.length ? `<div class="d2-other is-quiet" role="group" aria-label="Ovens that are off">${quiet.map((m) => `<button class="d2-quiet" data-act="focus" data-oven="${esc(m.ids.climate)}" aria-label="Show ${esc(m.name)}, off">${m.oic || svg("0 0 20 20", ST.off, "d2-sti")}<span class="d2-qn">${esc(m.name)}</span><span class="d2-qs">Off</span></button>`).join("")}</div>` : "");
       }
-      const autoH = this._collapsed ? ` style="height:${size === "compact" ? 56 : size === "wall" ? 504 : 376 + (multi ? 64 * (models.length - 1) : 0)}px"` : "";
+      const autoH = this._collapsed ? ` style="height:${this._panelH && size !== "compact" ? this._panelH : size === "compact" ? 56 : size === "wall" ? 504 : 376 + (multi ? 64 * (models.length - 1) : 0)}px"` : "";
       const html = `<ha-card${autoH}><div class="c-d2 d2-${theme} d2-${size}${focus.key === "off" ? " is-rest" : ""}${multi ? " d2-multi" : ""}"><div class="d2-pane">${body}</div>${rows}</div></ha-card>`;
       this._syncOver(theme, size);
       if (html === this._html) return;
