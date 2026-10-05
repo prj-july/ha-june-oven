@@ -33,12 +33,14 @@
  *   rows: auto                          # cook mode rows (auto or 1-3); the rest go on more pages
  *   scale: 100                          # card size in percent (80-150): text, buttons and spacing
  *   icon_size: large                    # cook mode tiles: small, medium, large or fill
- * theme, camera_fps, hide_name, clock, mode_order and each oven's icon can also be changed in the card's own
+ *   probe: sensor.probe_core_temperature  # optional: another thermometer's sensor for food temperature
+ *                                       # (e.g. a Combustion probe's Core Temperature) instead of the June probe
+ * theme, camera_fps, hide_name, clock, mode_order and each oven's icon and food probe can also be changed in the card's own
  * Settings; those choices are kept in this browser and the config above is the starting point.
  */
 (() => {
   "use strict";
-  const VERSION = "0.4.9";
+  const VERSION = "0.4.10";
   const DOMAIN = "june_oven";
   const TAG = "july-oven-card";
   if (customElements.get(TAG)) return;
@@ -372,7 +374,8 @@
       if (i < 0) return pts.length ? [[t0, pts[pts.length - 1][1]]] : [];
       return i > 0 ? [[t0, pts[i - 1][1]], ...pts.slice(i)] : pts;
     };
-    const cav = cut(h.cav), food = cut(h.food);
+    const upto = (pts) => pts.filter(([t]) => t <= t1);
+    const cav = upto(cut(h.cav)), food = upto(cut(h.food));
     const mins = Math.max(1, Math.round((t1 - t0) / 60000));
     const label = `Oven${food.length ? " and food" : ""} temperature over the last ${mins} min. Open the history`;
     const vals = [...cav, ...food].map(([, v]) => v);
@@ -445,7 +448,7 @@
     }).join("");
   }
 
-  function settingsSheet(p, m, ovens, open) {
+  function settingsSheet(p, m, ovens, open, choices) {
     return `<div class="d2-sheet d2-set" role="dialog" aria-modal="true" aria-label="Card settings">
       <div class="d2-sh-head"><div><div class="d2-sh-t">Settings</div><div class="d2-sh-s">This card, in this browser</div></div>
         <button class="d2-icbtn" data-act="sheet-close" aria-label="Close settings">${I.close}</button></div>
@@ -458,11 +461,31 @@
         ${setRow("Mode layout", p.layout.auto ? "Automatic until you change it. Modes that don't fit go on more pages." : "Modes that don't fit go on more pages.", layoutPicker(p.layout))}
         ${setRow("Card size", "Text, buttons and spacing. Larger reads better from across the room.", `<div class="d2-scale"><input class="d2-range d2-ui" type="range" min="80" max="150" step="5" value="${p.scale}" style="--p:${(p.scale - 80) / 70}" aria-label="Card size"><span class="d2-scale-v">${p.scale}%</span></div>`)}
         ${setRow("Mode icon size", "Only the cook mode tiles. Fill makes them as big as the layout allows.", seg("icon_size", ICON_SIZES, p.icon_size, "Mode icon size"))}
+        ${setRow("Food probe", "Food temperature on the card and the wall graph. Pick another thermometer's sensor, such as a Combustion probe's Core Temperature, to use it instead of the June probe.", probeRows(ovens, choices))}
         ${setRow("Oven icons", "Each oven's icon on the card. Tap an oven to change its icon.", `<div class="d2-ic-list">${iconRows(ovens, open)}</div>`)}
         <div class="d2-set-acts"><button class="d2-ghost" data-act="set-ha" data-oven="${esc(m.ids.climate)}">Oven in Home Assistant</button><button class="d2-ghost" data-act="set-reset">Reset</button></div>
         <div class="d2-set-ver">July Oven card ${VERSION}</div>
       </div>
     </div>`;
+  }
+
+  // Temperature sensors that could be a food probe, Combustion's Core Temperature first; not the ovens' own.
+  function probeChoices(hass) {
+    const reg = hass.entities || {};
+    return Object.values(hass.states)
+      .filter((s) => s.entity_id.startsWith("sensor.") && s.attributes.device_class === "temperature" && !(reg[s.entity_id] && reg[s.entity_id].platform === DOMAIN))
+      .map((s) => ({ id: s.entity_id, name: s.attributes.friendly_name || s.entity_id, core: /core/i.test(`${s.entity_id} ${s.attributes.friendly_name || ""}`) }))
+      .sort((a, b) => b.core - a.core || a.name.localeCompare(b.name));
+  }
+
+  // One food probe choice per oven (named when there are several).
+  function probeRows(ovens, choices) {
+    return `<div class="d2-pr-list">${ovens.map(({ m, probe }) => {
+      const id = esc(m.ids.climate), name = esc(m.name);
+      const list = probe && !choices.some((c) => c.id === probe) ? [{ id: probe, name: `${probe} (not found)` }, ...choices] : choices;
+      const opts = [`<option value="">June probe (built in)</option>`, ...list.map((c) => `<option value="${esc(c.id)}"${c.id === probe ? " selected" : ""}>${esc(c.name)}</option>`)].join("");
+      return `<label class="d2-pr">${ovens.length > 1 ? `<span class="d2-pr-n">${name}</span>` : ""}<select class="d2-sel d2-probe" data-oven="${id}" aria-label="Food probe for ${name}">${opts}</select></label>`;
+    }).join("")}</div>`;
   }
 
   // Columns and rows, each with − and +, over a small picture of the home screen.
@@ -512,7 +535,7 @@
       this._page = 0;
       this._sheet = null;
       this._tucked = false;
-      this._prefs = { icons: {} };
+      this._prefs = { icons: {}, probes: {} };
       this._size = "standard";
       this._imgs = {};
       this._hist = {};
@@ -557,12 +580,12 @@
 
     setConfig(config) {
       if (!config || (!config.entity && !(config.entities && config.entities.length))) throw new Error("Choose an oven (a june_oven climate entity).");
-      // Ovens: `entity` (+ `icon`, `name`), then `entities` (ids or {entity, icon, name}), then the editor's entity_2..4.
+      // Ovens: `entity` (+ `icon`, `name`, `probe`), then `entities` (ids or {entity, icon, name, probe}), then the editor's entity_2..4.
       const ovens = [];
       const add = (o) => { if (o && o.entity && !ovens.some((x) => x.entity === o.entity)) ovens.push(o); };
-      add({ entity: config.entity, icon: config.icon, name: config.name });
+      add({ entity: config.entity, icon: config.icon, name: config.name, probe: config.probe });
       for (const item of config.entities || []) add(typeof item === "string" ? { entity: item } : item);
-      for (const n of [2, 3, 4]) add({ entity: config[`entity_${n}`], icon: config[`icon_${n}`], name: config[`name_${n}`] });
+      for (const n of [2, 3, 4]) add({ entity: config[`entity_${n}`], icon: config[`icon_${n}`], name: config[`name_${n}`], probe: config[`probe_${n}`] });
       for (const o of ovens) if (!String(o.entity).startsWith("climate.")) throw new Error(`${o.entity} is not a climate entity. Choose the oven itself.`);
       this._config = { theme: "dark", display_mode: "auto", load_fonts: true, camera_fps: 15, hide_name: true, clock: "auto", mode_order: "oven", columns: "auto", rows: "auto", scale: 100, icon_size: "large", ...config };
       this._ovenConf = ovens;
@@ -573,6 +596,7 @@
       try { this._focus = localStorage.getItem(this._focusKey) || undefined; } catch (e) { this._focus = undefined; }
       try { this._prefs = JSON.parse(localStorage.getItem(this._prefsKey)) || {}; } catch (e) { this._prefs = {}; }
       if (!this._prefs.icons || typeof this._prefs.icons !== "object") this._prefs.icons = {};
+      if (!this._prefs.probes || typeof this._prefs.probes !== "object") this._prefs.probes = {};
       if (this._config.load_fonts !== false) loadFonts();
       if (this.isConnected) this._restartCamTimer();
       this._html = "";
@@ -776,8 +800,15 @@
 
     // ---- temperature history for the wall graph ----
     _spark(m, now) {
-      if (!m.heating || m.key === "offline" || !this._hass.callWS) return "";
+      if (m.key === "offline" || !this._hass.callWS) return "";
       const id = m.ids.climate;
+      // Done: the finished cook stays on the graph, up to the moment it finished.
+      if (m.key === "done" && Number.isFinite(m.completed)) {
+        let h = this._hist[id];
+        if (!h || h.start >= m.completed) h = this._loadHistory(id, m.ids.probe, m.completed - 3600000);
+        return spark(m, h, m.completed);
+      }
+      if (!m.heating) return "";
       const start = Number.isFinite(m.since) ? Math.max(now - 3600000, m.since) : now - 1800000;
       let h = this._hist[id];
       // A new cook, or the window has moved on: load Home Assistant's history again (at most every 2 min).
@@ -1011,8 +1042,19 @@
 
     _model(o, now = Date.now()) {
       const hass = this._hass;
-      const ids = ovenEntities(hass, o.entity);
+      let ids = ovenEntities(hass, o.entity);
+      // Another thermometer for food temperature: its readings replace the June probe's (its target
+      // stays with the June probe, so none is shown).
+      const ext = this._probeFor(o);
+      if (ext) ids = { ...ids, probe: ext, probeTarget: null };
       return ovenModel(hass, ids, ovenName(hass, ids, o), now, this._dismissed[o.entity], this._prefs.icons[o.entity] || o.icon);
+    }
+
+    // The food probe chosen in Settings for this oven, else the config's `probe`; "" is the June probe.
+    _probeFor(o) {
+      const p = this._prefs.probes || {};
+      const v = Object.prototype.hasOwnProperty.call(p, o.entity) ? p[o.entity] : o.probe;
+      return typeof v === "string" && v.startsWith("sensor.") ? v : "";
     }
 
     // Every June oven in Home Assistant: the card's own first, then the rest.
@@ -1083,7 +1125,7 @@
       const m = this._model(this._conf(s.oven), now);
       if (s.kind === "review") el.innerHTML = review(s, m.name, m.unit, now, this._multi);
       else if (s.kind === "settings") el.innerHTML = settingsSheet({ theme: this._theme(), camera_fps: this._fps(), hide_name: this._hideName(), clock: String(this._pref("clock")), mode_order: this._pref("mode_order") === "used" ? "used" : "oven", layout: this._layoutInfo(s.oven), scale: Math.round(this._ui() * 100), icon_size: this._iconSize() }, m,
-        this._allOvens().map((o) => ({ m: this._model(o, now), icon: this._prefs.icons[o.entity] || o.icon })), s.iconFor || s.oven);
+        this._allOvens().map((o) => ({ m: this._model(o, now), icon: this._prefs.icons[o.entity] || o.icon, probe: this._probeFor(o) })), s.iconFor || s.oven, probeChoices(this._hass));
       else if (s.kind === "camera") el.innerHTML = cameraSheet(m);
       else if (s.kind === "menu") el.innerHTML = menuSheet(this._allOvens().map((o) => this._model(o, now)), s.oven, s.pos);
       const first = el.querySelector(s.kind === "menu" ? '.d2-mi[aria-checked="true"]' : ".d2-icbtn");
@@ -1177,7 +1219,7 @@
       if (act === "settings") return this._openSheet({ kind: "settings", oven, byKey });
       if (act === "set") return this._setPref(el.dataset.k, el.dataset.v, oven);
       if (act === "set-iconfor") { this._sheet.iconFor = this._sheet.iconFor === oven || (!this._sheet.iconFor && this._sheet.oven === oven) ? "-" : oven; return this._prefsChanged(true); }
-      if (act === "set-reset") { this._prefs = { icons: {} }; this._measure(); return this._prefsChanged(); }
+      if (act === "set-reset") { this._prefs = { icons: {}, probes: {} }; this._hist = {}; this._measure(); return this._prefsChanged(); }
       if (act === "lay") {
         const l = this._layoutInfo(oven), k = el.dataset.k;
         const v = Math.max(1, Math.min(k === "cols" ? MAX_COLS : MAX_ROWS, l[k] + +el.dataset.d));
@@ -1229,6 +1271,12 @@
 
     _handleChange(e) {
       if (e.target.matches(".d2-ui")) return this._prefsChanged();
+      if (e.target.matches(".d2-probe")) {
+        const oven = e.target.dataset.oven;
+        this._prefs.probes[oven] = e.target.value;
+        delete this._hist[oven];
+        return this._prefsChanged();
+      }
       if (e.target.matches(".d2-sh-in")) this._commitTyped(e.target);
       if (e.target.matches(".d2-mdi")) {
         const v = e.target.value.trim().toLowerCase();
@@ -1731,6 +1779,12 @@ ha-card{height:100%;overflow:hidden;background:none;border:none;box-shadow:none;
 .c-d2 .d2-mdi{display:block;width:100%;height:40px;margin-top:6px;padding:0 12px;border:0;border-radius:10px;box-shadow:inset 0 0 0 1px var(--chipb);background:none;font:400 15px/1 var(--f);color:var(--fg);outline:none}
 .c-d2 .d2-mdi:focus{box-shadow:inset 0 0 0 1.5px var(--ember)}
 .c-d2 .d2-mdi::placeholder{color:var(--fg2)}
+.c-d2 .d2-pr-list{display:flex;flex-direction:column;gap:8px}
+.c-d2 .d2-pr-n{display:block;margin-bottom:4px;font:500 13px/18px var(--f);color:var(--fg2)}
+.c-d2 .d2-sel{display:block;width:100%;height:44px;padding:0 36px 0 12px;border:0;border-radius:10px;box-shadow:inset 0 0 0 1px var(--chipb);background:no-repeat right 12px center/14px url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath d='M6 9l6 6 6-6' fill='none' stroke='%23999' stroke-width='2.2' stroke-linecap='round'/%3E%3C/svg%3E");font:400 15px/1 var(--f);color:var(--fg);outline:none;appearance:none;-webkit-appearance:none;text-overflow:ellipsis;cursor:pointer}
+.c-d2 .d2-sel:focus-visible{box-shadow:inset 0 0 0 1.5px var(--ember)}
+.c-d2 .d2-sel option{background:var(--bg);color:var(--fg)}
+.c-d2.d2-wall .d2-sel{height:56px;font-size:19px}
 .c-d2 .d2-set-ver{padding-top:10px;font:400 12px/16px var(--f);color:var(--fg2);text-align:center}
 .c-d2.d2-wall .d2-ic-head{min-height:64px;font-size:20px}
 .c-d2 .d2-set-acts{display:flex;flex-wrap:wrap;gap:8px;padding-top:10px;border-top:1px solid var(--line)}

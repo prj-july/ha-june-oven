@@ -338,8 +338,9 @@ entity: climate.kitchen_oven
 | `hide_name` | `true` | Tucks the oven's name into its icon 5 seconds after the card loads |
 | `clock` | `auto` | The idle clock: `auto` follows your language, or `12` / `24` |
 | `mode_order` | `oven` | Cook mode tiles in the oven's order, or `used`: most used first, counting the cooks started from the card on that oven in that browser |
+| `probe` | none | Another thermometer's temperature sensor to use for food temperature instead of the June probe, for example a [Combustion](https://github.com/legrego/homeassistant-combustion) probe's `Core Temperature` (per oven in `entities`: `probe:`) |
 
-`theme`, `camera_fps`, `hide_name`, `clock`, `mode_order`, `columns`, `rows`, `scale`, `icon_size` and every oven's icon can also be
+`theme`, `camera_fps`, `hide_name`, `clock`, `mode_order`, `columns`, `rows`, `scale`, `icon_size` and every oven's icon and food probe can also be
 changed from the card's own **Settings** tile. Those choices are kept in that
 browser; the YAML values are the starting point.
 
@@ -387,8 +388,10 @@ What the card does:
 - **Temperature graph (wall tablet):** while the oven heats, a graph under the
   camera shows the oven temperature and, with the probe in, the food
   temperature since the cook began (at most the last hour), with the target as
-  a dashed line. It reads Home Assistant's history, so it needs the recorder.
-  Tap it for the full history.
+  a dashed line. It stays up on the Done screen until the food is out. It
+  reads Home Assistant's history, so it needs the recorder. Tap it for the
+  full history. The food line can come from another thermometer, such as a
+  Combustion probe: pick its sensor under **Settings › Food probe**.
 - **Camera:** the camera picture on the card refreshes once a second while the
   oven is heating; the camera window uses the chosen frame rate (15 per second by
   default). A corner label shows **LIVE**,

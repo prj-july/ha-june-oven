@@ -209,6 +209,7 @@ name, in its row, and on its pill.
 | 10-05 | Narrow cards: the review's − / + buttons, mode picture and number shrink with the card width (down to about 200 px) instead of pushing + off the edge; the Start button's text shrinks too; the layout steppers shrink the same way; a review on a short card scrolls rather than cutting off Start (v0.4.8) | Lead saw + clipped on a narrow card and asked for elements that adapt to fit |
 | 10-05 | Air fry tile: the fan spins up while the pointer is on the tile and, on leaving, eases to a stop on the next third of a turn, so it rests exactly as drawn (the three blades are identical); off with reduced motion (v0.4.9) | Lead's request |
 | 10-05 | Hover fades: a mode tile's glow, and the Camera/Settings glyph brightening (new; they had no visible hover before), fade in and out over 0.35 s; oven menu rows fade their highlight (v0.4.9) | Lead asked for graceful hover instead of popping in |
+| 10-05 | Settings › Food probe: per oven, the June probe or any Home Assistant temperature sensor (Combustion probes' Core Temperature listed first); YAML `probe:`; the card and the wall graph use it for food temperature, with no probe target. The wall graph also stays up on the Done screen, frozen at the finish (v0.4.10) | Lead asked to use a Combustion probe; the graph vanished once a cook finished |
 
 ## Open questions
 
