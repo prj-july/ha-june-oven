@@ -9,6 +9,7 @@ import json
 import logging
 import secrets
 import ssl
+import time
 from collections.abc import Callable, Mapping
 from dataclasses import asdict, dataclass
 from datetime import UTC, datetime
@@ -73,6 +74,8 @@ _LOGGER = logging.getLogger(__name__)
 REQUEST_TIMEOUT = 15
 COMMAND_TIMEOUT = 6
 PAIRING_TIMEOUT = 5 * 60
+CAMERA_WAKE_SECONDS = 20
+CAMERA_WAKE_INTERVAL = 15.0
 TRIGGER_PULSE_SECONDS = 30
 TRUSTED_CAMERA_HOSTS = {"api.junelife.com", "june-api.s3.amazonaws.com"}
 
@@ -214,6 +217,7 @@ class JuneClient:
         self._label_type: str | None = None
         self._preheat = PreheatWatch()
         self._command_lock = asyncio.Lock()
+        self._last_camera_wake = 0.0
 
     def set_update_callback(self, callback: UpdateCallback) -> None:
         """Set the callback used for push updates."""
@@ -410,9 +414,45 @@ class JuneClient:
         )
         self._require_success(status, "add cook time")
 
+    async def async_wake_camera(self) -> bool:
+        """Wake the interior camera for a short viewing window (local only).
+
+        The oven only powers the camera while it cooks, so an idle live view
+        has to ask the local server to capture frames. Calls inside the wake
+        window are throttled; the server drops the camera on its own.
+        """
+        if not self.endpoints.local:
+            return False
+        if self.state.active:
+            return True
+        now = time.monotonic()
+        if now - self._last_camera_wake < CAMERA_WAKE_INTERVAL:
+            return True
+        url = f"{self.endpoints.api_url}/internal/camera/on?seconds={CAMERA_WAKE_SECONDS}"
+        try:
+            async with asyncio.timeout(COMMAND_TIMEOUT):
+                async with self.session.post(url, ssl=self._ssl) as response:
+                    if response.status != 200:
+                        _LOGGER.debug("Camera wake failed with HTTP %s", response.status)
+                        return False
+                    await response.read()
+        except (TimeoutError, ClientError) as err:
+            _LOGGER.debug("Camera wake failed: %s", err)
+            return False
+        self._last_camera_wake = now
+        return True
+
     async def async_fetch_camera_image(self) -> bytes | None:
         """Fetch the most recent trusted camera image."""
+        if self.endpoints.local and not self.state.active:
+            await self.async_wake_camera()
         url = self._camera_url(self.state.snapshot_url)
+        if not url:
+            # An idle oven pushes no frames, so no snapshot URL was learned;
+            # the local server always serves the last still under this path.
+            url = self.endpoints.local_media_url(
+                "https://api.junelife.com/media/prod/images/latest.jpg"
+            )
         if not url:
             return None
         # Local images come from the configured server; cloud images may come
