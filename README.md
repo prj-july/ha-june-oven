@@ -314,6 +314,9 @@ The integration serves a dashboard card, **July Oven**, and loads it on every
 dashboard. There is no resource to add and nothing to install from HACS.
 After updating the integration, reload the browser tab once.
 
+For a walkthrough with pictures and animations of every screen, see the
+[July Oven card guide](docs/card-guide/README.md).
+
 Add it from the card picker (search for "July Oven"), or in YAML:
 
 ```yaml
