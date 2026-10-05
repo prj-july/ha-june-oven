@@ -1536,6 +1536,8 @@
 .c-d2 .d2-glyph .fill{fill:var(--glyph);stroke:none}
 .c-d2 .d2-glyph .thin{stroke-width:3}
 .c-d2 .d2-glyph .d2-fan{transform-box:view-box;transform-origin:24px 24px}
+/* Hover glow fades in and out rather than switching. */
+.c-d2 .d2-tile .d2-glyph{transition:opacity .35s ease,filter .35s ease,stroke .35s ease}
 .c-d2 .d2-tile.is-util .d2-face{background:linear-gradient(180deg,var(--uA),var(--uB));box-shadow:inset 0 0 0 1px var(--uRim),inset 0 1px 0 var(--tSheen)}
 .c-d2 .d2-tile.is-util .d2-glyph{stroke:var(--uGlyph);filter:none}
 .c-d2 .d2-lab{font:500 13px/16px var(--f);color:var(--fg);white-space:nowrap}
@@ -1549,6 +1551,7 @@
 .c-d2.d2-wall.is-rest .d2-time{color:var(--fg2)}
 .c-d2.d2-wall.is-rest .d2-glyph{opacity:.8;filter:none}
 .c-d2 .d2-tile:hover .d2-glyph,.c-d2 .d2-tile:focus-visible .d2-glyph{opacity:1;filter:drop-shadow(0 0 2px var(--gglow)) drop-shadow(0 0 7px var(--gglow))}
+.c-d2 .d2-tile.is-util:hover .d2-glyph,.c-d2 .d2-tile.is-util:focus-visible .d2-glyph{stroke:var(--fg)}
 .c-d2.d2-wall .d2-name{font-size:22px}
 .c-d2.d2-wall .d2-date{font-size:20px;line-height:26px;margin-top:6px}
 .c-d2.d2-wall .d2-lab{font-size:19px;line-height:24px}
@@ -1777,7 +1780,7 @@ ha-card{height:100%;overflow:hidden;background:none;border:none;box-shadow:none;
 .c-d2 .d2-menu-back{position:absolute;inset:0}
 .c-d2 .d2-menu{position:absolute;width:min(260px,calc(100cqw - 16px));overflow-y:auto;padding:6px;border-radius:14px;background:var(--dlg);box-shadow:0 0 0 1px var(--line),0 12px 32px rgba(0,0,0,.4);animation:d2-drop .16s ease-out}
 @keyframes d2-drop{from{opacity:0;transform:translateY(-6px)}}
-.c-d2 .d2-mi{display:flex;align-items:center;gap:10px;width:100%;min-height:48px;padding:0 10px;border-radius:10px;font:500 16px/20px var(--f);color:var(--fg);text-align:left}
+.c-d2 .d2-mi{display:flex;align-items:center;gap:10px;width:100%;min-height:48px;padding:0 10px;border-radius:10px;font:500 16px/20px var(--f);color:var(--fg);text-align:left;transition:background-color .2s}
 .c-d2 .d2-mi:hover,.c-d2 .d2-mi:focus-visible{background:color-mix(in srgb,var(--fg) 7%,transparent)}
 .c-d2 .d2-mi .d2-oic{font-size:18px}
 .c-d2 .d2-mi-n{flex:1 1 auto;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
