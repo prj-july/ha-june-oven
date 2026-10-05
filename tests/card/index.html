@@ -59,7 +59,29 @@ const SC = {
 function hassFor(list) {
   const h = { states: {}, entities: {}, devices: {}, areas: { kitchen: { area_id: "kitchen", name: "Kitchen" }, garage: { area_id: "garage", name: "Garage" }, studio: { area_id: "studio", name: "Studio" } },
     config: { unit_system: { temperature: "°F" } }, locale: { language: "en-US" }, language: "en",
-    callService: async (d, s, data, target) => { LOG.push(`${d}.${s} ${JSON.stringify(data)} → ${JSON.stringify(target)}`); document.getElementById("log").textContent = LOG.join("\n"); } };
+    callService: async (d, s, data, target) => { LOG.push(`${d}.${s} ${JSON.stringify(data)} → ${JSON.stringify(target)}`); document.getElementById("log").textContent = LOG.join("\n"); },
+    // Recorder history for the wall graph: a made-up preheat and hold for the oven, a steady rise for the food.
+    callWS: async (msg) => {
+      if (msg.type !== "history/history_during_period") return {};
+      const t0 = Date.parse(msg.start_time), out = {};
+      for (const eid of msg.entity_ids) {
+        const st = h.states[eid];
+        if (!st) continue;
+        const rows = [];
+        for (let t = t0; t <= NOW; t += 20000) {
+          const k = (t - t0) / Math.max(1, NOW - t0), wob = Math.sin(t / 47000) * 3 + Math.sin(t / 13000) * 1.5;
+          if (eid.startsWith("climate.")) {
+            const tgt = st.attributes.temperature || 350, heat = Math.min(1, (t - t0) / 480000);
+            rows.push({ s: st.state, a: { current_temperature: Math.round(74 + (tgt - 74) * (1 - Math.pow(1 - heat, 2)) + (heat >= 1 ? wob : 0)) }, lu: t / 1000 });
+          } else {
+            const end = parseFloat(st.state);
+            if (Number.isFinite(end)) rows.push({ s: String(Math.round(40 + (end - 40) * k)), lu: t / 1000 });
+          }
+        }
+        out[eid] = rows;
+      }
+      return out;
+    } };
   for (const o of list) { Object.assign(h.states, o.states); Object.assign(h.entities, o.entities); Object.assign(h.devices, o.devices); }
   return h;
 }
@@ -98,7 +120,7 @@ for (const w of widths) {
   }
 }
 const wall = document.createElement("div"); wall.className = "row"; out.appendChild(wall);
-for (const k of ["off", "preheat", "cooking", "done"]) cards.push(place(wall, `${k} · wall 24×8`, 1032, cardH(8), { entity: "climate.kitchen_oven", theme }, hassFor([oven("kitchen_oven", "dev1", "kitchen", SC[k])])));
+for (const k of ["off", "preheat", "cooking", "probeCook", "done"]) cards.push(place(wall, `${k} · wall 24×8`, 1032, cardH(8), { entity: "climate.kitchen_oven", theme }, hassFor([oven("kitchen_oven", "dev1", "kitchen", SC[k])])));
 const comp = document.createElement("div"); comp.className = "row"; out.appendChild(comp);
 for (const w of widths) for (const k of Object.keys(SC)) cards.push(place(comp, `${k} · compact 12×1 · ${w}`, cardW(12, w), cardH(1), { entity: "climate.kitchen_oven", theme }, hassFor([oven("kitchen_oven", "dev1", "kitchen", SC[k])])));
 const multi = document.createElement("div"); multi.className = "row"; out.appendChild(multi);

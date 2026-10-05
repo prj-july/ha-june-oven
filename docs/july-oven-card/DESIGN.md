@@ -203,6 +203,7 @@ name, in its row, and on its pill.
 | 10-04 | Re-check registration every 50 ms for the first 30 s, then every 2 s; a loading panel fades in after 0.3 s if nothing has rendered; settings read safely before setConfig (v0.4.3) | Lead's report: the card was blank for a few seconds after a refresh. Home Assistant's own app installs a scoped-registry polyfill after the card file runs, and Lovelace waits for the new registry, so the card waited for the next 2 s check. In that state the card was attached without a config and its tap handlers never attached |
 | 10-04 | A cut-off oven name scrolls (back and forth, about 40 px/s, edges faded) while hovered or focused; only when it overflows; not with reduced motion (v0.4.3) | Lead's request: a long name was unreadable even on hover |
 | 10-04 | Camera frame rate 1, 5, 10 or 15 fps, default 15, noting 1 fps is the stock June app; card pictures refresh at most once a second, only the camera window runs faster (v0.4.4) | Lead's request. The oven sends about one new still a second, so higher rates mostly re-fetch the same picture; capping the card's small pictures keeps the default from loading 5 pictures a second whenever a cook is on screen |
+| 10-05 | Wall layout: oven and food temperature graph for the current cook (at most the last hour) under the camera, from Home Assistant's recorder plus live readings; target as a dashed line; tap opens more-info (v0.4.5) | Lead asked about the graph (a SHOULD in the brief) and it had only existed in the study; under the camera it never meets the +1/+5/+10 chips |
 
 ## Open questions
 
@@ -216,8 +217,9 @@ name, in its row, and on its pill.
   "Camera off" without a Turn on button.
 - **Camera rate.** The window asks Home Assistant for a picture at the chosen rate, but the oven
   only sends a new picture now and then; how often is unmeasured.
-- **Temperature graph.** It is one tap away, in Home Assistant's more-info history, not on the
-  card. A Glass graph page (oven, food, door bands) is designed in the study.
+- **Temperature graph.** The wall layout shows oven and food temperature for the current cook
+  under the camera (v0.4.5); the full history is one tap away in Home Assistant's more-info. Door
+  bands need a door sensor, which the integration doesn't have yet.
 - **Undo after adding time.** This is in the design, not built: the action has no negative step.
 - **Remote start.** Only Bake is proven on a real oven. The card offers the five modes the
   integration can send.

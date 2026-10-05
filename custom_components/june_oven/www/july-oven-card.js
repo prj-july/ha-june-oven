@@ -34,7 +34,7 @@
  */
 (() => {
   "use strict";
-  const VERSION = "0.4.4";
+  const VERSION = "0.4.5";
   const DOMAIN = "june_oven";
   const TAG = "july-oven-card";
   if (customElements.get(TAG)) return;
@@ -211,7 +211,9 @@
     const lang = (hass.locale && hass.locale.language) || hass.language || undefined;
     const clock = (t) => new Date(t).toLocaleTimeString(lang, { hour: "numeric", minute: "2-digit" });
 
-    const m = { name, oic: ovenIcon(icon), ids, unit, tgt, cur, modeLabel, chips: false, action: null, heroText: false, stale: false, qual: null, a: "", b: "", camera: "live", frameAge: "LIVE" };
+    // When this cook began: from the elapsed sensor, else when the oven left "off".
+    const since = elapsed !== null ? now - elapsed * 1000 : c && c.state !== "off" ? Date.parse(c.last_changed) : NaN;
+    const m = { name, oic: ovenIcon(icon), ids, unit, tgt, cur, probe, since, modeLabel, chips: false, action: null, heroText: false, stale: false, qual: null, a: "", b: "", camera: "live", frameAge: "LIVE" };
     if (offline) {
       const seen = conn ? Date.parse(conn.last_changed) : c ? Date.parse(c.last_updated) : NaN;
       const since = Number.isFinite(seen) ? ago(now - seen) : "a while ago";
@@ -344,7 +346,37 @@
       </div>
       ${m.chips ? `<div class="d2-quick">${chips(m)}</div>` : ""}
       <div class="d2-camcol">${cam(m)}</div>
+      ${o.spark ? `<div class="d2-spcol">${o.spark}</div>` : ""}
     </div>`;
+  }
+
+  // Wall layout: oven (and food) temperature since the cook began, at most the last hour. Tapping it
+  // opens Home Assistant's history for the oven.
+  function spark(m, h, now) {
+    const W = 300, H = 60, t0 = h.start, t1 = Math.max(now, t0 + 60000);
+    const cut = (pts) => {
+      const i = pts.findIndex(([t]) => t >= t0);
+      if (i < 0) return pts.length ? [[t0, pts[pts.length - 1][1]]] : [];
+      return i > 0 ? [[t0, pts[i - 1][1]], ...pts.slice(i)] : pts;
+    };
+    const cav = cut(h.cav), food = cut(h.food);
+    const mins = Math.max(1, Math.round((t1 - t0) / 60000));
+    const label = `Oven${food.length ? " and food" : ""} temperature over the last ${mins} min. Open the history`;
+    const vals = [...cav, ...food].map(([, v]) => v);
+    if (m.tgt !== null) vals.push(m.tgt);
+    let plot = "";
+    if (cav.length || food.length) {
+      let lo = Math.min(...vals), hi = Math.max(...vals);
+      const pad = Math.max(8, (hi - lo) * 0.08);
+      lo -= pad; hi += pad;
+      const x = (t) => (((t - t0) / (t1 - t0)) * W).toFixed(1), y = (v) => (H - ((v - lo) / (hi - lo)) * H).toFixed(1);
+      // Each line runs on to now at its last reading.
+      const line = (pts, cls) => (pts.length ? `<polyline class="${cls}" points="${[...pts, [t1, pts[pts.length - 1][1]]].map(([t, v]) => `${x(t)},${y(v)}`).join(" ")}" vector-effect="non-scaling-stroke"/>` : "");
+      const target = m.tgt !== null ? `<line class="sp-tgt" x1="0" x2="${W}" y1="${y(m.tgt)}" y2="${y(m.tgt)}" vector-effect="non-scaling-stroke"/>` : "";
+      plot = `${target}${line(food, "sp-food")}${line(cav, "sp-oven")}`;
+    }
+    const keys = `<span class="d2-sp-key k-oven"><i></i>Oven</span>${food.length ? `<span class="d2-sp-key k-food"><i></i>Food</span>` : ""}`;
+    return `<button class="d2-spark" data-act="more" data-oven="${esc(m.ids.climate)}" aria-label="${label}"><svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="none" aria-hidden="true" focusable="false">${plot}</svg><span class="d2-sp-cap">${keys}<span class="d2-sp-span">${cav.length || food.length ? `${mins} min` : "Collecting…"}</span></span></button>`;
   }
 
   function compact(m, o = {}, busy) {
@@ -453,6 +485,7 @@
       this._prefs = { icons: {} };
       this._size = "standard";
       this._imgs = {};
+      this._hist = {};
       this._html = "";
     }
 
@@ -651,7 +684,7 @@
       const nb = { tucked: home && this._tucked && this._hideName(), open: !!(this._sheet && this._sheet.kind === "menu") };
       let body;
       if (size === "compact") body = compact(focus, { multi: false }, this._busy[focus.ids.climate]);
-      else body = focus.key === "off" ? idle(focus, clock, date, this._page, size, nb, this._tiles(focus.ids.climate)) : run(focus, { size, multi }, this._busy[focus.ids.climate], nb);
+      else body = focus.key === "off" ? idle(focus, clock, date, this._page, size, nb, this._tiles(focus.ids.climate)) : run(focus, { size, multi, spark: size === "wall" ? this._spark(focus, now) : "" }, this._busy[focus.ids.climate], nb);
       this._multi = multi;
       this._focusId = focus.ids.climate;
 
@@ -682,6 +715,44 @@
       }
       this._placeCameras(models);
       if (this._nameOn) this._marquee(0);
+    }
+
+    // ---- temperature history for the wall graph ----
+    _spark(m, now) {
+      if (!m.heating || m.key === "offline" || !this._hass.callWS) return "";
+      const id = m.ids.climate;
+      const start = Number.isFinite(m.since) ? Math.max(now - 3600000, m.since) : now - 1800000;
+      let h = this._hist[id];
+      // A new cook, or the window has moved on: load Home Assistant's history again (at most every 2 min).
+      if (!h || (Math.abs(h.start - start) > 90000 && now - h.at > 120000) || (!h.loading && h.failed && now - h.at > 120000)) h = this._loadHistory(id, m.ids.probe, start);
+      // Between loads, the readings the card sees are added as they arrive.
+      const add = (pts, v) => { if (v === null) return; const last = pts[pts.length - 1]; if (!last || last[1] !== v || now - last[0] > 60000) pts.push([now, v]); };
+      add(h.cav, m.cur);
+      if (m.ids.probe) add(h.food, m.probe);
+      return spark(m, h, now);
+    }
+
+    _loadHistory(id, probeId, start) {
+      const h = this._hist[id] = { start, at: Date.now(), cav: [], food: [], loading: true };
+      const value = (v) => (v === null || v === undefined || v === "" ? NaN : +v);
+      this._hass.callWS({
+        type: "history/history_during_period", start_time: new Date(start).toISOString(),
+        entity_ids: [id, probeId].filter(Boolean), minimal_response: false, no_attributes: false, significant_changes_only: false
+      }).then((res) => {
+        const rows = (eid) => (res && res[eid]) || [];
+        const time = (r) => (r.lu || r.lc || 0) * 1000;
+        let attrs = {};
+        const cav = rows(id).map((r) => { if (r.a) attrs = r.a; return [time(r), value(attrs.current_temperature)]; }).filter(([t, v]) => t && Number.isFinite(v));
+        const food = probeId ? rows(probeId).map((r) => [time(r), value(r.s)]).filter(([t, v]) => t && Number.isFinite(v)) : [];
+        // Keep readings that arrived while loading.
+        const after = (pts, last) => pts.filter(([t]) => t > last);
+        h.cav = [...cav, ...after(h.cav, cav.length ? cav[cav.length - 1][0] : 0)];
+        h.food = [...food, ...after(h.food, food.length ? food[food.length - 1][0] : 0)];
+        h.loading = false;
+        this._html = "";
+        this._render();
+      }).catch(() => { h.loading = false; h.failed = true; });
+      return h;
     }
 
     // ---- the oven name, scrolled when it doesn't fit ----
@@ -1254,10 +1325,13 @@
 .c-d2 .d2-spark{display:flex;flex-direction:column;flex:1 1 auto;min-height:0;max-height:84px;margin-top:16px;text-align:left;width:100%}
 .c-d2 .d2-spark svg{flex:1 1 auto;min-height:18px;width:100%;overflow:visible}
 .c-d2 .d2-spark polyline{fill:none;stroke:var(--ember);stroke-width:2.5;stroke-linejoin:round;filter:drop-shadow(0 0 3px var(--glow))}
-.c-d2 .d2-sp-door{fill:var(--amber);opacity:.28}
-.c-d2 .d2-sp-cap{display:flex;gap:14px;margin-top:6px;font:400 15px/18px var(--f);color:var(--fg2);white-space:nowrap}
+.c-d2 .d2-spark polyline.sp-food{stroke:var(--food);filter:none}
+.c-d2 .d2-spark .sp-tgt{stroke:var(--line);stroke-width:1;stroke-dasharray:4 4}
+.c-d2 .d2-sp-cap{display:flex;align-items:center;gap:14px;margin-top:6px;font:400 15px/18px var(--f);color:var(--fg2);white-space:nowrap}
 .c-d2 .d2-sp-key{display:inline-flex;align-items:center;gap:6px}
-.c-d2 .d2-sp-key i{width:12px;height:12px;border-radius:2px;background:var(--amber);opacity:.5}
+.c-d2 .d2-sp-key i{width:12px;height:3px;border-radius:2px;background:var(--ember)}
+.c-d2 .d2-sp-key.k-food i{background:var(--food)}
+.c-d2 .d2-sp-span{margin-left:auto}
 /* wall scale-up (same elements, larger) */
 .c-d2.d2-wall .d2-name{font-size:22px;line-height:28px}
 .c-d2.d2-wall .d2-st{font-size:19px;line-height:26px;gap:9px}
@@ -1274,7 +1348,8 @@
 .c-d2.d2-wall .d2-chips{gap:10px}
 .c-d2.d2-wall .d2-chip{height:44px;min-width:84px;border-radius:12px;font-size:22px}
 .c-d2.d2-wall .d2-chip::before{inset:-8px 0}
-.c-d2.d2-wall .d2-low .d2-spark{margin-top:10px;height:60px;min-height:0;flex:none}
+.c-d2.d2-wall .d2-spcol{grid-column:2;grid-row:6;align-self:end;min-width:0}
+.c-d2.d2-wall .d2-spcol .d2-spark{margin:0;height:96px;max-height:none}
 .c-d2.d2-wall .d2-sp-cap{margin-top:4px}
 .c-d2.d2-wall .d2-min{font-size:18px;margin-left:4px}
 .c-d2.d2-wall .d2-cam.is-off{font-size:16px;gap:8px}

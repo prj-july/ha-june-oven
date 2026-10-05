@@ -379,6 +379,11 @@ What the card does:
 - **Stop:** the red **Stop** always sits at the top right and is never
   confirmed.
 - **Add time:** **+1 / +5 / +10 min** appear only while a timer runs.
+- **Temperature graph (wall tablet):** while the oven heats, a graph under the
+  camera shows the oven temperature and, with the probe in, the food
+  temperature since the cook began (at most the last hour), with the target as
+  a dashed line. It reads Home Assistant's history, so it needs the recorder.
+  Tap it for the full history.
 - **Camera:** the camera picture on the card refreshes once a second while the
   oven is heating; the camera window uses the chosen frame rate (15 per second by
   default). A corner label shows **LIVE**,
