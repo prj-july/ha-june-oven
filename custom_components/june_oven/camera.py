@@ -35,8 +35,15 @@ class JuneOvenCamera(JuneEntity, Camera):
 
     @property
     def is_on(self) -> bool:
-        """Return whether the oven is actively producing camera frames."""
-        return self.coordinator.data.active
+        """Return whether Home Assistant may request a picture.
+
+        Home Assistant refuses camera-proxy requests with HTTP 503 while
+        is_on is False, before the integration image method runs. The
+        interior camera can be woken on demand for a short viewing window,
+        so the entity advertises itself as on; the oven still powers the
+        camera only while it cooks or for that window.
+        """
+        return True
 
     async def async_camera_image(
         self, width: int | None = None, height: int | None = None
