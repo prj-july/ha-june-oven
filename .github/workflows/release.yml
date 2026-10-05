@@ -22,16 +22,23 @@ jobs:
   release:
     name: Publish release
     runs-on: ubuntu-latest
+    # No actions, only the runner's gh and python3: the repository allows
+    # only prj-july actions pinned to a commit, so even actions/checkout is
+    # refused. The manifest is read through the API at the pushed commit.
     steps:
-      - uses: actions/checkout@v4
       - name: Read the integration version
         id: version
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: |
-          version=$(python3 -c 'import json; print(json.load(open("custom_components/june_oven/manifest.json"))["version"])')
+          version=$(gh api -H "Accept: application/vnd.github.raw" \
+            "repos/$GITHUB_REPOSITORY/contents/custom_components/june_oven/manifest.json?ref=$GITHUB_SHA" \
+            | python3 -c 'import json, sys; print(json.load(sys.stdin)["version"])')
           echo "tag=v$version" >> "$GITHUB_OUTPUT"
       - name: Publish the release if it is new
         env:
           GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
           TAG: ${{ steps.version.outputs.tag }}
         run: |
           if gh release view "$TAG" >/dev/null 2>&1; then
