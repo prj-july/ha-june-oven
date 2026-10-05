@@ -21,7 +21,7 @@
  *       icon: apartment
  *       name: Studio
  *   Icons: oven, kitchen, house, garage, basement, apartment, cabin, patio, office, camper, bread, star
- *   theme: auto | light | dark          # auto follows the Home Assistant theme
+ *   theme: dark | light | auto          # dark (default) is the oven's glass; auto follows the Home Assistant theme
  *   display_mode: auto | standard | wall | compact
  *   name: Kitchen                       # optional; defaults to the device or area name
  *   load_fonts: true                    # Barlow fonts from Google Fonts (system fonts if off)
@@ -29,12 +29,16 @@
  *   hide_name: true                     # tuck the name into the icon after 5 s
  *   clock: auto | 12 | 24               # the idle clock
  *   mode_order: oven | used             # cook mode tiles in the oven's order, or most used first
+ *   columns: auto                       # cook mode columns on the home screen (auto or 1-7)
+ *   rows: auto                          # cook mode rows (auto or 1-3); the rest go on more pages
+ *   scale: 100                          # card size in percent (80-150): text, buttons and spacing
+ *   icon_size: large                    # cook mode tiles: small, medium, large or fill
  * theme, camera_fps, hide_name, clock, mode_order and each oven's icon can also be changed in the card's own
  * Settings; those choices are kept in this browser and the config above is the starting point.
  */
 (() => {
   "use strict";
-  const VERSION = "0.4.4";
+  const VERSION = "0.4.8";
   const DOMAIN = "june_oven";
   const TAG = "july-oven-card";
   if (customElements.get(TAG)) return;
@@ -44,6 +48,16 @@
   const TILES = [...STARTABLE, ["camera", "Camera"], ["settings", "Settings"]];
   const UTIL = ["camera", "settings"];
   const ORDERS = [["oven", "Oven's order"], ["used", "Most used first"]];
+  const ICON_SIZES = [["small", "Small"], ["medium", "Medium"], ["large", "Large"], ["fill", "Fill"]];
+  const ICON_SCALE = { small: 0.7, medium: 0.85, large: 1, fill: 100 };
+  const MAX_COLS = 7, MAX_ROWS = 3;
+
+  // The cook mode grid: automatic (by layout and number of tiles) unless columns or rows are set.
+  function gridFor(size, n, wantCols, wantRows) {
+    const cols = wantCols || (size === "wall" ? Math.min(7, n) : n <= 6 ? 3 : 4);
+    const rows = wantRows || Math.min(2, Math.ceil(n / cols));
+    return { cols, rows };
+  }
   const USES_KEY = "july-oven-card:uses";
   const MODE_LABEL = {
     bake: "Bake", roast: "Roast", broil: "Broil", airfry: "Air fry", toast: "Toast", reheat: "Reheat", warm: "Keep warm",
@@ -211,7 +225,9 @@
     const lang = (hass.locale && hass.locale.language) || hass.language || undefined;
     const clock = (t) => new Date(t).toLocaleTimeString(lang, { hour: "numeric", minute: "2-digit" });
 
-    const m = { name, oic: ovenIcon(icon), ids, unit, tgt, cur, modeLabel, chips: false, action: null, heroText: false, stale: false, qual: null, a: "", b: "", camera: "live", frameAge: "LIVE" };
+    // When this cook began: from the elapsed sensor, else when the oven left "off".
+    const since = elapsed !== null ? now - elapsed * 1000 : c && c.state !== "off" ? Date.parse(c.last_changed) : NaN;
+    const m = { name, oic: ovenIcon(icon), ids, unit, tgt, cur, probe, since, modeLabel, chips: false, action: null, heroText: false, stale: false, qual: null, a: "", b: "", camera: "live", frameAge: "LIVE" };
     if (offline) {
       const seen = conn ? Date.parse(conn.last_changed) : c ? Date.parse(c.last_updated) : NaN;
       const since = Number.isFinite(seen) ? ago(now - seen) : "a while ago";
@@ -307,9 +323,8 @@
   }
 
   // Two rows of tiles, as on the oven. Six tiles fit one page: 3 × 2 on a standard card, one row on a wall.
-  function idle(m, clock, date, page, size, nb, tiles = TILES) {
-    const cols = size === "wall" ? Math.min(7, tiles.length) : tiles.length <= 6 ? 3 : 4;
-    const rows = Math.min(2, Math.ceil(tiles.length / cols));
+  function idle(m, clock, date, page, size, nb, tiles = TILES, grid = gridFor(size, tiles.length)) {
+    const { cols, rows } = grid;
     const pages = [];
     for (let i = 0; i < tiles.length; i += cols * rows) pages.push(tiles.slice(i, i + cols * rows));
     const n = pages.length;
@@ -344,7 +359,37 @@
       </div>
       ${m.chips ? `<div class="d2-quick">${chips(m)}</div>` : ""}
       <div class="d2-camcol">${cam(m)}</div>
+      ${o.spark ? `<div class="d2-spcol">${o.spark}</div>` : ""}
     </div>`;
+  }
+
+  // Wall layout: oven (and food) temperature since the cook began, at most the last hour. Tapping it
+  // opens Home Assistant's history for the oven.
+  function spark(m, h, now) {
+    const W = 300, H = 60, t0 = h.start, t1 = Math.max(now, t0 + 60000);
+    const cut = (pts) => {
+      const i = pts.findIndex(([t]) => t >= t0);
+      if (i < 0) return pts.length ? [[t0, pts[pts.length - 1][1]]] : [];
+      return i > 0 ? [[t0, pts[i - 1][1]], ...pts.slice(i)] : pts;
+    };
+    const cav = cut(h.cav), food = cut(h.food);
+    const mins = Math.max(1, Math.round((t1 - t0) / 60000));
+    const label = `Oven${food.length ? " and food" : ""} temperature over the last ${mins} min. Open the history`;
+    const vals = [...cav, ...food].map(([, v]) => v);
+    if (m.tgt !== null) vals.push(m.tgt);
+    let plot = "";
+    if (cav.length || food.length) {
+      let lo = Math.min(...vals), hi = Math.max(...vals);
+      const pad = Math.max(8, (hi - lo) * 0.08);
+      lo -= pad; hi += pad;
+      const x = (t) => (((t - t0) / (t1 - t0)) * W).toFixed(1), y = (v) => (H - ((v - lo) / (hi - lo)) * H).toFixed(1);
+      // Each line runs on to now at its last reading.
+      const line = (pts, cls) => (pts.length ? `<polyline class="${cls}" points="${[...pts, [t1, pts[pts.length - 1][1]]].map(([t, v]) => `${x(t)},${y(v)}`).join(" ")}" vector-effect="non-scaling-stroke"/>` : "");
+      const target = m.tgt !== null ? `<line class="sp-tgt" x1="0" x2="${W}" y1="${y(m.tgt)}" y2="${y(m.tgt)}" vector-effect="non-scaling-stroke"/>` : "";
+      plot = `${target}${line(food, "sp-food")}${line(cav, "sp-oven")}`;
+    }
+    const keys = `<span class="d2-sp-key k-oven"><i></i>Oven</span>${food.length ? `<span class="d2-sp-key k-food"><i></i>Food</span>` : ""}`;
+    return `<button class="d2-spark" data-act="more" data-oven="${esc(m.ids.climate)}" aria-label="${label}"><svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="none" aria-hidden="true" focusable="false">${plot}</svg><span class="d2-sp-cap">${keys}<span class="d2-sp-span">${cav.length || food.length ? `${mins} min` : "Collecting…"}</span></span></button>`;
   }
 
   function compact(m, o = {}, busy) {
@@ -410,11 +455,28 @@
         ${setRow("Oven name", "", seg("hide_name", [["true", "Tuck into the icon"], ["false", "Always show"]], String(p.hide_name), "Oven name"))}
         ${setRow("Cook modes", "Most used first counts the cooks started from this card, per oven, in this browser.", seg("mode_order", ORDERS, p.mode_order, "Cook mode order"))}
         ${setRow("Clock", "", seg("clock", CLOCKS, p.clock, "Clock"))}
+        ${setRow("Mode layout", p.layout.auto ? "Automatic until you change it. Modes that don't fit go on more pages." : "Modes that don't fit go on more pages.", layoutPicker(p.layout))}
+        ${setRow("Card size", "Text, buttons and spacing. Larger reads better from across the room.", `<div class="d2-scale"><input class="d2-range d2-ui" type="range" min="80" max="150" step="5" value="${p.scale}" style="--p:${(p.scale - 80) / 70}" aria-label="Card size"><span class="d2-scale-v">${p.scale}%</span></div>`)}
+        ${setRow("Mode icon size", "Only the cook mode tiles. Fill makes them as big as the layout allows.", seg("icon_size", ICON_SIZES, p.icon_size, "Mode icon size"))}
         ${setRow("Oven icons", "Each oven's icon on the card. Tap an oven to change its icon.", `<div class="d2-ic-list">${iconRows(ovens, open)}</div>`)}
         <div class="d2-set-acts"><button class="d2-ghost" data-act="set-ha" data-oven="${esc(m.ids.climate)}">Oven in Home Assistant</button><button class="d2-ghost" data-act="set-reset">Reset</button></div>
         <div class="d2-set-ver">July Oven card ${VERSION}</div>
       </div>
     </div>`;
+  }
+
+  // Columns and rows, each with − and +, over a small picture of the home screen.
+  function layoutPicker(l) {
+    const step = (k, label, v, max) => `<div class="d2-lay-row"><span class="d2-lay-l">${label}</span><span class="d2-lay-ctl">
+      <button class="d2-lay-b" data-act="lay" data-k="${k}" data-d="-1" aria-label="Fewer ${label.toLowerCase()}"${v <= 1 ? " disabled" : ""}>−</button>
+      <span class="d2-lay-v" aria-live="polite">${v}${l[k + "Set"] ? "" : "<small>auto</small>"}</span>
+      <button class="d2-lay-b" data-act="lay" data-k="${k}" data-d="1" aria-label="More ${label.toLowerCase()}"${v >= max ? " disabled" : ""}>+</button></span></div>`;
+    const per = l.cols * l.rows, shown = l.tiles.slice(0, per), pages = Math.ceil(l.tiles.length / per);
+    const cells = shown.map(([k]) => `<u class="${UTIL.includes(k) ? "is-util" : ""}"></u>`).join("");
+    return `<div class="d2-lay">${step("cols", "Columns", l.cols, MAX_COLS)}${step("rows", "Rows", l.rows, MAX_ROWS)}
+      <div class="d2-lay-prev" aria-hidden="true"><div class="d2-lay-clock">${esc(l.clock)}</div><div class="d2-lay-grid" style="--cols:${l.cols}">${cells}</div>${pages > 1 ? `<div class="d2-lay-pages">${Array.from({ length: pages }, (_, i) => `<i${i ? "" : ' class="on"'}></i>`).join("")}</div>` : ""}</div>
+      ${pages > 1 ? `<div class="d2-lay-note">${l.tiles.length - per} more on ${pages > 2 ? "the next pages" : "page 2"}</div>` : ""}
+      ${l.auto ? "" : `<button class="d2-link" data-act="lay-auto">Back to automatic</button>`}</div>`;
   }
 
   function cameraSheet(m) {
@@ -453,12 +515,14 @@
       this._prefs = { icons: {} };
       this._size = "standard";
       this._imgs = {};
+      this._hist = {};
       this._html = "";
     }
 
     static getStubConfig(hass) {
       const hit = Object.values((hass && hass.entities) || {}).find((e) => e.platform === DOMAIN && e.entity_id.startsWith("climate."));
-      return { entity: hit ? hit.entity_id : "", theme: "auto" };
+      // The defaults are written out so the editor shows them (a missing toggle reads as off there).
+      return { entity: hit ? hit.entity_id : "", theme: "dark", display_mode: "auto", load_fonts: true };
     }
 
     static getConfigForm() {
@@ -500,7 +564,7 @@
       for (const item of config.entities || []) add(typeof item === "string" ? { entity: item } : item);
       for (const n of [2, 3, 4]) add({ entity: config[`entity_${n}`], icon: config[`icon_${n}`], name: config[`name_${n}`] });
       for (const o of ovens) if (!String(o.entity).startsWith("climate.")) throw new Error(`${o.entity} is not a climate entity. Choose the oven itself.`);
-      this._config = { theme: "auto", display_mode: "auto", load_fonts: true, camera_fps: 15, hide_name: true, clock: "auto", mode_order: "oven", ...config };
+      this._config = { theme: "dark", display_mode: "auto", load_fonts: true, camera_fps: 15, hide_name: true, clock: "auto", mode_order: "oven", columns: "auto", rows: "auto", scale: 100, icon_size: "large", ...config };
       this._ovenConf = ovens;
       this._ovens = ovens.map((o) => o.entity);
       // The oven last picked in this card, and the card's own settings, are remembered in this browser.
@@ -533,6 +597,17 @@
       this._layout = value;
       this._html = "";
       this._render();
+      if (this.isConnected) this._measure();
+    }
+
+    // Home Assistant sets editMode while the dashboard is being edited (a panel view then has an edit bar).
+    set editMode(value) {
+      this._editMode = !!value;
+      if (this.isConnected) this._measure();
+    }
+
+    get editMode() {
+      return this._editMode;
     }
 
     get layout() {
@@ -555,6 +630,7 @@
       this.shadowRoot.addEventListener("change", this._onChange = (e) => this._handleChange(e));
       // On the window, so Escape closes a sheet even when nothing in the card has focus.
       window.addEventListener("keydown", this._onKey = (e) => this._handleKey(e));
+      window.addEventListener("resize", this._onResize = () => this._measure());
       // A long oven name scrolls while the pointer (or focus) is on it.
       this.shadowRoot.addEventListener("pointerover", this._onOver = (e) => this._nameHover(e, true));
       this.shadowRoot.addEventListener("pointerout", this._onOut = (e) => this._nameHover(e, false));
@@ -578,6 +654,7 @@
       if (this._onInput) this.shadowRoot.removeEventListener("input", this._onInput);
       if (this._onChange) this.shadowRoot.removeEventListener("change", this._onChange);
       if (this._onKey) window.removeEventListener("keydown", this._onKey);
+      if (this._onResize) window.removeEventListener("resize", this._onResize);
       if (this._onOver) { this.shadowRoot.removeEventListener("pointerover", this._onOver); this.shadowRoot.removeEventListener("focusin", this._onOver); }
       if (this._onOut) { this.shadowRoot.removeEventListener("pointerout", this._onOut); this.shadowRoot.removeEventListener("focusout", this._onOut); }
       clearTimeout(this._marqTimer);
@@ -588,12 +665,19 @@
     _measure() {
       if (!this.isConnected) return;
       this._measured = true;
-      const r = this.getBoundingClientRect();
+      const box = this.getBoundingClientRect(), z = this._ui();
+      this.style.setProperty("--ui", z);
+      // Layout decisions use the card's own pixels, which Card size makes larger.
+      const r = { top: box.top, width: box.width / z, height: box.height / z };
       const mode = this._config && this._config.display_mode;
       let size = mode && mode !== "auto" ? mode : "standard";
       // No height from the parent (masonry view, editor preview): give the card its own, and keep it.
       if (this._layout !== "grid" && r.height < 24 && !this._autoHeight) this._autoHeight = true;
       this._collapsed = !!this._autoHeight && this._layout !== "grid";
+      // A panel view gives the card the whole view: the glass runs to the bottom of the window (above
+      // the edit bar while editing).
+      const panelH = this._layout === "panel" ? Math.max(376 * z, Math.round(window.innerHeight - Math.max(0, r.top + window.scrollY) - (this.editMode ? 59 : 0))) : 0;
+      if (panelH !== this._panelH) { this._panelH = panelH; this._html = ""; this._render(); }
       if (!mode || mode === "auto") {
         if (!this._collapsed && r.height < 120) size = "compact";
         else if (r.width >= 700 && (this._collapsed || r.height >= 440)) size = "wall";
@@ -651,7 +735,7 @@
       const nb = { tucked: home && this._tucked && this._hideName(), open: !!(this._sheet && this._sheet.kind === "menu") };
       let body;
       if (size === "compact") body = compact(focus, { multi: false }, this._busy[focus.ids.climate]);
-      else body = focus.key === "off" ? idle(focus, clock, date, this._page, size, nb, this._tiles(focus.ids.climate)) : run(focus, { size, multi }, this._busy[focus.ids.climate], nb);
+      else body = focus.key === "off" ? idle(focus, clock, date, this._page, size, nb, this._tiles(focus.ids.climate), this._grid(size, this._tiles(focus.ids.climate).length)) : run(focus, { size, multi, spark: size === "wall" ? this._spark(focus, now) : "" }, this._busy[focus.ids.climate], nb);
       this._multi = multi;
       this._focusId = focus.ids.climate;
 
@@ -663,8 +747,10 @@
         rows = loud.map((m) => `<div class="d2-other" data-act="focus" data-oven="${esc(m.ids.climate)}" role="button" tabindex="0" aria-label="Show ${esc(m.name)}">${compact(m, { multi: true }, this._busy[m.ids.climate])}</div>`).join("") +
           (quiet.length ? `<div class="d2-other is-quiet" role="group" aria-label="Ovens that are off">${quiet.map((m) => `<button class="d2-quiet" data-act="focus" data-oven="${esc(m.ids.climate)}" aria-label="Show ${esc(m.name)}, off">${m.oic || svg("0 0 20 20", ST.off, "d2-sti")}<span class="d2-qn">${esc(m.name)}</span><span class="d2-qs">Off</span></button>`).join("")}</div>` : "");
       }
-      const autoH = this._collapsed ? ` style="height:${size === "compact" ? 56 : size === "wall" ? 504 : 376 + (multi ? 64 * (models.length - 1) : 0)}px"` : "";
-      const html = `<ha-card${autoH}><div class="c-d2 d2-${theme} d2-${size}${focus.key === "off" ? " is-rest" : ""}${multi ? " d2-multi" : ""}"><div class="d2-pane">${body}</div>${rows}</div></ha-card>`;
+      const z = this._ui();
+      const autoH = this._collapsed ? ` style="height:${this._panelH && size !== "compact" ? this._panelH : Math.round(z * (size === "compact" ? 56 : size === "wall" ? 504 : 376 + (multi ? 64 * (models.length - 1) : 0)))}px"` : "";
+      this._clockText = clock;
+      const html = `<ha-card${autoH}><div style="--isz:${ICON_SCALE[this._iconSize()]}" class="c-d2 d2-${theme} d2-${size}${focus.key === "off" ? " is-rest" : ""}${multi ? " d2-multi" : ""}"><div class="d2-pane">${body}</div>${rows}</div></ha-card>`;
       this._syncOver(theme, size);
       if (html === this._html) return;
       const pager = this.shadowRoot.querySelector(".d2-pager");
@@ -682,6 +768,44 @@
       }
       this._placeCameras(models);
       if (this._nameOn) this._marquee(0);
+    }
+
+    // ---- temperature history for the wall graph ----
+    _spark(m, now) {
+      if (!m.heating || m.key === "offline" || !this._hass.callWS) return "";
+      const id = m.ids.climate;
+      const start = Number.isFinite(m.since) ? Math.max(now - 3600000, m.since) : now - 1800000;
+      let h = this._hist[id];
+      // A new cook, or the window has moved on: load Home Assistant's history again (at most every 2 min).
+      if (!h || (Math.abs(h.start - start) > 90000 && now - h.at > 120000) || (!h.loading && h.failed && now - h.at > 120000)) h = this._loadHistory(id, m.ids.probe, start);
+      // Between loads, the readings the card sees are added as they arrive.
+      const add = (pts, v) => { if (v === null) return; const last = pts[pts.length - 1]; if (!last || last[1] !== v || now - last[0] > 60000) pts.push([now, v]); };
+      add(h.cav, m.cur);
+      if (m.ids.probe) add(h.food, m.probe);
+      return spark(m, h, now);
+    }
+
+    _loadHistory(id, probeId, start) {
+      const h = this._hist[id] = { start, at: Date.now(), cav: [], food: [], loading: true };
+      const value = (v) => (v === null || v === undefined || v === "" ? NaN : +v);
+      this._hass.callWS({
+        type: "history/history_during_period", start_time: new Date(start).toISOString(),
+        entity_ids: [id, probeId].filter(Boolean), minimal_response: false, no_attributes: false, significant_changes_only: false
+      }).then((res) => {
+        const rows = (eid) => (res && res[eid]) || [];
+        const time = (r) => (r.lu || r.lc || 0) * 1000;
+        let attrs = {};
+        const cav = rows(id).map((r) => { if (r.a) attrs = r.a; return [time(r), value(attrs.current_temperature)]; }).filter(([t, v]) => t && Number.isFinite(v));
+        const food = probeId ? rows(probeId).map((r) => [time(r), value(r.s)]).filter(([t, v]) => t && Number.isFinite(v)) : [];
+        // Keep readings that arrived while loading.
+        const after = (pts, last) => pts.filter(([t]) => t > last);
+        h.cav = [...cav, ...after(h.cav, cav.length ? cav[cav.length - 1][0] : 0)];
+        h.food = [...food, ...after(h.food, food.length ? food[food.length - 1][0] : 0)];
+        h.loading = false;
+        this._html = "";
+        this._render();
+      }).catch(() => { h.loading = false; h.failed = true; });
+      return h;
     }
 
     // ---- the oven name, scrolled when it doesn't fit ----
@@ -769,6 +893,35 @@
     _fps() {
       const v = +this._pref("camera_fps");
       return Number.isFinite(v) && v > 0 ? Math.min(15, Math.max(0.1, v)) : 15;
+    }
+
+    // Columns and rows of cook modes: 0 is automatic.
+    _gridPref(k, max) {
+      const v = parseInt(this._pref(k), 10);
+      return Number.isFinite(v) && v > 0 ? Math.min(max, v) : 0;
+    }
+
+    _grid(size, n) {
+      return gridFor(size, n, this._gridPref("columns", MAX_COLS), this._gridPref("rows", MAX_ROWS));
+    }
+
+    _layoutInfo(oven) {
+      const tiles = this._tiles(oven);
+      const size = this._size === "wall" ? "wall" : "standard";
+      const g = this._grid(size, tiles.length);
+      const colsSet = this._gridPref("columns", MAX_COLS) > 0, rowsSet = this._gridPref("rows", MAX_ROWS) > 0;
+      return { ...g, colsSet, rowsSet, auto: !colsSet && !rowsSet, tiles, clock: this._clockText || "" };
+    }
+
+    // Card size: 80-150 %.
+    _ui() {
+      const v = +this._pref("scale");
+      return Number.isFinite(v) && v > 0 ? Math.min(150, Math.max(80, v)) / 100 : 1;
+    }
+
+    _iconSize() {
+      const v = String(this._pref("icon_size"));
+      return ICON_SCALE[v] ? v : "large";
     }
 
     // Cooks started from the card, per oven and mode. Kept apart from the settings, so Reset keeps them.
@@ -880,7 +1033,7 @@
       const now = Date.now();
       const m = this._model(this._conf(s.oven), now);
       if (s.kind === "review") el.innerHTML = review(s, m.name, m.unit, now, this._multi);
-      else if (s.kind === "settings") el.innerHTML = settingsSheet({ theme: this._theme(), camera_fps: this._fps(), hide_name: this._hideName(), clock: String(this._pref("clock")), mode_order: this._pref("mode_order") === "used" ? "used" : "oven", }, m,
+      else if (s.kind === "settings") el.innerHTML = settingsSheet({ theme: this._theme(), camera_fps: this._fps(), hide_name: this._hideName(), clock: String(this._pref("clock")), mode_order: this._pref("mode_order") === "used" ? "used" : "oven", layout: this._layoutInfo(s.oven), scale: Math.round(this._ui() * 100), icon_size: this._iconSize() }, m,
         this._allOvens().map((o) => ({ m: this._model(o, now), icon: this._prefs.icons[o.entity] || o.icon })), s.iconFor || s.oven);
       else if (s.kind === "camera") el.innerHTML = cameraSheet(m);
       else if (s.kind === "menu") el.innerHTML = menuSheet(this._allOvens().map((o) => this._model(o, now)), s.oven, s.pos);
@@ -890,10 +1043,10 @@
     }
 
     _openMenu(btn, byKey) {
-      const host = this.getBoundingClientRect(), r = btn.getBoundingClientRect();
-      const x = Math.max(8, Math.min(r.left - host.left - 4, host.width - 268));
-      const y = r.bottom - host.top + 6;
-      this._openSheet({ kind: "menu", oven: this._focusedOven(), byKey, pos: { x: Math.round(x), y: Math.round(y), h: Math.max(96, Math.round(host.height - y - 8)) } });
+      const z = this._ui(), host = this.getBoundingClientRect(), r = btn.getBoundingClientRect();
+      const w = host.width / z, x = Math.max(8, Math.min((r.left - host.left) / z - 4, w - 268));
+      const y = (r.bottom - host.top) / z + 6;
+      this._openSheet({ kind: "menu", oven: this._focusedOven(), byKey, pos: { x: Math.round(x), y: Math.round(y), h: Math.max(96, Math.round(host.height / z - y - 8)) } });
     }
 
     // Camera window: pictures from Home Assistant's camera proxy at the chosen frame rate.
@@ -975,7 +1128,18 @@
       if (act === "settings") return this._openSheet({ kind: "settings", oven, byKey });
       if (act === "set") return this._setPref(el.dataset.k, el.dataset.v, oven);
       if (act === "set-iconfor") { this._sheet.iconFor = this._sheet.iconFor === oven || (!this._sheet.iconFor && this._sheet.oven === oven) ? "-" : oven; return this._prefsChanged(true); }
-      if (act === "set-reset") { this._prefs = { icons: {} }; return this._prefsChanged(); }
+      if (act === "set-reset") { this._prefs = { icons: {} }; this._measure(); return this._prefsChanged(); }
+      if (act === "lay") {
+        const l = this._layoutInfo(oven), k = el.dataset.k;
+        const v = Math.max(1, Math.min(k === "cols" ? MAX_COLS : MAX_ROWS, l[k] + +el.dataset.d));
+        this._prefs[k === "cols" ? "columns" : "rows"] = v;
+        // Fixing one keeps the other as it looks now.
+        const other = k === "cols" ? "rows" : "columns";
+        if (!this._gridPref(other, other === "rows" ? MAX_ROWS : MAX_COLS)) this._prefs[other] = k === "cols" ? l.rows : l.cols;
+        this._page = 0;
+        return this._prefsChanged();
+      }
+      if (act === "lay-auto") { this._prefs.columns = "auto"; this._prefs.rows = "auto"; this._page = 0; return this._prefsChanged(); }
       if (act === "set-ha") {
         const ids = ovenEntities(hass, oven);
         this._closeSheet();
@@ -991,6 +1155,18 @@
 
     _handleInput(e) {
       const r = this._sheet;
+      if (r && r.kind === "settings" && e.target.matches(".d2-ui")) {
+        // Card size applies while dragging; the sheet itself is redrawn when the slider is let go.
+        const v = +e.target.value;
+        this._prefs.scale = v;
+        e.target.style.setProperty("--p", (v - 80) / 70);
+        const out = e.target.parentElement.querySelector(".d2-scale-v");
+        if (out) out.textContent = `${v}%`;
+        this._savePrefs();
+        this._measure();
+        this._html = "";
+        return this._render();
+      }
       if (!r || r.kind !== "review") return;
       if (e.target.matches(".d2-range")) return this._setTemp(+e.target.value);
       if (e.target.matches(".d2-sh-in")) {
@@ -1003,6 +1179,7 @@
     }
 
     _handleChange(e) {
+      if (e.target.matches(".d2-ui")) return this._prefsChanged();
       if (e.target.matches(".d2-sh-in")) this._commitTyped(e.target);
       if (e.target.matches(".d2-mdi")) {
         const v = e.target.value.trim().toLowerCase();
@@ -1254,10 +1431,13 @@
 .c-d2 .d2-spark{display:flex;flex-direction:column;flex:1 1 auto;min-height:0;max-height:84px;margin-top:16px;text-align:left;width:100%}
 .c-d2 .d2-spark svg{flex:1 1 auto;min-height:18px;width:100%;overflow:visible}
 .c-d2 .d2-spark polyline{fill:none;stroke:var(--ember);stroke-width:2.5;stroke-linejoin:round;filter:drop-shadow(0 0 3px var(--glow))}
-.c-d2 .d2-sp-door{fill:var(--amber);opacity:.28}
-.c-d2 .d2-sp-cap{display:flex;gap:14px;margin-top:6px;font:400 15px/18px var(--f);color:var(--fg2);white-space:nowrap}
+.c-d2 .d2-spark polyline.sp-food{stroke:var(--food);filter:none}
+.c-d2 .d2-spark .sp-tgt{stroke:var(--line);stroke-width:1;stroke-dasharray:4 4}
+.c-d2 .d2-sp-cap{display:flex;align-items:center;gap:14px;margin-top:6px;font:400 15px/18px var(--f);color:var(--fg2);white-space:nowrap}
 .c-d2 .d2-sp-key{display:inline-flex;align-items:center;gap:6px}
-.c-d2 .d2-sp-key i{width:12px;height:12px;border-radius:2px;background:var(--amber);opacity:.5}
+.c-d2 .d2-sp-key i{width:12px;height:3px;border-radius:2px;background:var(--ember)}
+.c-d2 .d2-sp-key.k-food i{background:var(--food)}
+.c-d2 .d2-sp-span{margin-left:auto}
 /* wall scale-up (same elements, larger) */
 .c-d2.d2-wall .d2-name{font-size:22px;line-height:28px}
 .c-d2.d2-wall .d2-st{font-size:19px;line-height:26px;gap:9px}
@@ -1274,7 +1454,8 @@
 .c-d2.d2-wall .d2-chips{gap:10px}
 .c-d2.d2-wall .d2-chip{height:44px;min-width:84px;border-radius:12px;font-size:22px}
 .c-d2.d2-wall .d2-chip::before{inset:-8px 0}
-.c-d2.d2-wall .d2-low .d2-spark{margin-top:10px;height:60px;min-height:0;flex:none}
+.c-d2.d2-wall .d2-spcol{grid-column:2;grid-row:6;align-self:end;min-width:0}
+.c-d2.d2-wall .d2-spcol .d2-spark{margin:0;height:96px;max-height:none}
 .c-d2.d2-wall .d2-sp-cap{margin-top:4px}
 .c-d2.d2-wall .d2-min{font-size:18px;margin-left:4px}
 .c-d2.d2-wall .d2-cam.is-off{font-size:16px;gap:8px}
@@ -1289,7 +1470,7 @@
 .c-d2 .d2-pager{display:flex;overflow-x:auto;overflow-y:hidden;scroll-snap-type:x mandatory;scroll-behavior:auto;scrollbar-width:none;overscroll-behavior-x:contain;min-height:0;container-type:size}
 .c-d2 .d2-pager::-webkit-scrollbar{display:none}
 /* Tiles fit the page both ways: --cols across, --rows down, each row a square plus its label */
-.c-d2 .d2-page{--lab:23px;--rgap:10px;--tile:min(calc((100cqw - (var(--cols) - 1) * var(--tgap)) / var(--cols)),calc((100cqh - var(--rows) * var(--lab) - (var(--rows) - 1) * var(--rgap)) / var(--rows)),var(--tmax));flex:0 0 100%;min-width:0;scroll-snap-align:start;display:grid;grid-template-columns:repeat(var(--cols),var(--tile));justify-content:center;column-gap:var(--tgap);row-gap:var(--rgap);align-content:center}
+.c-d2 .d2-page{--lab:23px;--rgap:10px;--tile:min(calc((100cqw - (var(--cols) - 1) * var(--tgap)) / var(--cols)),calc((100cqh - var(--rows) * var(--lab) - (var(--rows) - 1) * var(--rgap)) / var(--rows)),calc(var(--tmax) * var(--isz,1)));flex:0 0 100%;min-width:0;scroll-snap-align:start;display:grid;grid-template-columns:repeat(var(--cols),var(--tile));justify-content:center;column-gap:var(--tgap);row-gap:var(--rgap);align-content:center}
 .c-d2.d2-wall .d2-page{--lab:34px;--rgap:16px}
 .c-d2 .d2-idle.no-dots{padding-bottom:var(--py)}
 /* Centre the tile rows between the date and the visible dots: the dots' 48 px tap row puts the dot
@@ -1369,6 +1550,8 @@
 /* ---- In Home Assistant ---- */
 :host{display:block;height:100%;position:relative}
 .jo-root{height:100%}
+/* Card size: the glass and its sheets are drawn larger or smaller as a whole. */
+.jo-root>ha-card>.c-d2,.c-d2.jo-over{zoom:var(--ui,1)}
 .jo-skel{position:relative;height:100%;min-height:56px;box-sizing:border-box;padding:16px;overflow:hidden;border-radius:var(--ha-card-border-radius,12px);background:var(--ha-card-background,var(--card-background-color,#1c1c1c));box-shadow:inset 0 0 0 1px var(--divider-color,rgba(127,127,127,.15));animation:jo-in .25s .3s both}
 .jo-skel i,.jo-skel b{display:block;border-radius:8px;background:var(--divider-color,rgba(127,127,127,.15));animation:jo-pulse 1.4s ease-in-out .3s infinite alternate}
 .jo-skel i{width:38%;max-width:180px;height:22px}
@@ -1400,14 +1583,17 @@ ha-card{height:100%;overflow:hidden;background:none;border:none;box-shadow:none;
 .c-d2 .d2-sh-head{display:flex;align-items:center;justify-content:space-between;gap:8px}
 .c-d2 .d2-sh-t{font:600 20px/26px var(--f);color:var(--fg)}
 .c-d2 .d2-sh-s{font:500 12px/16px var(--f);letter-spacing:.06em;text-transform:uppercase;color:var(--fg2)}
-.c-d2 .d2-sh-row{display:flex;align-items:center;gap:16px}
-.c-d2 .d2-sh-face{--tile:64px;flex:none}
-.c-d2 .d2-sh-temp{flex:1;display:flex;align-items:center;justify-content:center;gap:14px}
+.c-d2 .d2-sh-row{display:flex;align-items:center;gap:min(16px,4cqw)}
+.c-d2 .d2-sh-face{--tile:clamp(40px,17cqw,64px);flex:none}
+.c-d2 .d2-sh-temp{flex:1;min-width:0;display:flex;align-items:center;justify-content:center;gap:min(14px,2.5cqw)}
+/* On a narrow card the − / + buttons and the number shrink so the row always fits. */
+.c-d2 .d2-sh-temp .d2-round{width:clamp(32px,13cqw,48px);height:clamp(32px,13cqw,48px)}
+.c-d2 .d2-sh-temp .d2-round .d2-ic{width:clamp(16px,5.5cqw,20px);height:clamp(16px,5.5cqw,20px)}
 .c-d2 .d2-sh-v{font:400 16px/1 var(--f);color:var(--fg2);white-space:nowrap}
 .c-d2 .d2-sh-v b{font-family:var(--fn);font-weight:300;font-size:46px;color:var(--fg);font-variant-numeric:tabular-nums}
 .c-d2 .d2-sh-note{font:400 14px/19px var(--f);color:var(--fg2)}
 .c-d2 .d2-sh-acts{display:flex;gap:10px;margin-top:auto}
-.c-d2 .d2-go{flex:1;height:52px;border-radius:14px;background:linear-gradient(90deg,#f6a53a,#ea5a17);color:#1a0a02;font:600 17px/1 var(--f)}
+.c-d2 .d2-go{flex:1;min-width:0;height:52px;padding:0 10px;border-radius:14px;background:linear-gradient(90deg,#f6a53a,#ea5a17);color:#1a0a02;font:600 min(17px,6.2cqw)/1.1 var(--f)}
 .c-d2 .d2-go[disabled]{opacity:.7;cursor:progress}
 .c-d2.d2-wall .d2-sh-t{font-size:28px;line-height:34px}
 .c-d2.d2-wall .d2-sh-note{font-size:19px;line-height:26px}
@@ -1441,12 +1627,15 @@ ha-card{height:100%;overflow:hidden;background:none;border:none;box-shadow:none;
 .jo-over[hidden]{display:none!important}
 .c-d2.jo-over{position:absolute;inset:0;z-index:10;background:none;box-shadow:none;container-type:size}
 .c-d2 .d2-sheet{box-shadow:inset 0 0 0 1px var(--rim)}
+/* A short card scrolls the review instead of cutting off Start; settings scrolls its own list. */
+.c-d2 .d2-sheet:not(.d2-set){overflow-y:auto;overscroll-behavior:contain;scrollbar-width:none}
+.c-d2 .d2-sheet:not(.d2-set)>*{flex:none}
 /* Review: number you can type in, slider, − and + */
 .c-d2 .d2-sh-v{display:flex;align-items:baseline;gap:2px;cursor:text}
-.c-d2 .d2-sh-in{width:1.75em;padding:0 0 2px;border:0;border-bottom:2px dashed var(--chipb);border-radius:0;background:none;font-family:var(--fn);font-weight:300;font-size:46px;line-height:1;color:var(--fg);text-align:center;font-variant-numeric:tabular-nums;outline:none;caret-color:var(--ember)}
+.c-d2 .d2-sh-in{width:1.75em;padding:0 0 2px;border:0;border-bottom:2px dashed var(--chipb);border-radius:0;background:none;font-family:var(--fn);font-weight:300;font-size:min(46px,13.5cqw);line-height:1;color:var(--fg);text-align:center;font-variant-numeric:tabular-nums;outline:none;caret-color:var(--ember)}
 .c-d2 .d2-sh-in:hover{border-bottom-color:var(--fg2)}
 .c-d2 .d2-sh-in:focus{border-bottom:2px solid var(--ember)}
-.c-d2.d2-wall .d2-sh-in{font-size:72px}
+.c-d2.d2-wall .d2-sh-in{font-size:min(72px,13.5cqw)}
 .c-d2 .d2-round[disabled]{opacity:.35;cursor:default}
 .c-d2 .d2-sh-slide{padding:0 2px}
 .c-d2 .d2-range{-webkit-appearance:none;appearance:none;display:block;width:100%;height:32px;margin:0;background:none;cursor:pointer;--trk:linear-gradient(90deg,var(--ember2),var(--ember)) 0/calc(var(--p) * 100%) 100% no-repeat,var(--track)}
@@ -1494,6 +1683,26 @@ ha-card{height:100%;overflow:hidden;background:none;border:none;box-shadow:none;
 .c-d2 .d2-set-acts{display:flex;flex-wrap:wrap;gap:8px;padding-top:10px;border-top:1px solid var(--line)}
 .c-d2 .d2-set-acts .d2-ghost{flex:1 1 auto;height:44px}
 .c-d2.d2-wall .d2-seg button{min-height:52px;font-size:19px}
+.c-d2 .d2-lay-row{display:flex;align-items:center;justify-content:space-between;gap:8px;margin:2px 0 10px}
+.c-d2 .d2-lay-l{min-width:0;font:500 16px/1 var(--f);color:var(--fg)}
+.c-d2 .d2-lay-ctl{display:flex;align-items:center;gap:min(10px,2.5cqw);flex:none}
+.c-d2 .d2-lay-b{width:clamp(34px,13cqw,44px);height:clamp(34px,13cqw,44px);border-radius:12px;box-shadow:inset 0 0 0 1px var(--chipb);font:500 22px/1 var(--f)}
+.c-d2 .d2-lay-b:disabled{opacity:.35;cursor:default}
+.c-d2 .d2-lay-v{display:flex;flex-direction:column;align-items:center;min-width:min(48px,14cqw);font:400 26px/1 var(--fn);color:var(--fg)}
+.c-d2 .d2-lay-v small{font:500 11px/1 var(--f);letter-spacing:.06em;text-transform:uppercase;color:var(--fg2);margin-top:3px}
+.c-d2 .d2-lay-prev{border-radius:12px;background:var(--bg);box-shadow:inset 0 0 0 1px var(--rim);padding:10px 12px 12px;display:flex;flex-direction:column;align-items:center;gap:8px}
+.c-d2 .d2-lay-clock{font:300 22px/1 var(--fn);color:var(--fg2)}
+.c-d2 .d2-lay-grid{display:grid;grid-template-columns:repeat(var(--cols),minmax(0,40px));gap:6px;width:100%;justify-content:center}
+.c-d2 .d2-lay-grid u{display:block;aspect-ratio:1;border-radius:22%;background:linear-gradient(180deg,var(--tA),var(--tB));box-shadow:inset 0 0 0 1px var(--tRim)}
+.c-d2 .d2-lay-grid u.is-util{background:linear-gradient(180deg,var(--uA),var(--uB));box-shadow:inset 0 0 0 1px var(--uRim)}
+.c-d2 .d2-lay-pages{display:flex;gap:6px}
+.c-d2 .d2-lay-pages i{width:6px;height:6px;border-radius:50%;background:var(--track)}
+.c-d2 .d2-lay-pages i.on{background:var(--fg2)}
+.c-d2 .d2-lay-note{font:400 14px/18px var(--f);color:var(--fg2);margin-top:6px}
+.c-d2 .d2-link{margin-top:8px;font:500 15px/1 var(--f);color:var(--ember);text-decoration:underline;text-underline-offset:3px;min-height:32px}
+.c-d2 .d2-scale{display:flex;align-items:center;gap:12px}
+.c-d2 .d2-scale .d2-range{flex:1 1 auto}
+.c-d2 .d2-scale-v{min-width:48px;text-align:right;font:500 16px/1 var(--f);color:var(--fg)}
 .c-d2.d2-wall .d2-set-l{font-size:16px;line-height:22px}
 .c-d2.d2-wall .d2-set-h{font-size:16px;line-height:22px}
 /* Camera window: floats over the card, the picture uncropped, X to close */

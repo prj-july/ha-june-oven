@@ -326,16 +326,20 @@ entity: climate.kitchen_oven
 | `entity` | required | The oven's climate entity |
 | `icon` | `oven` | The oven's icon, which also shows whether it is on: one of `oven`, `kitchen`, `house`, `garage`, `basement`, `apartment`, `cabin`, `patio`, `office`, `camper`, `bread`, `star`, or any `mdi:` icon |
 | `entities` | none | More ovens for the same card, as entity IDs or as `{entity, icon, name}`. The oven that is heating gets the full card; other heating ovens get a row with their own Stop; ovens that are off share one row of small buttons |
-| `theme` | `auto` | `auto` follows your Home Assistant theme; `light`; or `dark`, the oven's own glass |
+| `theme` | `dark` | `dark`, the oven's own glass; `light`; or `auto`, which follows your Home Assistant theme |
 | `display_mode` | `auto` | `auto` picks the layout from the card's size; or `standard`, `wall` (wall tablets read from across the room), `compact` (one row) |
 | `name` | device or area name | The name shown on the card |
 | `load_fonts` | `true` | Loads Barlow from Google Fonts; set `false` to use system fonts |
 | `camera_fps` | `15` | Pictures per second in the camera window: `1`, `5`, `10` or `15`. `1` is the stock June app's rate |
+| `columns` | `auto` | Cook mode columns on the home screen: `auto` or `1`–`7` |
+| `rows` | `auto` | Cook mode rows: `auto` or `1`–`3`; modes that don't fit go on more pages |
+| `scale` | `100` | Card size in percent, `80`–`150`: text, buttons and spacing |
+| `icon_size` | `large` | Cook mode tiles: `small`, `medium`, `large` or `fill` (as big as the layout allows) |
 | `hide_name` | `true` | Tucks the oven's name into its icon 5 seconds after the card loads |
 | `clock` | `auto` | The idle clock: `auto` follows your language, or `12` / `24` |
 | `mode_order` | `oven` | Cook mode tiles in the oven's order, or `used`: most used first, counting the cooks started from the card on that oven in that browser |
 
-`theme`, `camera_fps`, `hide_name`, `clock`, `mode_order` and every oven's icon can also be
+`theme`, `camera_fps`, `hide_name`, `clock`, `mode_order`, `columns`, `rows`, `scale`, `icon_size` and every oven's icon can also be
 changed from the card's own **Settings** tile. Those choices are kept in that
 browser; the YAML values are the starting point.
 
@@ -363,6 +367,7 @@ Sizes on a sections dashboard:
 
 - **Standard:** 12 × 6.
 - **Wall tablet:** full width × 8.
+- **Panel view:** the card fills the view, down to the bottom of the window.
 - **Compact:** 12 × 1.
 - **Several ovens:** one extra row per oven.
 
@@ -379,6 +384,11 @@ What the card does:
 - **Stop:** the red **Stop** always sits at the top right and is never
   confirmed.
 - **Add time:** **+1 / +5 / +10 min** appear only while a timer runs.
+- **Temperature graph (wall tablet):** while the oven heats, a graph under the
+  camera shows the oven temperature and, with the probe in, the food
+  temperature since the cook began (at most the last hour), with the target as
+  a dashed line. It reads Home Assistant's history, so it needs the recorder.
+  Tap it for the full history.
 - **Camera:** the camera picture on the card refreshes once a second while the
   oven is heating; the camera window uses the chosen frame rate (15 per second by
   default). A corner label shows **LIVE**,
