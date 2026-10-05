@@ -207,6 +207,8 @@ name, in its row, and on its pill.
 | 10-05 | Dark is the default look; new cards write theme dark, size automatic and Barlow fonts on, so the editor shows them; in a panel view the glass runs to the bottom of the window (above the edit bar while editing) (v0.4.6) | Lead's requests. A missing toggle reads as off in Home Assistant's editor, so the defaults are written into new cards |
 | 10-05 | Settings: Mode layout (columns and rows with − and +, over a small picture of the home screen; automatic until changed), Card size slider 80–150 % (CSS zoom on the glass and its sheets), Mode icon size Small/Medium/Large/Fill (scales the tile cap; Fill removes it) (v0.4.7) | Lead's requests; Lead picked the steppers over a grid picker and presets from mockups |
 | 10-05 | Narrow cards: the review's − / + buttons, mode picture and number shrink with the card width (down to about 200 px) instead of pushing + off the edge; the Start button's text shrinks too; the layout steppers shrink the same way; a review on a short card scrolls rather than cutting off Start (v0.4.8) | Lead saw + clipped on a narrow card and asked for elements that adapt to fit |
+| 10-05 | Air fry tile: the fan spins up while the pointer is on the tile and, on leaving, eases to a stop on the next third of a turn, so it rests exactly as drawn (the three blades are identical); off with reduced motion (v0.4.9) | Lead's request |
+| 10-05 | Hover fades: a mode tile's glow, and the Camera/Settings glyph brightening (new; they had no visible hover before), fade in and out over 0.35 s; oven menu rows fade their highlight (v0.4.9) | Lead asked for graceful hover instead of popping in |
 
 ## Open questions
 

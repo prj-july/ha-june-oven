@@ -38,7 +38,7 @@
  */
 (() => {
   "use strict";
-  const VERSION = "0.4.8";
+  const VERSION = "0.4.9";
   const DOMAIN = "june_oven";
   const TAG = "july-oven-card";
   if (customElements.get(TAG)) return;
@@ -108,7 +108,7 @@
   const GLYPH = {
     bake: g("M10 37h28"), broil: g("M10 11h28"), roast: g("M10 11h28M10 37h28"),
     toast: g("M10 11h7M20.5 11h7M31 11h7M10 37h7M20.5 37h7M31 37h7"),
-    airfry: '<circle cx="24" cy="24" r="12.5" class="thin"/>' + [0, 120, 240].map((a) => `<path class="fill" transform="rotate(${a} 24 24)" d="M24 24c-1.5-5.5 1-9.5 5-9.2 2.6.3 2.8 4.4-5 9.2z"/>`).join(""),
+    airfry: '<circle cx="24" cy="24" r="12.5" class="thin"/><g class="d2-fan">' + [0, 120, 240].map((a) => `<path class="fill" transform="rotate(${a} 24 24)" d="M24 24c-1.5-5.5 1-9.5 5-9.2 2.6.3 2.8 4.4-5 9.2z"/>`).join("") + "</g>",
     camera: '<path class="thin" d="M9 16.5h6.5l3-4h11l3 4H39a2.5 2.5 0 0 1 2.5 2.5v15a2.5 2.5 0 0 1-2.5 2.5H9A2.5 2.5 0 0 1 6.5 34V19A2.5 2.5 0 0 1 9 16.5z"/><circle class="thin" cx="24" cy="26.5" r="6.5"/>',
     settings: '<circle cx="24" cy="24" r="9" class="thin"/><circle cx="24" cy="24" r="3.5" class="thin"/>' + [0, 45, 90, 135, 180, 225, 270, 315].map((a) => `<path transform="rotate(${a} 24 24)" d="M24 11.5v3.5"/>`).join("")
   };
@@ -632,8 +632,9 @@
       window.addEventListener("keydown", this._onKey = (e) => this._handleKey(e));
       window.addEventListener("resize", this._onResize = () => this._measure());
       // A long oven name scrolls while the pointer (or focus) is on it.
-      this.shadowRoot.addEventListener("pointerover", this._onOver = (e) => this._nameHover(e, true));
-      this.shadowRoot.addEventListener("pointerout", this._onOut = (e) => this._nameHover(e, false));
+      // The Air fry fan spins while the pointer is on its tile.
+      this.shadowRoot.addEventListener("pointerover", this._onOver = (e) => { this._nameHover(e, true); this._fanHover(e, true); });
+      this.shadowRoot.addEventListener("pointerout", this._onOut = (e) => { this._nameHover(e, false); this._fanHover(e, false); });
       this.shadowRoot.addEventListener("focusin", this._onOver);
       this.shadowRoot.addEventListener("focusout", this._onOut);
       this._showName();
@@ -658,6 +659,9 @@
       if (this._onOver) { this.shadowRoot.removeEventListener("pointerover", this._onOver); this.shadowRoot.removeEventListener("focusin", this._onOver); }
       if (this._onOut) { this.shadowRoot.removeEventListener("pointerout", this._onOut); this.shadowRoot.removeEventListener("focusout", this._onOut); }
       clearTimeout(this._marqTimer);
+      cancelAnimationFrame(this._fanRaf);
+      this._fanRaf = null;
+      this._fans = null;
       this._nameOn = null;
       this._sheet = null;
     }
@@ -806,6 +810,51 @@
         this._render();
       }).catch(() => { h.loading = false; h.failed = true; });
       return h;
+    }
+
+    // ---- the Air fry fan: spins up on hover, then coasts to rest where it started ----
+    // It stops on a whole third of a turn: the three blades look the same at 0°, 120° and 240°, so the
+    // resting fan is drawn exactly as before. State is kept per oven, so a re-render mid-spin carries on.
+    _fanHover(e, on) {
+      if (e.type !== "pointerover" && e.type !== "pointerout") return;
+      const tile = e.target.closest && e.target.closest('.d2-tile[data-mode="airfry"]');
+      if (!tile || (e.relatedTarget && tile.contains(e.relatedTarget))) return;
+      const fans = this._fans || (this._fans = {}), key = tile.dataset.oven;
+      if (on && matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+      if (!fans[key]) { if (!on) return; fans[key] = { a: 0, v: 0 }; }
+      fans[key].on = on;
+      fans[key].stop = null;
+      if (!this._fanRaf) { this._fanT = performance.now(); this._fanRaf = requestAnimationFrame((t) => this._fanStep(t)); }
+    }
+
+    _fanStep(t) {
+      const SPEED = 720, SPIN_UP = 0.35, COAST = 0.35; // deg/s at full speed; seconds to reach it; least coast
+      const dt = Math.min(0.05, Math.max(0, (t - this._fanT) / 1000)), fans = this._fans || {};
+      this._fanT = t;
+      for (const key of Object.keys(fans)) {
+        const f = fans[key];
+        if (f.on) {
+          f.v = Math.min(SPEED, f.v + (SPEED / SPIN_UP) * dt);
+          f.a = (f.a + f.v * dt) % 360;
+        } else {
+          if (!f.stop) {
+            // Ease out from the current speed (cubic: starting speed 3D/T) onto the next third of a turn.
+            const target = Math.ceil((f.a + f.v * COAST) / 120 - 1e-6) * 120, D = target - f.a;
+            f.stop = { a0: f.a, D, T: D < 0.01 ? 0 : Math.min(2, Math.max(0.3, (3 * D) / Math.max(f.v, 1))), s: 0 };
+          }
+          const st = f.stop;
+          st.s += dt;
+          const k = st.T ? Math.min(1, st.s / st.T) : 1, r = 1 - k;
+          f.a = st.a0 + st.D * (1 - r * r * r);
+          f.v = st.T ? ((3 * st.D) / st.T) * r * r : 0;
+          if (k >= 1) f.done = true;
+        }
+        const tile = [...this.shadowRoot.querySelectorAll('.jo-root .d2-tile[data-mode="airfry"]')].find((x) => x.dataset.oven === key);
+        const el = tile && tile.querySelector(".d2-fan");
+        if (el) el.style.transform = f.done ? "" : `rotate(${f.a.toFixed(2)}deg)`;
+        if (f.done) delete fans[key];
+      }
+      this._fanRaf = Object.keys(fans).length ? requestAnimationFrame((n) => this._fanStep(n)) : null;
     }
 
     // ---- the oven name, scrolled when it doesn't fit ----
@@ -1486,6 +1535,9 @@
 .c-d2 .d2-glyph{position:absolute;left:16%;top:16%;width:68%;height:68%;fill:none;stroke:var(--glyph);stroke-width:4;stroke-linecap:round;stroke-linejoin:round;filter:drop-shadow(0 0 2px var(--gglow)) drop-shadow(0 0 7px var(--gglow))}
 .c-d2 .d2-glyph .fill{fill:var(--glyph);stroke:none}
 .c-d2 .d2-glyph .thin{stroke-width:3}
+.c-d2 .d2-glyph .d2-fan{transform-box:view-box;transform-origin:24px 24px}
+/* Hover glow fades in and out rather than switching. */
+.c-d2 .d2-tile .d2-glyph{transition:opacity .35s ease,filter .35s ease,stroke .35s ease}
 .c-d2 .d2-tile.is-util .d2-face{background:linear-gradient(180deg,var(--uA),var(--uB));box-shadow:inset 0 0 0 1px var(--uRim),inset 0 1px 0 var(--tSheen)}
 .c-d2 .d2-tile.is-util .d2-glyph{stroke:var(--uGlyph);filter:none}
 .c-d2 .d2-lab{font:500 13px/16px var(--f);color:var(--fg);white-space:nowrap}
@@ -1499,6 +1551,7 @@
 .c-d2.d2-wall.is-rest .d2-time{color:var(--fg2)}
 .c-d2.d2-wall.is-rest .d2-glyph{opacity:.8;filter:none}
 .c-d2 .d2-tile:hover .d2-glyph,.c-d2 .d2-tile:focus-visible .d2-glyph{opacity:1;filter:drop-shadow(0 0 2px var(--gglow)) drop-shadow(0 0 7px var(--gglow))}
+.c-d2 .d2-tile.is-util:hover .d2-glyph,.c-d2 .d2-tile.is-util:focus-visible .d2-glyph{stroke:var(--fg)}
 .c-d2.d2-wall .d2-name{font-size:22px}
 .c-d2.d2-wall .d2-date{font-size:20px;line-height:26px;margin-top:6px}
 .c-d2.d2-wall .d2-lab{font-size:19px;line-height:24px}
@@ -1727,7 +1780,7 @@ ha-card{height:100%;overflow:hidden;background:none;border:none;box-shadow:none;
 .c-d2 .d2-menu-back{position:absolute;inset:0}
 .c-d2 .d2-menu{position:absolute;width:min(260px,calc(100cqw - 16px));overflow-y:auto;padding:6px;border-radius:14px;background:var(--dlg);box-shadow:0 0 0 1px var(--line),0 12px 32px rgba(0,0,0,.4);animation:d2-drop .16s ease-out}
 @keyframes d2-drop{from{opacity:0;transform:translateY(-6px)}}
-.c-d2 .d2-mi{display:flex;align-items:center;gap:10px;width:100%;min-height:48px;padding:0 10px;border-radius:10px;font:500 16px/20px var(--f);color:var(--fg);text-align:left}
+.c-d2 .d2-mi{display:flex;align-items:center;gap:10px;width:100%;min-height:48px;padding:0 10px;border-radius:10px;font:500 16px/20px var(--f);color:var(--fg);text-align:left;transition:background-color .2s}
 .c-d2 .d2-mi:hover,.c-d2 .d2-mi:focus-visible{background:color-mix(in srgb,var(--fg) 7%,transparent)}
 .c-d2 .d2-mi .d2-oic{font-size:18px}
 .c-d2 .d2-mi-n{flex:1 1 auto;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
