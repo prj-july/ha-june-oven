@@ -190,6 +190,7 @@ name, in its row, and on its pill.
 | 09-28 | Start names the oven; the picked oven is remembered; per-oven icons | Lead's requests (temperature on off pills declined as too verbose) |
 | 10-03 | Re-check registration every 2 s (v0.3.1) | Firefox: another card's scoped-registry polyfill replaced `window.customElements` after the card loaded |
 | 10-03 | Size the camera from the number group (v0.3.2) | On boxes other than 12 × 6 at 500 px the camera ended up to 48 px short of the bar |
+| 10-05 | External food sensor (`food_sensor` / `food_target` / `food_auto_stop`) | An external thermometer (e.g. Combustion) stands in for the wired June probe: its core temperature shows as the food temperature and can stop the cook at the target. The oven still cannot read it, so doneness lives in Home Assistant. |
 | 10-03 | Keep the repository name `ha-june-oven`, domain `june_oven`, name "June Oven" | Drop-in replacement for upstream jclima/ha-june-oven; easy to merge upstream fixes |
 | 10-04 | The icon is the oven's lamp and opens an oven menu; the name tucks into it after 5 s on the home screen only; no idle "Off" mark (v0.4.0) | Lead's request: calmer top row, every oven one tap away |
 | 10-04 | Camera becomes a tile and opens a floating window in the card | Lead's request: Home Assistant's camera dialog offered a broken snapshot download while the oven was off |
