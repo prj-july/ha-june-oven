@@ -315,5 +315,93 @@ class ClientReplayTest(unittest.IsolatedAsyncioTestCase):
             )
 
 
+class _FakeResponse:
+    """Minimal aiohttp response stand-in for the camera HTTP calls."""
+
+    def __init__(self, status: int = 200, body: bytes = b"") -> None:
+        self.status = status
+        self._body = body
+        self.headers: dict[str, str] = {}
+
+    async def read(self) -> bytes:
+        return self._body
+
+    async def __aenter__(self) -> "_FakeResponse":
+        return self
+
+    async def __aexit__(self, *exc: object) -> bool:
+        return False
+
+
+class _FakeSession:
+    """Records camera requests; serves one JPEG for every GET."""
+
+    def __init__(self, image: bytes = b"\xff\xd8fake-jpeg") -> None:
+        self.image = image
+        self.posts: list[str] = []
+        self.gets: list[str] = []
+        self.post_status = 200
+
+    def post(self, url: str, **kwargs: object) -> _FakeResponse:
+        self.posts.append(url)
+        return _FakeResponse(status=self.post_status)
+
+    def get(self, url: str, **kwargs: object) -> _FakeResponse:
+        self.gets.append(url)
+        return _FakeResponse(body=self.image)
+
+
+class IdleCameraTest(unittest.IsolatedAsyncioTestCase):
+    """An idle live view wakes the camera and falls back to the still URL."""
+
+    def make_client(self, endpoint: str) -> tuple[api.JuneClient, _FakeSession]:
+        session = _FakeSession()
+        client = api.JuneClient(
+            session, IDENTITY, endpoints=api.build_endpoints(endpoint)
+        )
+        return client, session
+
+    async def test_idle_fetch_wakes_camera_and_uses_still_url(self) -> None:
+        client, session = self.make_client("192.168.1.207")
+        image = await client.async_fetch_camera_image()
+        self.assertEqual(image, session.image)
+        self.assertEqual(
+            session.posts, ["https://192.168.1.207/internal/camera/on?seconds=20"]
+        )
+        self.assertEqual(
+            session.gets, ["https://192.168.1.207/media/prod/images/latest.jpg"]
+        )
+        # Another view inside the wake window must not re-post.
+        self.assertEqual(await client.async_fetch_camera_image(), session.image)
+        self.assertEqual(len(session.posts), 1)
+        self.assertEqual(len(session.gets), 2)
+
+    async def test_pushed_frame_url_still_wins_when_present(self) -> None:
+        client, session = self.make_client("192.168.1.207")
+        client.state.snapshot_url = (
+            "https://192.168.1.207/media/prod/images/latest.jpg?ts=99"
+        )
+        await client.async_fetch_camera_image()
+        self.assertEqual(
+            session.gets, ["https://192.168.1.207/media/prod/images/latest.jpg?ts=99"]
+        )
+
+    async def test_cooking_does_not_wake(self) -> None:
+        client, session = self.make_client("192.168.1.207")
+        client.state.active = True
+        self.assertEqual(await client.async_fetch_camera_image(), session.image)
+        self.assertEqual(session.posts, [])
+
+    async def test_cloud_behavior_is_unchanged(self) -> None:
+        client, session = self.make_client("")
+        self.assertIsNone(await client.async_fetch_camera_image())
+        self.assertEqual(session.posts, [])
+        self.assertEqual(session.gets, [])
+        client.state.snapshot_url = "https://api.junelife.com/media/prod/images/a.jpg"
+        self.assertEqual(await client.async_fetch_camera_image(), session.image)
+        self.assertEqual(
+            session.gets, ["https://api.junelife.com/media/prod/images/a.jpg"]
+        )
+
 if __name__ == "__main__":
     unittest.main()
