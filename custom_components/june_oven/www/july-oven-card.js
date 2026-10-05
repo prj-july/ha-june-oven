@@ -471,6 +471,11 @@
         ${setRow("Oven name", "", seg("hide_name", [["true", "Tuck into the icon"], ["false", "Always show"]], String(p.hide_name), "Oven name"))}
         ${setRow("Cook modes", "Most used first counts the cooks started from this card, per oven, in this browser.", seg("mode_order", ORDERS, p.mode_order, "Cook mode order"))}
         ${setRow("Clock", "", seg("clock", CLOCKS, p.clock, "Clock"))}
+        ${setRow("External food sensor", "A wireless thermometer (Combustion, MEATER, any temperature entity) shown as the food temperature. Target is in the card's temperature unit; Stop at target turns the oven off when the food reaches it.", `<div class="d2-food">
+          <input class="d2-foodin" data-k="food_sensor" type="text" autocomplete="off" spellcheck="false" placeholder="sensor.core_temperature" value="${esc(p.food.sensor)}" aria-label="External food sensor entity id">
+          <input class="d2-foodin" data-k="food_target" type="text" inputmode="numeric" maxlength="4" autocomplete="off" placeholder="target" value="${esc(p.food.target)}" aria-label="Food target temperature in the card's temperature unit">
+          ${seg("food_auto_stop", [["true", "Stop at target"], ["false", "Show only"]], p.food.stop, "Auto stop when the food reaches its target")}
+        </div>`)}
         ${setRow("Mode layout", p.layout.auto ? "Automatic until you change it. Modes that don't fit go on more pages." : "Modes that don't fit go on more pages.", layoutPicker(p.layout))}
         ${setRow("Card size", "Text, buttons and spacing. Larger reads better from across the room.", `<div class="d2-scale"><input class="d2-range d2-ui" type="range" min="80" max="150" step="5" value="${p.scale}" style="--p:${(p.scale - 80) / 70}" aria-label="Card size"><span class="d2-scale-v">${p.scale}%</span></div>`)}
         ${setRow("Mode icon size", "Only the cook mode tiles. Fill makes them as big as the layout allows.", seg("icon_size", ICON_SIZES, p.icon_size, "Mode icon size"))}
@@ -640,8 +645,7 @@
     // External food sensor: stop the oven once the configured entity reaches
     // food_target. Fires once per cook and re-arms when the oven goes idle.
     _foodAutoStop() {
-      const cfg = this._config || {};
-      if (!cfg.food_auto_stop || !cfg.food_sensor || cfg.food_target == null || !this._hass) return;
+      if (!this._pref("food_auto_stop") || !this._pref("food_sensor") || this._pref("food_target") == null || !this._hass) return;
       this._probeFired = this._probeFired || {};
       for (const o of this._ovens) {
         const m = this._model(this._conf(o), Date.now());
@@ -1048,8 +1052,8 @@
     _model(o, now = Date.now()) {
       const hass = this._hass;
       const ids = ovenEntities(hass, o.entity);
-      const food = this._config.food_sensor
-        ? { sensor: this._config.food_sensor, target: this._config.food_target ?? null }
+      const food = this._pref("food_sensor")
+        ? { sensor: this._pref("food_sensor"), target: this._pref("food_target") ?? null }
         : null;
       return ovenModel(hass, ids, ovenName(hass, ids, o), now, this._dismissed[o.entity], this._prefs.icons[o.entity] || o.icon, food);
     }
@@ -1121,7 +1125,7 @@
       const now = Date.now();
       const m = this._model(this._conf(s.oven), now);
       if (s.kind === "review") el.innerHTML = review(s, m.name, m.unit, now, this._multi);
-      else if (s.kind === "settings") el.innerHTML = settingsSheet({ theme: this._theme(), camera_fps: this._fps(), hide_name: this._hideName(), clock: String(this._pref("clock")), mode_order: this._pref("mode_order") === "used" ? "used" : "oven", layout: this._layoutInfo(s.oven), scale: Math.round(this._ui() * 100), icon_size: this._iconSize() }, m,
+      else if (s.kind === "settings") el.innerHTML = settingsSheet({ theme: this._theme(), camera_fps: this._fps(), hide_name: this._hideName(), clock: String(this._pref("clock")), mode_order: this._pref("mode_order") === "used" ? "used" : "oven", layout: this._layoutInfo(s.oven), scale: Math.round(this._ui() * 100), icon_size: this._iconSize(), food: { sensor: String(this._pref("food_sensor") || ""), target: this._pref("food_target") != null ? String(this._pref("food_target")) : "", stop: this._pref("food_auto_stop") ? "true" : "false" } }, m,
         this._allOvens().map((o) => ({ m: this._model(o, now), icon: this._prefs.icons[o.entity] || o.icon })), s.iconFor || s.oven);
       else if (s.kind === "camera") el.innerHTML = cameraSheet(m);
       else if (s.kind === "menu") el.innerHTML = menuSheet(this._allOvens().map((o) => this._model(o, now)), s.oven, s.pos);
@@ -1275,6 +1279,17 @@
         else if (!v) this._setPref("icon", "oven", e.target.dataset.oven);
         else e.target.value = e.target.defaultValue;
       }
+      if (e.target.matches(".d2-foodin")) {
+        const k = e.target.dataset.k;
+        if (k === "food_target") {
+          const v = parseInt(e.target.value, 10);
+          if (Number.isFinite(v) && v > 0) this._setPref(k, v);
+          else e.target.value = this._pref(k) != null ? String(this._pref(k)) : "";
+        } else {
+          this._setPref(k, e.target.value.trim());
+        }
+        return;
+      }
     }
 
     _handleKey(e) {
@@ -1286,6 +1301,7 @@
         return;
       }
       if (t && t.matches && t.matches(".d2-mdi") && e.key === "Enter") return t.blur();
+      if (t && t.matches && t.matches(".d2-foodin") && e.key === "Enter") return t.blur();
       if (e.key === "Escape") { this._sheet.byKey = this.shadowRoot.activeElement !== null; this._closeSheet(); }
     }
 
@@ -1294,6 +1310,8 @@
         if (oven) this._prefs.icons[oven] = v;
       } else if (k === "camera_fps") this._prefs[k] = +v;
       else if (k === "hide_name") this._prefs[k] = v === "true";
+      else if (k === "food_auto_stop") this._prefs[k] = v === "true";
+      else if (k === "food_target") this._prefs[k] = +v;
       else this._prefs[k] = v;
       this._prefsChanged();
     }
@@ -1770,6 +1788,10 @@ ha-card{height:100%;overflow:hidden;background:none;border:none;box-shadow:none;
 .c-d2 .d2-mdi{display:block;width:100%;height:40px;margin-top:6px;padding:0 12px;border:0;border-radius:10px;box-shadow:inset 0 0 0 1px var(--chipb);background:none;font:400 15px/1 var(--f);color:var(--fg);outline:none}
 .c-d2 .d2-mdi:focus{box-shadow:inset 0 0 0 1.5px var(--ember)}
 .c-d2 .d2-mdi::placeholder{color:var(--fg2)}
+.c-d2 .d2-food{display:flex;flex-direction:column;gap:8px}
+.c-d2 .d2-foodin{display:block;width:100%;height:40px;padding:0 12px;border:0;border-radius:10px;box-shadow:inset 0 0 0 1px var(--chipb);background:none;font:400 15px/1 var(--f);color:var(--fg);outline:none;margin:0}
+.c-d2 .d2-foodin:focus{box-shadow:inset 0 0 0 1.5px var(--ember)}
+.c-d2 .d2-foodin::placeholder{color:var(--fg2)}
 .c-d2 .d2-set-ver{padding-top:10px;font:400 12px/16px var(--f);color:var(--fg2);text-align:center}
 .c-d2.d2-wall .d2-ic-head{min-height:64px;font-size:20px}
 .c-d2 .d2-set-acts{display:flex;flex-wrap:wrap;gap:8px;padding-top:10px;border-top:1px solid var(--line)}
