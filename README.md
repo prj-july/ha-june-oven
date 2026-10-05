@@ -347,6 +347,9 @@ The integration serves a dashboard card, **July Oven**, and loads it on every
 dashboard. There is no resource to add and nothing to install from HACS.
 After updating the integration, reload the browser tab once.
 
+For a walkthrough with pictures and animations of every screen, see the
+[July Oven card guide](docs/card-guide/README.md).
+
 Add it from the card picker (search for "July Oven"), or in YAML:
 
 ```yaml
@@ -371,9 +374,11 @@ entity: climate.kitchen_oven
 | `hide_name` | `true` | Tucks the oven's name into its icon 5 seconds after the card loads |
 | `clock` | `auto` | The idle clock: `auto` follows your language, or `12` / `24` |
 | `mode_order` | `oven` | Cook mode tiles in the oven's order, or `used`: most used first, counting the cooks started from the card on that oven in that browser |
-| `probe` | none | Another thermometer's temperature sensor to use for food temperature instead of the June probe, for example a [Combustion](https://github.com/legrego/homeassistant-combustion) probe's `Core Temperature` (per oven in `entities`: `probe:`) |
+| `probe` | none | Another thermometer's temperature sensor to use for food temperature instead of the June probe, for example a [Combustion](https://github.com/legrego/homeassistant-combustion) probe's `Core Temperature` (per oven in `entities`: `probe:`; `food_sensor` is the same for every oven) |
+| `food_target` | none | That thermometer's target, in the card's unit. The card shows the food against it |
+| `food_auto_stop` | `false` | Turn the oven off when the food reaches `food_target`. The oven can't read the other thermometer, so a card must be open for this |
 
-`theme`, `camera_fps`, `hide_name`, `clock`, `mode_order`, `columns`, `rows`, `scale`, `icon_size` and every oven's icon and food probe can also be
+`theme`, `camera_fps`, `hide_name`, `clock`, `mode_order`, `columns`, `rows`, `scale`, `icon_size`, `food_target`, `food_auto_stop` and every oven's icon and food probe can also be
 changed from the card's own **Settings** tile. Those choices are kept in that
 browser; the YAML values are the starting point.
 

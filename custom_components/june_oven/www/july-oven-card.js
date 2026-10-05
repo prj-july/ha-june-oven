@@ -36,7 +36,10 @@
  *   icon_size: large                    # cook mode tiles: small, medium, large or fill
  *   probe: sensor.probe_core_temperature  # optional: another thermometer's sensor for food temperature
  *                                       # (e.g. a Combustion probe's Core Temperature) instead of the June probe
- * theme, camera_fps, hide_name, clock, mode_order and each oven's icon and food probe can also be changed in the card's own
+ *                                       # (food_sensor: is the same, for every oven in the card)
+ *   food_target: 145                    # optional: that thermometer's target, in the card's unit
+ *   food_auto_stop: false               # turn the oven off when the food reaches food_target (card must be open)
+ * theme, camera_fps, hide_name, clock, mode_order, food_target, food_auto_stop and each oven's icon and food probe can also be changed in the card's own
  * Settings; those choices are kept in this browser and the config above is the starting point.
  */
 (() => {
@@ -207,7 +210,7 @@
   }
 
   /** Everything the card shows for one oven, from Home Assistant state. */
-  function ovenModel(hass, ids, name, now, dismissed, icon) {
+  function ovenModel(hass, ids, name, now, dismissed, icon, food) {
     const st = (id) => (id ? hass.states[id] : undefined);
     const c = st(ids.climate);
     const unit = (hass.config && hass.config.unit_system && hass.config.unit_system.temperature) || "°F";
@@ -223,8 +226,20 @@
     const remaining = usable(st(ids.remaining)) ? num(st(ids.remaining)) : null;
     const elapsed = usable(st(ids.elapsed)) ? num(st(ids.elapsed)) : null;
     const progress = usable(st(ids.progress)) ? num(st(ids.progress)) : null;
-    const probe = usable(st(ids.probe)) ? round(num(st(ids.probe))) : null;
-    const probeTgt = usable(st(ids.probeTarget)) ? round(num(st(ids.probeTarget))) : null;
+    // Food temperature: the June probe, or another thermometer chosen for this oven (such as a
+    // Combustion probe), converted from the sensor's own unit. Another thermometer has no target of
+    // its own; the card's food target stands in for it (see _foodAutoStop).
+    const probeSt = st(ids.probe);
+    let probe = null;
+    if (usable(probeSt) && Number.isFinite(+probeSt.state)) {
+      const pu = String((probeSt.attributes && probeSt.attributes.unit_of_measurement) || ""), wantsF = unit !== "°C";
+      let v = +probeSt.state;
+      if (/°?F\b/i.test(pu) && !wantsF) v = ((v - 32) * 5) / 9;
+      else if (/°?C\b/i.test(pu) && wantsF) v = (v * 9) / 5 + 32;
+      probe = round(v);
+    }
+    const probeTgt = food && food.target != null && Number.isFinite(+food.target) ? round(+food.target) : usable(st(ids.probeTarget)) ? round(num(st(ids.probeTarget))) : null;
+    const foodT = probe, foodTgt = probeTgt;
     const completedSt = st(ids.completed);
     const completed = usable(completedSt) ? Date.parse(completedSt.state) : NaN;
     const lang = (hass.locale && hass.locale.language) || hass.language || undefined;
@@ -232,7 +247,7 @@
 
     // When this cook began: from the elapsed sensor, else when the oven left "off".
     const since = elapsed !== null ? now - elapsed * 1000 : c && c.state !== "off" ? Date.parse(c.last_changed) : NaN;
-    const m = { name, oic: ovenIcon(icon), ids, unit, tgt, cur, probe, since, modeLabel, chips: false, action: null, heroText: false, stale: false, qual: null, a: "", b: "", camera: "live", frameAge: "LIVE" };
+    const m = { name, oic: ovenIcon(icon), ids, unit, tgt, cur, probe, since, modeLabel, chips: false, action: null, heroText: false, stale: false, qual: null, a: "", b: "", camera: "live", frameAge: "LIVE", food: { temp: foodT, target: foodTgt } };
     if (offline) {
       const seen = conn ? Date.parse(conn.last_changed) : c ? Date.parse(c.last_updated) : NaN;
       const since = Number.isFinite(seen) ? ago(now - seen) : "a while ago";
@@ -261,7 +276,7 @@
     }
     if (phase === "cooking") {
       Object.assign(m, { key: "cooking", word: "Cooking", tone: "heat", icon: "cooking", heating: true, action: "stop" });
-      const facts = `${modeLabel}${tgt !== null ? ` ${tgt} ${unit}` : ""}${probe !== null ? ` · food ${probe}°` : ""}`;
+      const facts = `${modeLabel}${tgt !== null ? ` ${tgt} ${unit}` : ""}${foodT !== null ? ` · food ${foodT}°` : ""}`;
       if (remaining !== null) {
         const total = remaining + (elapsed || 0);
         return Object.assign(m, {
@@ -269,10 +284,10 @@
           a: `Done at ${clock(now + remaining * 1000)}`, b: facts, chips: true
         });
       }
-      if (probe !== null && probeTgt !== null) {
+      if (foodT !== null && foodTgt !== null) {
         return Object.assign(m, {
-          hero: `${probe}°`, qual: `food · target ${probeTgt}°`,
-          bar: [progress !== null ? progress / 100 : clamp01(probe / Math.max(1, probeTgt)), "heat"],
+          hero: `${foodT}°`, qual: `food · target ${foodTgt}°`,
+          bar: [progress !== null ? progress / 100 : clamp01(foodT / Math.max(1, foodTgt)), "heat"],
           a: `${modeLabel}${tgt !== null ? ` at ${tgt} ${unit}` : ""}`, b: elapsed !== null ? `Cooking for ${Math.round(elapsed / 60)} min` : ""
         });
       }
@@ -286,7 +301,7 @@
       const since = ago(now - completed);
       return Object.assign(m, {
         key: "done", word: "Done", tone: "ok", icon: "done", heroText: true, hero: "Take food out", bar: [1, "done"],
-        a: `Done ${since}`, b: probe !== null ? `Food ${probe} ${unit} · ${modeLabel}` : modeLabel,
+        a: `Done ${since}`, b: foodT !== null ? `Food ${foodT} ${unit} · ${modeLabel}` : modeLabel,
         action: "dismiss", camera: "still", frameAge: since, completed
       });
     }
@@ -465,6 +480,10 @@
         ${setRow("Card size", "Text, buttons and spacing. Larger reads better from across the room.", `<div class="d2-scale"><input class="d2-range d2-ui" type="range" min="80" max="150" step="5" value="${p.scale}" style="--p:${(p.scale - 80) / 70}" aria-label="Card size"><span class="d2-scale-v">${p.scale}%</span></div>`)}
         ${setRow("Mode icon size", "Only the cook mode tiles. Fill makes them as big as the layout allows.", seg("icon_size", ICON_SIZES, p.icon_size, "Mode icon size"))}
         ${setRow("Food probe", "Food temperature on the card and the wall graph. Pick another thermometer's sensor, such as a Combustion probe's Core Temperature, to use it instead of the June probe.", probeRows(ovens, choices))}
+        ${ovens.some((o) => o.probe) ? setRow("Food target", `For the other thermometer, in ${m.unit}: the card shows the food against it, and Stop at target turns the oven off when the food reaches it. The oven can't read that thermometer, so this card must be open for the stop.`, `<div class="d2-food">
+          <input class="d2-foodin" data-k="food_target" type="text" inputmode="numeric" maxlength="3" autocomplete="off" placeholder="No target" value="${esc(p.food.target)}" aria-label="Food target in ${esc(m.unit)}">
+          ${seg("food_auto_stop", [["true", "Stop at target"], ["false", "Show only"]], p.food.stop, "When the food reaches its target")}
+        </div>`) : ""}
         ${setRow("Oven icons", "Each oven's icon on the card. Tap an oven to change its icon.", `<div class="d2-ic-list">${iconRows(ovens, open)}</div>`)}
         <div class="d2-set-acts"><button class="d2-ghost" data-act="set-ha" data-oven="${esc(m.ids.climate)}">Oven in Home Assistant</button><button class="d2-ghost" data-act="set-reset">Reset</button></div>
         <div class="d2-set-ver">July Oven card ${VERSION}</div>
@@ -696,7 +715,7 @@
       for (const item of config.entities || []) add(typeof item === "string" ? { entity: item } : item);
       for (const n of [2, 3, 4]) add({ entity: config[`entity_${n}`], icon: config[`icon_${n}`], name: config[`name_${n}`], probe: config[`probe_${n}`] });
       for (const o of ovens) if (!String(o.entity).startsWith("climate.")) throw new Error(`${o.entity} is not a climate entity. Choose the oven itself.`);
-      this._config = { theme: "dark", display_mode: "auto", load_fonts: true, camera_fps: 15, hide_name: true, clock: "auto", mode_order: "oven", columns: "auto", rows: "auto", scale: 100, icon_size: "large", ...config };
+      this._config = { theme: "dark", display_mode: "auto", load_fonts: true, camera_fps: 15, hide_name: true, clock: "auto", mode_order: "oven", columns: "auto", rows: "auto", scale: 100, icon_size: "large", food_sensor: "", food_target: null, food_auto_stop: false, ...config };
       this._ovenConf = ovens;
       this._ovens = ovens.map((o) => o.entity);
       // The oven last picked in this card, and the card's own settings, are remembered in this browser.
@@ -751,6 +770,26 @@
       this._hass = hass;
       if (!this._measured) this._measure();
       this._render();
+      this._foodAutoStop();
+    }
+
+    // Another thermometer: stop the oven once the food reaches food_target (food_auto_stop). Fires
+    // once per cook and re-arms when the oven goes idle. The June probe's own target is the oven's job.
+    _foodAutoStop() {
+      if (!this._pref("food_auto_stop") || this._foodTarget() === null || !this._hass) return;
+      this._probeFired = this._probeFired || {};
+      for (const o of this._ovens) {
+        if (!this._probeFor(this._conf(o))) { delete this._probeFired[o]; continue; }
+        const m = this._model(this._conf(o), Date.now());
+        const f = m && m.food ? m.food : null;
+        if (!m || m.key !== "cooking" || !f || f.temp == null || f.target == null || f.temp < f.target) {
+          delete this._probeFired[o];
+          continue;
+        }
+        if (this._probeFired[o]) continue;
+        this._probeFired[o] = true;
+        this._call("climate", "turn_off", {}, o, `Food reached ${f.target}${m.unit} - oven stopped`);
+      }
     }
 
     connectedCallback() {
@@ -1251,18 +1290,25 @@
     _model(o, now = Date.now()) {
       const hass = this._hass;
       let ids = ovenEntities(hass, o.entity);
-      // Another thermometer for food temperature: its readings replace the June probe's (its target
-      // stays with the June probe, so none is shown).
+      // Another thermometer for food temperature: its readings replace the June probe's, and the
+      // card's food target, if set, stands in for the probe target.
       const ext = this._probeFor(o);
       if (ext) ids = { ...ids, probe: ext, probeTarget: null };
-      return ovenModel(hass, ids, ovenName(hass, ids, o), now, this._dismissed[o.entity], this._prefs.icons[o.entity] || o.icon);
+      const food = ext ? { target: this._foodTarget() } : null;
+      return ovenModel(hass, ids, ovenName(hass, ids, o), now, this._dismissed[o.entity], this._prefs.icons[o.entity] || o.icon, food);
     }
 
     // The food probe chosen in Settings for this oven, else the config's `probe`; "" is the June probe.
     _probeFor(o) {
       const p = this._prefs.probes || {};
-      const v = Object.prototype.hasOwnProperty.call(p, o.entity) ? p[o.entity] : o.probe;
+      const v = Object.prototype.hasOwnProperty.call(p, o.entity) ? p[o.entity] : o.probe || this._pref("food_sensor");
       return typeof v === "string" && v.startsWith("sensor.") ? v : "";
+    }
+
+    // The food target for another thermometer, in the card's unit (food_target), or null.
+    _foodTarget() {
+      const v = this._pref("food_target");
+      return v !== null && v !== undefined && v !== "" && Number.isFinite(+v) && +v > 0 ? +v : null;
     }
 
     // Every June oven in Home Assistant: the card's own first, then the rest.
@@ -1332,7 +1378,7 @@
       const now = Date.now();
       const m = this._model(this._conf(s.oven), now);
       if (s.kind === "review") el.innerHTML = review(s, m.name, m.unit, now, this._multi);
-      else if (s.kind === "settings") el.innerHTML = settingsSheet({ theme: this._theme(), camera_fps: this._fps(), hide_name: this._hideName(), clock: String(this._pref("clock")), mode_order: this._pref("mode_order") === "used" ? "used" : "oven", layout: this._layoutInfo(s.oven), scale: Math.round(this._ui() * 100), icon_size: this._iconSize() }, m,
+      else if (s.kind === "settings") el.innerHTML = settingsSheet({ theme: this._theme(), camera_fps: this._fps(), hide_name: this._hideName(), clock: String(this._pref("clock")), mode_order: this._pref("mode_order") === "used" ? "used" : "oven", layout: this._layoutInfo(s.oven), scale: Math.round(this._ui() * 100), icon_size: this._iconSize(), food: { target: this._foodTarget() !== null ? String(this._foodTarget()) : "", stop: this._pref("food_auto_stop") ? "true" : "false" } }, m,
         this._allOvens().map((o) => ({ m: this._model(o, now), icon: this._prefs.icons[o.entity] || o.icon, probe: this._probeFor(o) })), s.iconFor || s.oven, probeChoices(this._hass));
       else if (s.kind === "camera") el.innerHTML = cameraSheet(m);
       else if (s.kind === "history") el.innerHTML = historySheet(s, m, this._cooks[s.oven], this._pics, this._cookExt, (this._hass.locale && this._hass.locale.language) || this._hass.language || undefined);
@@ -1495,6 +1541,19 @@
         else if (!v) this._setPref("icon", "oven", e.target.dataset.oven);
         else e.target.value = e.target.defaultValue;
       }
+      if (e.target.matches(".d2-foodin")) {
+        const k = e.target.dataset.k;
+        if (k === "food_target") {
+          const v = parseInt(e.target.value, 10);
+          if (Number.isFinite(v) && v > 0) this._setPref(k, v);
+          // Cleared: no target, whatever the YAML says.
+          else if (!e.target.value.trim()) { this._prefs[k] = ""; this._prefsChanged(); }
+          else e.target.value = this._foodTarget() !== null ? String(this._foodTarget()) : "";
+        } else {
+          this._setPref(k, e.target.value.trim());
+        }
+        return;
+      }
     }
 
     _handleKey(e) {
@@ -1506,6 +1565,7 @@
         return;
       }
       if (t && t.matches && t.matches(".d2-mdi") && e.key === "Enter") return t.blur();
+      if (t && t.matches && t.matches(".d2-foodin") && e.key === "Enter") return t.blur();
       if (e.key === "Escape") { this._sheet.byKey = this.shadowRoot.activeElement !== null; this._closeSheet(); }
     }
 
@@ -1514,6 +1574,8 @@
         if (oven) this._prefs.icons[oven] = v;
       } else if (k === "camera_fps") this._prefs[k] = +v;
       else if (k === "hide_name") this._prefs[k] = v === "true";
+      else if (k === "food_auto_stop") this._prefs[k] = v === "true";
+      else if (k === "food_target") this._prefs[k] = +v;
       else this._prefs[k] = v;
       this._prefsChanged();
     }
@@ -1996,6 +2058,10 @@ ha-card{height:100%;overflow:hidden;background:none;border:none;box-shadow:none;
 .c-d2 .d2-sel:focus-visible{box-shadow:inset 0 0 0 1.5px var(--ember)}
 .c-d2 .d2-sel option{background:var(--bg);color:var(--fg)}
 .c-d2.d2-wall .d2-sel{height:56px;font-size:19px}
+.c-d2 .d2-food{display:flex;flex-direction:column;gap:8px}
+.c-d2 .d2-foodin{display:block;width:100%;height:40px;padding:0 12px;border:0;border-radius:10px;box-shadow:inset 0 0 0 1px var(--chipb);background:none;font:400 15px/1 var(--f);color:var(--fg);outline:none;margin:0}
+.c-d2 .d2-foodin:focus{box-shadow:inset 0 0 0 1.5px var(--ember)}
+.c-d2 .d2-foodin::placeholder{color:var(--fg2)}
 .c-d2 .d2-set-ver{padding-top:10px;font:400 12px/16px var(--f);color:var(--fg2);text-align:center}
 .c-d2.d2-wall .d2-ic-head{min-height:64px;font-size:20px}
 .c-d2 .d2-set-acts{display:flex;flex-wrap:wrap;gap:8px;padding-top:10px;border-top:1px solid var(--line)}
