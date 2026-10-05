@@ -38,7 +38,7 @@
  */
 (() => {
   "use strict";
-  const VERSION = "0.4.7";
+  const VERSION = "0.4.8";
   const DOMAIN = "june_oven";
   const TAG = "july-oven-card";
   if (customElements.get(TAG)) return;
@@ -1583,14 +1583,17 @@ ha-card{height:100%;overflow:hidden;background:none;border:none;box-shadow:none;
 .c-d2 .d2-sh-head{display:flex;align-items:center;justify-content:space-between;gap:8px}
 .c-d2 .d2-sh-t{font:600 20px/26px var(--f);color:var(--fg)}
 .c-d2 .d2-sh-s{font:500 12px/16px var(--f);letter-spacing:.06em;text-transform:uppercase;color:var(--fg2)}
-.c-d2 .d2-sh-row{display:flex;align-items:center;gap:16px}
-.c-d2 .d2-sh-face{--tile:64px;flex:none}
-.c-d2 .d2-sh-temp{flex:1;display:flex;align-items:center;justify-content:center;gap:14px}
+.c-d2 .d2-sh-row{display:flex;align-items:center;gap:min(16px,4cqw)}
+.c-d2 .d2-sh-face{--tile:clamp(40px,17cqw,64px);flex:none}
+.c-d2 .d2-sh-temp{flex:1;min-width:0;display:flex;align-items:center;justify-content:center;gap:min(14px,2.5cqw)}
+/* On a narrow card the − / + buttons and the number shrink so the row always fits. */
+.c-d2 .d2-sh-temp .d2-round{width:clamp(32px,13cqw,48px);height:clamp(32px,13cqw,48px)}
+.c-d2 .d2-sh-temp .d2-round .d2-ic{width:clamp(16px,5.5cqw,20px);height:clamp(16px,5.5cqw,20px)}
 .c-d2 .d2-sh-v{font:400 16px/1 var(--f);color:var(--fg2);white-space:nowrap}
 .c-d2 .d2-sh-v b{font-family:var(--fn);font-weight:300;font-size:46px;color:var(--fg);font-variant-numeric:tabular-nums}
 .c-d2 .d2-sh-note{font:400 14px/19px var(--f);color:var(--fg2)}
 .c-d2 .d2-sh-acts{display:flex;gap:10px;margin-top:auto}
-.c-d2 .d2-go{flex:1;height:52px;border-radius:14px;background:linear-gradient(90deg,#f6a53a,#ea5a17);color:#1a0a02;font:600 17px/1 var(--f)}
+.c-d2 .d2-go{flex:1;min-width:0;height:52px;padding:0 10px;border-radius:14px;background:linear-gradient(90deg,#f6a53a,#ea5a17);color:#1a0a02;font:600 min(17px,6.2cqw)/1.1 var(--f)}
 .c-d2 .d2-go[disabled]{opacity:.7;cursor:progress}
 .c-d2.d2-wall .d2-sh-t{font-size:28px;line-height:34px}
 .c-d2.d2-wall .d2-sh-note{font-size:19px;line-height:26px}
@@ -1624,12 +1627,15 @@ ha-card{height:100%;overflow:hidden;background:none;border:none;box-shadow:none;
 .jo-over[hidden]{display:none!important}
 .c-d2.jo-over{position:absolute;inset:0;z-index:10;background:none;box-shadow:none;container-type:size}
 .c-d2 .d2-sheet{box-shadow:inset 0 0 0 1px var(--rim)}
+/* A short card scrolls the review instead of cutting off Start; settings scrolls its own list. */
+.c-d2 .d2-sheet:not(.d2-set){overflow-y:auto;overscroll-behavior:contain;scrollbar-width:none}
+.c-d2 .d2-sheet:not(.d2-set)>*{flex:none}
 /* Review: number you can type in, slider, − and + */
 .c-d2 .d2-sh-v{display:flex;align-items:baseline;gap:2px;cursor:text}
-.c-d2 .d2-sh-in{width:1.75em;padding:0 0 2px;border:0;border-bottom:2px dashed var(--chipb);border-radius:0;background:none;font-family:var(--fn);font-weight:300;font-size:46px;line-height:1;color:var(--fg);text-align:center;font-variant-numeric:tabular-nums;outline:none;caret-color:var(--ember)}
+.c-d2 .d2-sh-in{width:1.75em;padding:0 0 2px;border:0;border-bottom:2px dashed var(--chipb);border-radius:0;background:none;font-family:var(--fn);font-weight:300;font-size:min(46px,13.5cqw);line-height:1;color:var(--fg);text-align:center;font-variant-numeric:tabular-nums;outline:none;caret-color:var(--ember)}
 .c-d2 .d2-sh-in:hover{border-bottom-color:var(--fg2)}
 .c-d2 .d2-sh-in:focus{border-bottom:2px solid var(--ember)}
-.c-d2.d2-wall .d2-sh-in{font-size:72px}
+.c-d2.d2-wall .d2-sh-in{font-size:min(72px,13.5cqw)}
 .c-d2 .d2-round[disabled]{opacity:.35;cursor:default}
 .c-d2 .d2-sh-slide{padding:0 2px}
 .c-d2 .d2-range{-webkit-appearance:none;appearance:none;display:block;width:100%;height:32px;margin:0;background:none;cursor:pointer;--trk:linear-gradient(90deg,var(--ember2),var(--ember)) 0/calc(var(--p) * 100%) 100% no-repeat,var(--track)}
@@ -1677,12 +1683,12 @@ ha-card{height:100%;overflow:hidden;background:none;border:none;box-shadow:none;
 .c-d2 .d2-set-acts{display:flex;flex-wrap:wrap;gap:8px;padding-top:10px;border-top:1px solid var(--line)}
 .c-d2 .d2-set-acts .d2-ghost{flex:1 1 auto;height:44px}
 .c-d2.d2-wall .d2-seg button{min-height:52px;font-size:19px}
-.c-d2 .d2-lay-row{display:flex;align-items:center;justify-content:space-between;margin:2px 0 10px}
-.c-d2 .d2-lay-l{font:500 16px/1 var(--f);color:var(--fg)}
-.c-d2 .d2-lay-ctl{display:flex;align-items:center;gap:10px}
-.c-d2 .d2-lay-b{width:44px;height:44px;border-radius:12px;box-shadow:inset 0 0 0 1px var(--chipb);font:500 22px/1 var(--f)}
+.c-d2 .d2-lay-row{display:flex;align-items:center;justify-content:space-between;gap:8px;margin:2px 0 10px}
+.c-d2 .d2-lay-l{min-width:0;font:500 16px/1 var(--f);color:var(--fg)}
+.c-d2 .d2-lay-ctl{display:flex;align-items:center;gap:min(10px,2.5cqw);flex:none}
+.c-d2 .d2-lay-b{width:clamp(34px,13cqw,44px);height:clamp(34px,13cqw,44px);border-radius:12px;box-shadow:inset 0 0 0 1px var(--chipb);font:500 22px/1 var(--f)}
 .c-d2 .d2-lay-b:disabled{opacity:.35;cursor:default}
-.c-d2 .d2-lay-v{display:flex;flex-direction:column;align-items:center;min-width:48px;font:400 26px/1 var(--fn);color:var(--fg)}
+.c-d2 .d2-lay-v{display:flex;flex-direction:column;align-items:center;min-width:min(48px,14cqw);font:400 26px/1 var(--fn);color:var(--fg)}
 .c-d2 .d2-lay-v small{font:500 11px/1 var(--f);letter-spacing:.06em;text-transform:uppercase;color:var(--fg2);margin-top:3px}
 .c-d2 .d2-lay-prev{border-radius:12px;background:var(--bg);box-shadow:inset 0 0 0 1px var(--rim);padding:10px 12px 12px;display:flex;flex-direction:column;align-items:center;gap:8px}
 .c-d2 .d2-lay-clock{font:300 22px/1 var(--fn);color:var(--fg2)}
