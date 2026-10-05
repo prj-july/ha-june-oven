@@ -123,14 +123,18 @@
           "default_temp_f": "Default temperature",
           "device_name": "Oven name",
           "endpoint": "Oven address",
-          "verify_ssl": "Verify TLS certificate"
+          "verify_ssl": "Verify TLS certificate",
+          "cook_history": "Keep a cook history",
+          "cook_history_pictures": "Save a picture with each cook"
         },
         "data_description": {
           "ca_cert": "Paste your Project July ca.crt so Home Assistant trusts the oven's per-install certificate. Leave empty to use the system certificate store.",
           "endpoint": "Hostname or IP address of an oven running the Project July local server, such as 192.168.1.75 or june-oven.local. Add a port if needed, or start with {http_prefix} to use the plain port-8080 listener. Leave empty to use June's cloud. Changing it reconnects to the same paired oven at its new address.",
-          "verify_ssl": "Turn off only if the oven's certificate cannot be trusted any other way. Commands stay signed, but the connection could be intercepted on your network."
+          "verify_ssl": "Turn off only if the oven's certificate cannot be trusted any other way. Commands stay signed, but the connection could be intercepted on your network.",
+          "cook_history": "Records every cook: mode or program, times, temperatures, food probe and timer, and whether it finished or was cancelled. The July Oven card shows it under History, and each cook fires a june_oven_cook_finished event. The newest 200 cooks are kept.",
+          "cook_history_pictures": "Saves the oven camera's last picture of each cook in the media folder (Media > june_oven). Pictures are deleted with their cook."
         },
-        "description": "Change the oven's address and the defaults used when the oven is turned on from Home Assistant.",
+        "description": "Change the oven's address, the defaults used when the oven is turned on from Home Assistant, and the cook history.",
         "title": "June Oven options"
       }
     }

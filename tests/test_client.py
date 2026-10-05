@@ -55,6 +55,34 @@ IDENTITY = api.JuneIdentity(
 )
 
 
+class CookRecorderTest(unittest.TestCase):
+    """Summarize cooks without an oven."""
+
+    def test_long_cooks_keep_their_whole_curve(self) -> None:
+        from datetime import UTC, datetime, timedelta
+
+        cooklog = sys.modules[f"{PACKAGE}.cooklog"]
+        recorder = cooklog.CookRecorder()
+        start = datetime(2026, 10, 5, 12, 0, tzinfo=UTC)
+        recorder.idle()
+        recorder.start(start)
+        state = api.JuneState(active=True, cook_mode="bake", target_temp_c=180.0)
+        # Six hours at one reading every 10 s.
+        for second in range(0, 6 * 3600, 10):
+            state.current_temp_c = 20 + min(second, 900) / 6
+            recorder.observe(state, start + timedelta(seconds=second))
+        record = recorder.finish(state, start + timedelta(hours=6), cancelled=False)
+        samples = record["samples"]
+        self.assertLessEqual(len(samples), cooklog.MAX_SAMPLES)
+        self.assertGreater(len(samples), cooklog.MAX_SAMPLES // 2)
+        self.assertEqual(samples[0][0], 0)
+        self.assertEqual(samples[-1][0], 6 * 3600)
+        self.assertEqual(record["duration_s"], 6 * 3600)
+        self.assertEqual(record["peak_c"], 170.0)
+        self.assertFalse(record["joined"])
+        self.assertIsNone(recorder.finish(state, start, cancelled=False))
+
+
 class ClientReplayTest(unittest.IsolatedAsyncioTestCase):
     """Feed oven frames to JuneClient in receive order."""
 
@@ -76,6 +104,8 @@ class ClientReplayTest(unittest.IsolatedAsyncioTestCase):
 
         self.client._start_pulse = record_pulse
         self.client._async_send_command = send_command
+        self.records: list[dict[str, Any]] = []
+        self.client.cook_callback = self.records.append
 
     async def asyncTearDown(self) -> None:
         await self.client.async_stop()
@@ -232,6 +262,61 @@ class ClientReplayTest(unittest.IsolatedAsyncioTestCase):
             json.dumps({"message_code": 10018, "data": {"state": "idle"}})
         )
         self.assertIsNone(self.client.state.last_cook_completed)
+
+    async def test_cook_history_records_a_cancelled_bake(self) -> None:
+        self.replay("bake-timer-temperature.jsonl", until=250)
+        self.assertEqual(self.records, [])
+        self.replay("bake-timer-temperature.jsonl")
+        [record] = self.records
+        self.assertEqual(record["outcome"], "cancelled")
+        self.assertEqual(record["name"], "bake")
+        self.assertFalse(record["program"])
+        self.assertEqual(record["plan_id"], 0)
+        self.assertEqual(record["session_id"], "b8144d30-3e0c-478e-a731-b2da799a9170")
+        # The target was lowered from 350 F to 325 F during the cook.
+        self.assertEqual(record["targets_c"], [176.7, 162.8])
+        self.assertEqual(record["target_c"], 162.8)
+        self.assertEqual(record["peak_c"], 27.4)
+        self.assertIsNone(record["probe"])
+        self.assertIsNone(record["picture"])
+        # The capture starts mid-cook, before the client saw the oven idle.
+        self.assertTrue(record["joined"])
+        self.assertTrue(record["samples"])
+        json.dumps(record)
+
+    async def test_cook_history_records_a_finished_program(self) -> None:
+        self.replay("oven-screen-proof.jsonl")
+        sensors = {"cavity": 27000, "probe": [{"id": "left", "value": 30500}]}
+        self.client._handle_message(
+            json.dumps({"message_code": 10013, "data": {"sensor_data": sensors}})
+        )
+        self.client._handle_message(
+            json.dumps({"message_code": 10018, "data": {"state": "idle"}})
+        )
+        [record] = self.records
+        self.assertEqual(record["outcome"], "done")
+        self.assertEqual(record["name"], "proof")
+        self.assertTrue(record["program"])
+        self.assertEqual(record["plan_id"], 114)
+        self.assertFalse(record["joined"])
+        self.assertEqual(
+            record["probe"], {"peak_c": 30.5, "final_c": 30.5, "target_c": None}
+        )
+        self.assertEqual(record["samples"][-1][1:], [27.0, 30.5])
+
+    async def test_cook_history_notes_preheat(self) -> None:
+        self.replay("preheat-complete.jsonl")
+        [record] = self.records
+        self.assertEqual(record["preheat_s"], 0)
+
+    async def test_cook_history_failure_does_not_break_updates(self) -> None:
+        def broken(record: dict[str, Any]) -> None:
+            raise RuntimeError("disk full")
+
+        self.client.cook_callback = broken
+        with self.assertLogs(api._LOGGER, "ERROR"):
+            self.replay("bake-timer-temperature.jsonl")
+        self.assertFalse(self.client.state.active)
 
     async def test_refused_temperature_change_restarts_a_primitive(self) -> None:
         self.replay("bake-timer-temperature.jsonl", until=250)

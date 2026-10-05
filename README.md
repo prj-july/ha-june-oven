@@ -49,6 +49,9 @@ credentials required.
 - Connectivity, preheat-ready, and cook-done binary sensors.
 - Food-probe temperature, cook-progress, cook-phase, and elapsed-time sensors.
 - Interior-camera snapshots while the oven is cooking.
+- A cook history: every cook's mode or program, times, temperatures, food
+  probe, timer, outcome and last camera picture, kept in Home Assistant and
+  shown on the card.
 - A bundled dashboard card, **July Oven**, styled after the oven's own glass
   screen. It needs no separate install.
 - Works with a Project July local server by oven hostname or IP address.
@@ -224,8 +227,8 @@ Home Assistant does not trust by default. Choose one option:
 
 ## Configuration
 
-To change the oven address, certificate settings, default cook mode, or
-default temperature:
+To change the oven address, certificate settings, default cook mode, default
+temperature, or the cook history settings:
 
 1. Open **Settings → Devices & services**.
 2. Find **June Oven**.
@@ -239,6 +242,36 @@ oven's server does not work; add that oven as a new integration instead.
 
 The defaults are used when a cook does not already have a selected target or
 mode. They do not automatically start the oven.
+
+### Cook history
+
+**Keep a cook history** (on by default) records every cook when it ends, in
+Home Assistant's storage, so it survives restarts and every browser sees the
+same list. Each record has:
+
+- the mode, or the June program or food name the oven reports (for example
+  *Proof*), and the June plan number for programs;
+- start and end time, length, how long preheating took, and whether it finished
+  or was stopped early;
+- the target temperature (every change during the cook), the hottest the oven
+  got, and a temperature curve (a reading every 30 seconds, thinned for long
+  cooks);
+- the June food probe's final and highest reading and its target, and the
+  timer, when used.
+
+**Save a picture with each cook** (on by default) saves the camera's last
+picture of the cook in the media folder, under **Media › june_oven**. The
+newest 200 cooks per oven are kept; older ones, and their pictures, are
+deleted. Turning history off stops recording but keeps the saved cooks until
+you clear them on the card.
+
+None of the captured cooks so far show June identifying the food itself, so
+the history records the program name the oven sends. If the oven does name a
+recognized food in a cook plan, it shows up there.
+
+Each finished cook also fires a `june_oven_cook_finished` event with the
+record (without the temperature curve), plus `config_entry_id`, `device_id`
+and `picture_path`. See [Automations](#automations).
 
 ## Entities and controls
 
@@ -341,8 +374,11 @@ entity: climate.kitchen_oven
 | `hide_name` | `true` | Tucks the oven's name into its icon 5 seconds after the card loads |
 | `clock` | `auto` | The idle clock: `auto` follows your language, or `12` / `24` |
 | `mode_order` | `oven` | Cook mode tiles in the oven's order, or `used`: most used first, counting the cooks started from the card on that oven in that browser |
+| `probe` | none | Another thermometer's temperature sensor to use for food temperature instead of the June probe, for example a [Combustion](https://github.com/legrego/homeassistant-combustion) probe's `Core Temperature` (per oven in `entities`: `probe:`; `food_sensor` is the same for every oven) |
+| `food_target` | none | That thermometer's target, in the card's unit. The card shows the food against it |
+| `food_auto_stop` | `false` | Turn the oven off when the food reaches `food_target`. The oven can't read the other thermometer, so a card must be open for this |
 
-`theme`, `camera_fps`, `hide_name`, `clock`, `mode_order`, `columns`, `rows`, `scale`, `icon_size` and every oven's icon can also be
+`theme`, `camera_fps`, `hide_name`, `clock`, `mode_order`, `columns`, `rows`, `scale`, `icon_size`, `food_target`, `food_auto_stop` and every oven's icon and food probe can also be
 changed from the card's own **Settings** tile. Those choices are kept in that
 browser; the YAML values are the starting point.
 
@@ -390,8 +426,10 @@ What the card does:
 - **Temperature graph (wall tablet):** while the oven heats, a graph under the
   camera shows the oven temperature and, with the probe in, the food
   temperature since the cook began (at most the last hour), with the target as
-  a dashed line. It reads Home Assistant's history, so it needs the recorder.
-  Tap it for the full history.
+  a dashed line. It stays up on the Done screen until the food is out. It
+  reads Home Assistant's history, so it needs the recorder. Tap it for the
+  full history. The food line can come from another thermometer, such as a
+  Combustion probe: pick its sensor under **Settings › Food probe**.
 - **Camera:** the camera picture on the card refreshes once a second while the
   oven is heating; the camera window uses the chosen frame rate (15 per second by
   default). A corner label shows **LIVE**,
@@ -403,6 +441,12 @@ What the card does:
   modes. A mode opens a review where you set the temperature with the slider,
   with − and +, or by tapping the number and typing it. Nothing heats until
   you press **Start preheating**, and the review closes itself after 5 minutes.
+  **History** lists the oven's past cooks, newest first, with each one's
+  picture, target, time and result. Tap a cook for its picture, its whole
+  temperature curve (with the food line from the June probe, or from the
+  thermometer chosen under **Settings › Food probe** while Home Assistant's
+  history still has it), and its details; a cook or the whole history can be
+  deleted there.
   **Settings**, the last tile, opens the card's settings: appearance, camera
   frame rate, the name, cook mode order (the oven's, or most used first), the
   clock, and an icon for every June oven in Home Assistant (one of the 12, or
@@ -453,6 +497,24 @@ automation:
         data:
           title: June oven
           message: The cook has finished.
+```
+
+### Log every cook
+
+```yaml
+automation:
+  - alias: June oven cook log
+    triggers:
+      - trigger: event
+        event_type: june_oven_cook_finished
+    actions:
+      - action: notify.mobile_app_your_phone
+        data:
+          title: June oven
+          message: >-
+            {{ trigger.event.data.name | title }}
+            {{ 'finished' if trigger.event.data.outcome == 'done' else 'was stopped' }}
+            after {{ (trigger.event.data.duration_s / 60) | round }} min.
 ```
 
 > [!CAUTION]

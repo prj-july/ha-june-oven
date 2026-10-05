@@ -56,12 +56,37 @@ const SC = {
   done: { phase: "idle", cur: 371, tgt: 400, probe: 146, completed: NOW - 2 * 60000 },
   offline: { phase: "cooking", cur: 401, tgt: 400, offline: true }
 };
+// Cook history records, as the integration's june_oven/cook_history returns them (°C).
+const f2c = (f) => Math.round(((f - 32) * 5) / 9 * 10) / 10;
+function cook(id, name, agoMin, durMin, tgtF, outcome, o = {}) {
+  const start = NOW - agoMin * 60000, dur = durMin * 60, tgt = f2c(tgtF), samples = [];
+  for (let t = 0; t <= dur; t += 30) {
+    const heat = Math.min(1, t / 480), oven = 22 + (tgt - 22) * (1 - Math.pow(1 - heat, 2)) + (heat >= 1 ? Math.sin(t / 47) * 1.6 : 0);
+    samples.push([t, Math.round(oven * 10) / 10, o.probe ? Math.round((8 + (f2c(o.probe) - 8) * Math.pow(t / dur, 0.8)) * 10) / 10 : null]);
+  }
+  const peak = Math.max(...samples.map((x) => x[1]));
+  return { id, started: iso(start), ended: iso(start + dur * 1000), duration_s: dur, outcome, name, program: !["bake", "roast", "broil", "airfry", "toast"].includes(name), plan_id: o.plan || 0,
+    session_id: "s-" + id, target_c: tgt, targets_c: o.targets ? o.targets.map(f2c) : [tgt], peak_c: peak, preheat_s: o.preheat ?? (outcome === "done" ? 470 : null), timer_s: o.timer || null,
+    probe: o.probe ? { peak_c: f2c(o.probe), final_c: f2c(o.probe), target_c: f2c(o.probeTgt || o.probe) } : null, joined: !!o.joined, samples, picture: o.pic === false ? null : `${id}.jpg` };
+}
+const COOKS = [
+  cook("c1", "roast", 95, 52, 375, "done", { probe: 146, probeTgt: 145 }),
+  cook("c2", "airfry", 60 * 26, 18, 400, "done", { timer: 1080 }),
+  cook("c3", "bake", 60 * 30, 34, 350, "done", { targets: [350, 325], timer: 1800 }),
+  cook("c4", "toast", 60 * 50, 4, 450, "cancelled", { pic: false }),
+  cook("c5", "proof", 60 * 75, 45, 80, "done", { plan: 114, preheat: null, joined: true }),
+  cook("c6", "broil", 60 * 24 * 9, 7, 500, "done", { pic: false })
+];
 function hassFor(list) {
   const h = { states: {}, entities: {}, devices: {}, areas: { kitchen: { area_id: "kitchen", name: "Kitchen" }, garage: { area_id: "garage", name: "Garage" }, studio: { area_id: "studio", name: "Studio" } },
     config: { unit_system: { temperature: "°F" } }, locale: { language: "en-US" }, language: "en",
     callService: async (d, s, data, target) => { LOG.push(`${d}.${s} ${JSON.stringify(data)} → ${JSON.stringify(target)}`); document.getElementById("log").textContent = LOG.join("\n"); },
     // Recorder history for the wall graph: a made-up preheat and hold for the oven, a steady rise for the food.
     callWS: async (msg) => {
+      if (msg.type === "june_oven/cook_history" && msg.record_id) return { record: COOKS.find((r) => r.id === msg.record_id) };
+      if (msg.type === "june_oven/cook_history") return { entry_id: "entry1", enabled: !BENCH.historyOff, pictures: true, records: COOKS.map(({ samples, ...r }) => r) };
+      if (msg.type === "june_oven/cook_history/delete") { COOKS.splice(0, COOKS.length, ...(msg.record_id ? COOKS.filter((r) => r.id !== msg.record_id) : [])); return { records: COOKS.length }; }
+      if (msg.type === "auth/sign_path") return { path: `still.svg?authSig=${encodeURIComponent(msg.path)}` };
       if (msg.type !== "history/history_during_period") return {};
       const t0 = Date.parse(msg.start_time), out = {};
       for (const eid of msg.entity_ids) {
@@ -102,7 +127,7 @@ function place(parent, caption, w, h, config, hass) {
   card.hass = hass;
   return card;
 }
-window.BENCH = { SC, oven, hassFor, place, cardH, cardW, NOW, LOG };
+window.BENCH = { SC, oven, hassFor, place, cardH, cardW, NOW, LOG, COOKS };
 </script>
 <script src="../../custom_components/june_oven/www/july-oven-card.js"></script>
 <script>

@@ -16,6 +16,8 @@ CONF_DEVICE_ID: Final = "device_id"
 CONF_DEVICE_NAME: Final = "device_name"
 CONF_ED25519_SEED_HEX: Final = "ed25519_seed_hex"
 CONF_ENDPOINT: Final = "endpoint"
+CONF_HISTORY: Final = "cook_history"
+CONF_HISTORY_PICTURES: Final = "cook_history_pictures"
 CONF_OVEN_ID: Final = "oven_id"
 CONF_PASSWORD: Final = "password"
 CONF_REFRESH_TOKEN: Final = "refresh_token"
@@ -41,7 +43,10 @@ POLL_INTERVAL_SECONDS: Final = 60
 
 # The bundled Lovelace card, served by the integration (see www/).
 CARD_URL: Final = "/june_oven/july-oven-card.js"
-CARD_VERSION: Final = "0.4.11"
+CARD_VERSION: Final = "0.5.0"
+
+# Fired with each finished cook's history record (history.py).
+EVENT_COOK_FINISHED: Final = "june_oven_cook_finished"
 
 PLATFORMS: Final[tuple[str, ...]] = (
     "binary_sensor",
