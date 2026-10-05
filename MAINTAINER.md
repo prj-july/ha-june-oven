@@ -44,3 +44,13 @@ you to self-approve a pull request.
 Review Actions permissions periodically: repository **Settings → Actions →
 General** should use read-only workflow permissions and disallow pull requests
 from workflows unless you have a specific reviewed need.
+
+## Releases
+
+HACS offers only GitHub releases, so a change reaches users once it is in a
+release. `.github/workflows/release.yml` publishes release `vX.Y.Z` (with
+generated notes) whenever a push to `main` changes the `version` in
+`custom_components/june_oven/manifest.json`. Bump that version in the pull
+request; merging it releases it. A version that already has a release is
+skipped. To release the current `main` by hand, run the **Release** workflow
+from the Actions tab. GitHub Actions must be enabled for the repository.
