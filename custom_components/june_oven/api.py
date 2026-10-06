@@ -331,7 +331,7 @@ class JuneClient:
                 future.set_result(None)
         self._pending.clear()
 
-    async def async_preheat(self, mode: str, temperature_f: float) -> None:
+    async def async_preheat(self, mode: str, temperature_f: float, plan_index: int | None = None) -> None:
         """Start a cook/preheat and require a success acknowledgement."""
         self._last_cancelled = False
         status = await self._async_send_command(
