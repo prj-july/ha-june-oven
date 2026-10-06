@@ -54,6 +54,11 @@
         "name": "Interior"
       }
     },
+    "number": {
+      "toast_level": {
+        "name": "Toast level"
+      }
+    },
     "climate": {
       "oven": {
         "state_attributes": {
