@@ -26,7 +26,7 @@ CONF_VERIFY_SSL: Final = "verify_ssl"
 DEFAULT_DEVICE_NAME: Final = "Home Assistant"
 DEFAULT_MODE: Final = "bake"
 DEFAULT_TEMP_F: Final = 350
-  Cook primitives sent as 11002 ``primitive_type``; names match the June app.
+# Cook primitives sent as 11002 ``primitive_type``; names match the June app.
 DEFAULT_MODES: Final[tuple[str, ...]] = (
     "bake",
     "roast",
@@ -38,29 +38,32 @@ DEFAULT_MODES: Final[tuple[str, ...]] = (
     "warm",
     "dehydrate",
 )
-  Modes whose cavity temperature is fixed by the oven plan; the user picks
-  only the mode (and, for toast, the level). Values are Fahrenheit.
+# Modes whose cavity temperature is fixed by the oven plan; the user picks
+# only the mode (and, for toast, the level). Values are Fahrenheit.
 FIXED_MODE_TEMPS_F: Final[dict[str, float]] = {
     "broil": 500,
     "toast": 500,
     "reheat": 350,
-    "proof": 85,
     "warm": 170,
-    "dehydrate": 135,
+}
+# Modes with a user temperature on a per-mode range: (min, max, default) in F.
+MODE_TEMP_RANGES_F: Final[dict[str, tuple[float, float, float]]] = {
+    "proof": (80, 110, 85),
+    "dehydrate": (100, 160, 135),
 }
 DEFAULT_TOAST_LEVEL: Final = 5
-  Earlier releases stored air fry as "air-fry"; the June app sends "airfry".
+# Earlier releases stored air fry as "air-fry"; the June app sends "airfry".
 LEGACY_MODES: Final[dict[str, str]] = {"air-fry": "airfry"}
 
 MIN_TEMP_F: Final = 100
 MAX_TEMP_F: Final = 500
 POLL_INTERVAL_SECONDS: Final = 60
 
-  The bundled Lovelace card, served by the integration (see www/).
+# The bundled Lovelace card, served by the integration (see www/).
 CARD_URL: Final = "/june_oven/july-oven-card.js"
 CARD_VERSION: Final = "0.5.2"
 
-  Fired with each finished cook's history record (history.py).
+# Fired with each finished cook's history record (history.py).
 EVENT_COOK_FINISHED: Final = "june_oven_cook_finished"
 
 PLATFORMS: Final[tuple[str, ...]] = (
