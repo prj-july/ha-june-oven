@@ -126,15 +126,16 @@
   const GLYPH = {
     bake: g("M10 37h28"), broil: g("M10 11h28"), roast: g("M10 11h28M10 37h28"),
     toast: g("M10 11h7M20.5 11h7M31 11h7M10 37h7M20.5 37h7M31 37h7"),
-    airfry: '<circle cx="24" cy="24" r="12.5" class="thin"/><g class="d2-fan">' + [0, 120, 240].map((a) => `<path class="fill" transform="rotate(${a} 24 24)" d="M24 24c-1.5-5.5 1-9.5 5-9.2 2.6.3 2.8 4.4-5 9.2z"/>`).join("") + "</g>",
-    // The oven's own Reheat, Keep warm and Dehydrate tiles; Proof is dough rising over the bottom element.
+    // The oven's four-blade fan.
+    airfry: '<g class="d2-fan">' + [45, 135, 225, 315].map((a) => `<path class="fill" transform="rotate(${a} 24 24)" d="M24 24c-4.9-2.9-7.6-8.4-6-13.8 1.4-4.5 8.2-5.4 11-1.2 3 4.6.8 11-5 15z"/>`).join("") + '<circle class="fill" cx="24" cy="24" r="3.2"/></g>',
+    // The oven's own Reheat, Keep warm, Dehydrate and Proof (a ball of dough) tiles.
     reheat: g([14, 24, 34].map((x) => `M${x} 11.5c2.6 2.8 2.6 5.7 0 8.5s-2.6 5.7 0 8.5 2.6 5.7 0 8.5`).join("")),
-    proof: '<path class="solid" d="M14 30v-2.5c0-5.8 4.5-10 10-10s10 4.2 10 10v2.5z"/>' + g("M10 37h28"),
+    proof: '<circle class="fill" cx="24" cy="24" r="12"/>',
     warm: [14, 24, 34].map((x) => `<circle class="fill" cx="${x}" cy="24" r="4"/>`).join(""),
     dehydrate: '<circle class="fill" cx="24" cy="24" r="7.5"/>' + [0, 45, 90, 135, 180, 225, 270, 315].map((a) => `<path class="thin" transform="rotate(${a} 24 24)" d="M24 8.5v3.5"/>`).join(""),
-    // Grill: the top element over a grate. Pizza: a slice. (Drawn for the card; the oven's own art is still to come.)
-    grill: g("M10 11h28") + '<rect class="thin" x="11" y="22" width="26" height="16" rx="3"/><path class="thin" d="M17.5 22v16M24 22v16M30.5 22v16"/>',
-    pizzaiolo: '<path class="thin" d="M10.5 15.5Q24 7 37.5 15.5L24 40Z"/><path class="thin" d="M13.5 20.5Q24 14 34.5 20.5"/><circle class="fill" cx="20.5" cy="25.5" r="2.4"/><circle class="fill" cx="27.5" cy="27" r="2.4"/><circle class="fill" cx="24" cy="33" r="2"/>',
+    // Grill: the oven's diagonal grill marks. Pizza: the oven's pizza peel.
+    grill: g("M11 19l8-8M11 29l18-18M11 38.5L38.5 11M20 38.5l18.5-18.5M30 38.5l8.5-8.5"),
+    pizzaiolo: '<path class="solid" d="M18 10h12c4.4 0 8 3.6 8 8v2.5c0 4.4-3.6 8-8 8h-4v9.5h-4v-9.5h-4c-4.4 0-8-3.6-8-8V18c0-4.4 3.6-8 8-8z"/>',
     camera: '<path class="thin" d="M9 16.5h6.5l3-4h11l3 4H39a2.5 2.5 0 0 1 2.5 2.5v15a2.5 2.5 0 0 1-2.5 2.5H9A2.5 2.5 0 0 1 6.5 34V19A2.5 2.5 0 0 1 9 16.5z"/><circle class="thin" cx="24" cy="26.5" r="6.5"/>',
     history: '<path class="thin" d="M12.2 17.5A13 13 0 1 1 11 26"/><path class="thin" d="M11.5 11v6.8h6.8"/><path d="M24 17v7.5l5 3"/>',
     settings: '<circle cx="24" cy="24" r="9" class="thin"/><circle cx="24" cy="24" r="3.5" class="thin"/>' + [0, 45, 90, 135, 180, 225, 270, 315].map((a) => `<path transform="rotate(${a} 24 24)" d="M24 11.5v3.5"/>`).join("")
@@ -1282,7 +1283,7 @@
     }
 
     // ---- the Air fry fan: spins up on hover, then coasts to rest where it started ----
-    // It stops on a whole third of a turn: the three blades look the same at 0°, 120° and 240°, so the
+    // It stops on a whole quarter turn: the four blades look the same at 0°, 90°, 180° and 270°, so the
     // resting fan is drawn exactly as before. State is kept per oven, so a re-render mid-spin carries on.
     _fanHover(e, on) {
       if (e.type !== "pointerover" && e.type !== "pointerout") return;
@@ -1307,8 +1308,8 @@
           f.a = (f.a + f.v * dt) % 360;
         } else {
           if (!f.stop) {
-            // Ease out from the current speed (cubic: starting speed 3D/T) onto the next third of a turn.
-            const target = Math.ceil((f.a + f.v * COAST) / 120 - 1e-6) * 120, D = target - f.a;
+            // Ease out from the current speed (cubic: starting speed 3D/T) onto the next quarter turn.
+            const target = Math.ceil((f.a + f.v * COAST) / 90 - 1e-6) * 90, D = target - f.a;
             f.stop = { a0: f.a, D, T: D < 0.01 ? 0 : Math.min(2, Math.max(0.3, (3 * D) / Math.max(f.v, 1))), s: 0 };
           }
           const st = f.stop;
