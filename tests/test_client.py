@@ -325,6 +325,19 @@ class ClientReplayTest(unittest.IsolatedAsyncioTestCase):
             self.sent[2][1], {"primitive_type": "bake", "temperature_cavity": 162778}
         )
 
+    async def test_preheat_sends_the_plan_index(self) -> None:
+        self.replay("bake-timer-temperature.jsonl", until=250)
+        self.statuses = ["success", "success"]
+        await self.client.async_preheat("toast", 500, 6)
+        await self.client.async_preheat("bake", 325)
+        self.assertEqual(
+            self.sent[0][1],
+            {"primitive_type": "toast", "temperature_cavity": 260000, "plan_index": 6},
+        )
+        self.assertEqual(
+            self.sent[1][1], {"primitive_type": "bake", "temperature_cavity": 162778}
+        )
+
     async def test_unacknowledged_temperature_change_does_not_restart(self) -> None:
         self.replay("bake-timer-temperature.jsonl", until=250)
         self.statuses = [None]

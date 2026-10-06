@@ -503,10 +503,10 @@
     let ctl, under;
     if (r.mode === "toast") {
       ctl = `<div class="d2-sh-temp">${step("toast-dec", "Lower the toast level", r.level <= 1, I.minus)}
-          <span class="d2-sh-v"><b class="d2-sh-big d2-sh-lv">${r.level}</b><span>level</span></span>
+          <span class="d2-sh-v" aria-label="Toast level"><b class="d2-sh-big d2-sh-lv">${r.level}</b></span>
           ${step("toast-inc", "Raise the toast level", r.level >= 9, I.plus)}</div>`;
       under = `<div class="d2-sh-slide"><input class="d2-range d2-level-range" type="range" min="1" max="9" step="1" value="${r.level}" style="--p:${((r.level - 1) / 8).toFixed(4)}" aria-label="Toast level, 1 to 9">
-        <div class="d2-sh-ends d2-sh-ends3" aria-hidden="true"><span>1 · Light</span><span>Cooks at ${at}</span><span>9 · Dark</span></div></div>`;
+        <div class="d2-sh-ends" aria-hidden="true"><span>1 · Light</span><span>9 · Dark</span></div></div>`;
     } else if (r.mode === "reheat") {
       const t = r.timer || 60;
       ctl = `<div class="d2-sh-temp">${step("tm-dec", "Shorten the timer", t <= 1, I.minus)}

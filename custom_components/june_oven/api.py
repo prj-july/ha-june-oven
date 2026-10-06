@@ -334,13 +334,14 @@ class JuneClient:
     async def async_preheat(self, mode: str, temperature_f: float, plan_index: int | None = None) -> None:
         """Start a cook/preheat and require a success acknowledgement."""
         self._last_cancelled = False
-        status = await self._async_send_command(
-            MC_PREHEAT,
-            {
-                "primitive_type": mode,
-                "temperature_cavity": fahrenheit_to_millic(temperature_f),
-            },
-        )
+        payload: dict[str, Any] = {
+            "primitive_type": mode,
+            "temperature_cavity": fahrenheit_to_millic(temperature_f),
+        }
+        if plan_index is not None:
+            # Toast level - 1, or grill heat; without it the oven runs its default plan.
+            payload["plan_index"] = plan_index
+        status = await self._async_send_command(MC_PREHEAT, payload)
         self._require_success(status, "start cook")
         self.state.cook_mode = mode
         self.state.target_temp_c = fahrenheit_to_celsius(temperature_f)
