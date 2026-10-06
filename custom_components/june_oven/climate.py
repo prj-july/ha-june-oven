@@ -26,6 +26,7 @@ from .const import (
     CONF_DEFAULT_TEMP_F,
     DEFAULT_MODES,
     DEFAULT_TEMP_F,
+    FIXED_MODE_TEMPS_F,
     MAX_TEMP_F,
     MIN_TEMP_F,
     normalize_mode,
@@ -131,8 +132,10 @@ class JuneOvenClimate(JuneEntity, ClimateEntity):
         mode = self.preset_mode
         if mode not in DEFAULT_MODES:
             mode = self._default_mode
+        temperature = FIXED_MODE_TEMPS_F.get(mode, self.target_temperature)
+        plan_index = self.coordinator.toast_level - 1 if mode == "toast" else None
         await self._run(
-            self.coordinator.client.async_preheat(mode, self.target_temperature)
+            self.coordinator.client.async_preheat(mode, temperature, plan_index)
         )
 
     async def async_turn_off(self) -> None:
@@ -144,11 +147,17 @@ class JuneOvenClimate(JuneEntity, ClimateEntity):
         temperature = kwargs.get(ATTR_TEMPERATURE)
         if temperature is None:
             return
-        value = float(temperature)
-        if value < MIN_TEMP_F or value > MAX_TEMP_F:
-            raise HomeAssistantError(
-                f"Temperature must be between {MIN_TEMP_F} and {MAX_TEMP_F} °F"
-            )
+        fixed = FIXED_MODE_TEMPS_F.get(self.preset_mode)
+        if fixed is not None:
+            # Fixed-temperature modes ignore the cavity temperature; keep the
+            # entity on the plan value instead of a user override.
+            value = fixed
+        else:
+            value = float(temperature)
+            if value < MIN_TEMP_F or value > MAX_TEMP_F:
+                raise HomeAssistantError(
+                    f"Temperature must be between {MIN_TEMP_F} and {MAX_TEMP_F} °F"
+                )
         await self._run(
             self.coordinator.client.async_set_target_f(value, self.preset_mode)
         )
@@ -159,9 +168,8 @@ class JuneOvenClimate(JuneEntity, ClimateEntity):
             return
         if preset_mode not in DEFAULT_MODES:
             raise HomeAssistantError(f"Unsupported June cook mode: {preset_mode}")
-        await self._run(
-            self.coordinator.client.async_set_mode(preset_mode, self.target_temperature)
-        )
+        temperature = FIXED_MODE_TEMPS_F.get(preset_mode, self.target_temperature)
+        await self._run(self.coordinator.client.async_set_mode(preset_mode, temperature))
 
     async def async_add_cook_time(self, minutes: float) -> None:
         """Extend the running timer (the card's +1 / +5 / +10)."""

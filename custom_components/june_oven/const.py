@@ -33,7 +33,22 @@ DEFAULT_MODES: Final[tuple[str, ...]] = (
     "broil",
     "airfry",
     "toast",
+    "reheat",
+    "proof",
+    "warm",
+    "dehydrate",
 )
+# Modes whose cavity temperature is fixed by the oven plan; the user picks
+# only the mode (and, for toast, the level). Values are Fahrenheit.
+FIXED_MODE_TEMPS_F: Final[dict[str, float]] = {
+    "broil": 500,
+    "toast": 500,
+    "reheat": 350,
+    "proof": 85,
+    "warm": 170,
+    "dehydrate": 135,
+}
+DEFAULT_TOAST_LEVEL: Final = 5
 # Earlier releases stored air fry as "air-fry"; the June app sends "airfry".
 LEGACY_MODES: Final[dict[str, str]] = {"air-fry": "airfry"}
 
@@ -43,7 +58,7 @@ POLL_INTERVAL_SECONDS: Final = 60
 
 # The bundled Lovelace card, served by the integration (see www/).
 CARD_URL: Final = "/june_oven/july-oven-card.js"
-CARD_VERSION: Final = "0.5.0"
+CARD_VERSION: Final = "0.5.1"
 
 # Fired with each finished cook's history record (history.py).
 EVENT_COOK_FINISHED: Final = "june_oven_cook_finished"
@@ -52,6 +67,7 @@ PLATFORMS: Final[tuple[str, ...]] = (
     "binary_sensor",
     "camera",
     "climate",
+    "number",
     "sensor",
 )
 
