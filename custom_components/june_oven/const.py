@@ -37,6 +37,8 @@ DEFAULT_MODES: Final[tuple[str, ...]] = (
     "proof",
     "warm",
     "dehydrate",
+    "grill",
+    "pizzaiolo",
 )
 # Modes whose cavity temperature is fixed by the oven plan; the user picks
 # only the mode (and, for toast, the level). Values are Fahrenheit.
@@ -45,7 +47,11 @@ FIXED_MODE_TEMPS_F: Final[dict[str, float]] = {
     "toast": 500,
     "reheat": 350,
     "warm": 170,
+    "pizzaiolo": 500,
 }
+# Grill heat levels: plan_index 0/1/2 -> high/medium/low, cavity temp in F.
+GRILL_HEAT_F: Final[dict[int, float]] = {0: 450, 1: 400, 2: 275}
+DEFAULT_GRILL_HEAT: Final = 0
 # Modes with a user temperature on a per-mode range: (min, max, default) in F.
 MODE_TEMP_RANGES_F: Final[dict[str, tuple[float, float, float]]] = {
     "proof": (80, 110, 85),
@@ -61,7 +67,7 @@ POLL_INTERVAL_SECONDS: Final = 60
 
 # The bundled Lovelace card, served by the integration (see www/).
 CARD_URL: Final = "/june_oven/july-oven-card.js"
-CARD_VERSION: Final = "0.5.5"
+CARD_VERSION: Final = "0.5.6"
 
 # Fired with each finished cook's history record (history.py).
 EVENT_COOK_FINISHED: Final = "june_oven_cook_finished"

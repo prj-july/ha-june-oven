@@ -57,6 +57,9 @@
     "number": {
       "toast_level": {
         "name": "Toast level"
+      },
+      "grill_heat": {
+        "name": "Grill heat"
       }
     },
     "climate": {

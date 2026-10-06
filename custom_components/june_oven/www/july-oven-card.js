@@ -50,7 +50,7 @@
   if (customElements.get(TAG)) return;
 
   // Cook primitives the integration can start (const.DEFAULT_MODES), in the oven's order.
-  const STARTABLE = [["bake", "Bake"], ["roast", "Roast"], ["broil", "Broil"], ["airfry", "Air fry"], ["toast", "Toast"], ["reheat", "Reheat"], ["proof", "Proof"], ["warm", "Keep warm"], ["dehydrate", "Dehydrate"]];
+  const STARTABLE = [["bake", "Bake"], ["roast", "Roast"], ["broil", "Broil"], ["airfry", "Air fry"], ["toast", "Toast"], ["grill", "Grill"], ["pizzaiolo", "Pizza"], ["reheat", "Reheat"], ["proof", "Proof"], ["warm", "Keep warm"], ["dehydrate", "Dehydrate"]];
   const TILES = [...STARTABLE, ["camera", "Camera"], ["history", "History"], ["settings", "Settings"]];
   const UTIL = ["camera", "history", "settings"];
   const ORDERS = [["oven", "Oven's order"], ["used", "Most used first"]];
@@ -71,7 +71,10 @@
   };
   // Modes whose cavity temperature is fixed by the oven plan (const.py
   // FIXED_MODE_TEMPS_F); the review shows the value instead of a slider.
-  const FIXED_TEMPS = { broil: 500, toast: 500, reheat: 350, warm: 170 };
+  const FIXED_TEMPS = { broil: 500, toast: 500, reheat: 350, warm: 170, pizzaiolo: 500 };
+  const FIXED_LABEL = { reheat: "Timed" };
+  const GRILL_TEMP = { 0: 450, 1: 400, 2: 275 };
+  const GRILL_LABEL = { 0: "High", 1: "Medium", 2: "Low" };
   // Modes with a user temperature on a per-mode range (°F).
   const MODE_TEMP = { proof: { min: 80, max: 110, def: 85 }, dehydrate: { min: 100, max: 160, def: 135 } };
   const DONE_WINDOW_MS = 30 * 60 * 1000;
@@ -87,7 +90,7 @@
   const KEYS = {
     phase: ["sensor", "cook_phase"], progress: ["sensor", "progress"], remaining: ["sensor", "time_remaining"],
     elapsed: ["sensor", "cook_elapsed"], probe: ["sensor", "probe_temperature"], probeTarget: ["sensor", "probe_target"],
-    completed: ["sensor", "last_cook_completed"], connected: ["binary_sensor", "connected"], camera: ["camera", "interior"], toastLevel: ["number", "toast_level"]
+    completed: ["sensor", "last_cook_completed"], connected: ["binary_sensor", "connected"], camera: ["camera", "interior"], toastLevel: ["number", "toast_level"], grillHeat: ["number", "grill_heat"]
   };
   // Plain words for the oven's refusals (10020 ack statuses carried in the service error).
   const REFUSALS = [
@@ -129,9 +132,12 @@
     proof: '<path class="solid" d="M14 30v-2.5c0-5.8 4.5-10 10-10s10 4.2 10 10v2.5z"/>' + g("M10 37h28"),
     warm: [14, 24, 34].map((x) => `<circle class="fill" cx="${x}" cy="24" r="4"/>`).join(""),
     dehydrate: '<circle class="fill" cx="24" cy="24" r="7.5"/>' + [0, 45, 90, 135, 180, 225, 270, 315].map((a) => `<path class="thin" transform="rotate(${a} 24 24)" d="M24 8.5v3.5"/>`).join(""),
+    grill: '<path class="thin" d="M14 10l20 28M20 10l20 28M26 10l20 28"/>',
+    pizzaiolo: '<path class="thin" d="M12 14l24 20M12 14v20M36 14v20"/>',
     camera: '<path class="thin" d="M9 16.5h6.5l3-4h11l3 4H39a2.5 2.5 0 0 1 2.5 2.5v15a2.5 2.5 0 0 1-2.5 2.5H9A2.5 2.5 0 0 1 6.5 34V19A2.5 2.5 0 0 1 9 16.5z"/><circle class="thin" cx="24" cy="26.5" r="6.5"/>',
     history: '<path class="thin" d="M12.2 17.5A13 13 0 1 1 11 26"/><path class="thin" d="M11.5 11v6.8h6.8"/><path d="M24 17v7.5l5 3"/>',
     settings: '<circle cx="24" cy="24" r="9" class="thin"/><circle cx="24" cy="24" r="3.5" class="thin"/>' + [0, 45, 90, 135, 180, 225, 270, 315].map((a) => `<path transform="rotate(${a} 24 24)" d="M24 11.5v3.5"/>`).join("")
+
   };
   const glyph = (k) => `<svg class="d2-glyph" viewBox="0 0 48 48" aria-hidden="true" focusable="false">${GLYPH[k] || ""}</svg>`;
 
@@ -491,12 +497,13 @@
       <div class="d2-sh-head"><div><div class="d2-sh-t">${esc(MODE_LABEL[r.mode])} · ${esc(name)}</div><div class="d2-sh-s">Step 2 of 2 · Review</div></div>
         <button class="d2-icbtn" data-act="sheet-close" aria-label="Cancel">${I.close}</button></div>
       <div class="d2-sh-row"><span class="d2-face d2-sh-face">${glyph(r.mode)}</span>
-        ${r.fixed ? `<div class="d2-sh-fixed">Cooks at ${r.temp}${esc(unit)}</div>` : `<div class="d2-sh-temp"><button class="d2-round" data-act="rv-dec" aria-label="Lower the temperature"${r.temp <= r.min ? " disabled" : ""}>${I.minus}</button>
+        ${r.fixed ? `<div class="d2-sh-fixed">${FIXED_LABEL[r.mode] || `Cooks at ${r.temp}${esc(unit)}`}</div>` : `<div class="d2-sh-temp"><button class="d2-round" data-act="rv-dec" aria-label="Lower the temperature"${r.temp <= r.min ? " disabled" : ""}>${I.minus}</button>
           <label class="d2-sh-v"><input class="d2-sh-in" type="text" inputmode="numeric" maxlength="3" autocomplete="off" value="${r.temp}" aria-label="Temperature in ${esc(unit)}: type a number from ${r.min} to ${r.max}"><span>${esc(unit)}</span></label>
           <button class="d2-round" data-act="rv-inc" aria-label="Raise the temperature"${r.temp >= r.max ? " disabled" : ""}>${I.plus}</button></div>`}</div>
       ${r.fixed ? "" : `<div class="d2-sh-slide"><input class="d2-range" type="range" min="${r.min}" max="${r.max}" step="${r.step}" value="${r.temp}" style="--p:${fill(r)}" aria-label="Temperature in ${esc(unit)}">
         <div class="d2-sh-ends" aria-hidden="true"><span>${r.min}°</span><span>${r.max}°</span></div></div>`}
       ${r.mode === "toast" ? `<div class="d2-sh-toast"><span class="d2-sh-l">Level</span><button class="d2-round" data-act="toast-dec" aria-label="Lower the toast level"${r.level <= 1 ? " disabled" : ""}>${I.minus}</button><b class="d2-sh-lv">${r.level}</b><button class="d2-round" data-act="toast-inc" aria-label="Raise the toast level"${r.level >= 9 ? " disabled" : ""}>${I.plus}</button></div>` : ""}
+      ${r.mode === "grill" ? `<div class="d2-sh-toast"><span class="d2-sh-l">Heat</span>${[0, 1, 2].map((v) => `<button class="d2-round d2-grill" data-act="grill-heat" data-v="${v}" aria-pressed="${r.grill === v}" aria-label="${GRILL_LABEL[v]} grill heat">${GRILL_LABEL[v]}</button>`).join("")}</div>` : ""}
       <div class="d2-sh-note">Make sure the oven is empty and the door is closed. Nothing heats until you press Start. This closes in <b class="d2-sh-left">${duration(left / 1000)}</b>.</div>
       <div class="d2-sh-acts"><button class="d2-ghost" data-act="sheet-close">Not now</button>
         <button class="d2-go" data-act="rv-start"${r.busy ? " disabled" : ""}>${r.busy ? "Starting…" : multi ? `Start preheating ${esc(name)}` : "Start preheating"}</button></div>
@@ -1655,6 +1662,7 @@
       if (act === "tile") return this._openReview(oven, el.dataset.mode, byKey);
       if (act === "rv-dec" || act === "rv-inc") return this._setTemp(this._sheet && this._sheet.temp + (act === "rv-inc" ? 1 : -1) * this._sheet.step);
       if (act === "toast-dec" || act === "toast-inc") return this._toastLevel(act === "toast-inc" ? 1 : -1);
+      if (act === "grill-heat") return this._grillHeat(+el.dataset.v);
       if (act === "rv-start") return this._start();
     }
 
@@ -1799,6 +1807,12 @@
         const lv = ids.toastLevel && this._hass.states[ids.toastLevel];
         if (lv && Number.isFinite(+lv.state)) r.level = Math.min(9, Math.max(1, +lv.state));
       }
+      if (mode === "grill") {
+        const ids = ovenEntities(this._hass, oven);
+        const gh = ids.grillHeat && this._hass.states[ids.grillHeat];
+        r.grill = gh && Number.isFinite(+gh.state) ? Math.min(2, Math.max(0, +gh.state)) : 0;
+        r.temp = GRILL_TEMP[r.grill];
+      }
       this._openSheet(r);
       this._setTemp(r.temp);
       const tick = () => {
@@ -1828,6 +1842,17 @@
       const v = parseInt(input.value, 10);
       if (Number.isFinite(v)) this._setTemp(v);
       input.value = this._sheet ? this._sheet.temp : input.value;
+    }
+
+    async _grillHeat(v) {
+      const r = this._sheet;
+      if (!r || r.kind !== "review" || r.mode !== "grill") return;
+      const ids = ovenEntities(this._hass, r.oven);
+      if (!ids.grillHeat) return;
+      r.grill = Math.min(2, Math.max(0, v));
+      r.temp = GRILL_TEMP[r.grill];
+      this._renderOver();
+      await this._call("number", "set_value", { value: r.grill }, ids.grillHeat);
     }
 
     async _toastLevel(d) {
