@@ -44,7 +44,7 @@
  */
 (() => {
   "use strict";
-  const VERSION = "0.5.0";
+  const VERSION = "0.5.1";
   const DOMAIN = "june_oven";
   const TAG = "july-oven-card";
   if (customElements.get(TAG)) return;
@@ -72,6 +72,9 @@
   const DONE_WINDOW_MS = 30 * 60 * 1000;
   const REVIEW_MS = 5 * 60 * 1000;
   const TUCK_MS = 5000;
+  // Left alone this long on a later page of cook modes, the home screen glides back to the first page.
+  const PAGE_HOME_MS = 30000;
+  const PAGE_HOME_GLIDE_MS = 700;
   const FPS_OPTIONS = [1, 5, 10, 15];
   const THEMES = [["auto", "Match Home Assistant"], ["light", "Light"], ["dark", "Dark"]];
   const CLOCKS = [["auto", "Automatic"], ["12", "12-hour"], ["24", "24-hour"]];
@@ -800,6 +803,14 @@
       this.shadowRoot.addEventListener("click", this._onClick = (e) => this._handleClick(e));
       this.shadowRoot.addEventListener("input", this._onInput = (e) => this._handleInput(e));
       this.shadowRoot.addEventListener("change", this._onChange = (e) => this._handleChange(e));
+      // Only the pager, sheets and lists scroll. When a short card's contents are taller than the card,
+      // focus (a tap, Tab) could scroll a clipped box such as the card itself, and nothing could scroll
+      // it back: put any clipped box back the moment it moves. Scroll events don't bubble, so capture.
+      this.shadowRoot.addEventListener("scroll", this._onScroll = (e) => this._unscroll(e.target), true);
+      // Any touch, key, wheel or focus counts as use; idle time brings the mode pages back to the first.
+      this._onActive = () => this._armPageHome();
+      for (const t of ["pointerdown", "keydown", "wheel", "focusin"]) this.shadowRoot.addEventListener(t, this._onActive, { capture: true, passive: true });
+      this._armPageHome();
       // On the window, so Escape closes a sheet even when nothing in the card has focus.
       window.addEventListener("keydown", this._onKey = (e) => this._handleKey(e));
       window.addEventListener("resize", this._onResize = () => this._measure());
@@ -826,6 +837,10 @@
       if (this._onClick) this.shadowRoot.removeEventListener("click", this._onClick);
       if (this._onInput) this.shadowRoot.removeEventListener("input", this._onInput);
       if (this._onChange) this.shadowRoot.removeEventListener("change", this._onChange);
+      if (this._onScroll) this.shadowRoot.removeEventListener("scroll", this._onScroll, true);
+      if (this._onActive) for (const t of ["pointerdown", "keydown", "wheel", "focusin"]) this.shadowRoot.removeEventListener(t, this._onActive, { capture: true });
+      clearTimeout(this._homeTimer);
+      if (this._homeAnim) cancelAnimationFrame(this._homeAnim);
       if (this._onKey) window.removeEventListener("keydown", this._onKey);
       if (this._onResize) window.removeEventListener("resize", this._onResize);
       if (this._onOver) { this.shadowRoot.removeEventListener("pointerover", this._onOver); this.shadowRoot.removeEventListener("focusin", this._onOver); }
@@ -864,6 +879,56 @@
         this._html = "";
         this._render();
       }
+    }
+
+    // ---- back to the first page of cook modes after a while ----
+    _armPageHome() {
+      clearTimeout(this._homeTimer);
+      // A touch during the glide stops it where it is; the pager then snaps as usual.
+      if (this._homeAnim) {
+        cancelAnimationFrame(this._homeAnim);
+        this._homeAnim = 0;
+        const p = this.shadowRoot.querySelector(".d2-pager");
+        if (p) p.style.scrollSnapType = "";
+      }
+      this._homeTimer = setTimeout(() => this._pageHome(), PAGE_HOME_MS);
+    }
+
+    _pageHome() {
+      if (!this._page) return;
+      if (this._sheet) return this._armPageHome();
+      const pager = this.shadowRoot.querySelector(".d2-pager");
+      // Cooking, or another layout: the home screen opens on the first page next time.
+      if (!pager || !pager.scrollLeft) { this._page = 0; if (pager) this._markPage(0); return; }
+      const from = pager.scrollLeft, t0 = performance.now();
+      const still = window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+      const step = (t) => {
+        // Re-renders replace the pager, so look it up each frame.
+        const p = this.shadowRoot.querySelector(".d2-pager");
+        if (!p) { this._homeAnim = 0; this._page = 0; return; }
+        const k = still ? 1 : Math.min(1, (t - t0) / PAGE_HOME_GLIDE_MS);
+        const e = k < 0.5 ? 4 * k * k * k : 1 - Math.pow(-2 * k + 2, 3) / 2;
+        p.style.scrollSnapType = "none";
+        p.scrollLeft = from * (1 - e);
+        if (k < 1) { this._homeAnim = requestAnimationFrame(step); return; }
+        p.style.scrollSnapType = "";
+        this._homeAnim = 0;
+        this._page = 0;
+        this._markPage(0);
+      };
+      this._homeAnim = requestAnimationFrame(step);
+    }
+
+    _markPage(i) {
+      this.shadowRoot.querySelectorAll(".d2-dot").forEach((d, j) => (j === i ? d.setAttribute("aria-current", "true") : d.removeAttribute("aria-current")));
+    }
+
+    _unscroll(el) {
+      if (!el || el.nodeType !== 1 || (!el.scrollTop && !el.scrollLeft)) return;
+      const cs = getComputedStyle(el);
+      const fixed = (v) => v === "hidden" || v === "clip";
+      if (fixed(cs.overflowY) && el.scrollTop) el.scrollTop = 0;
+      if (fixed(cs.overflowX) && el.scrollLeft) el.scrollLeft = 0;
     }
 
     // Other ovens' Stop buttons match the top Stop, whose width follows the main camera.
@@ -1680,7 +1745,7 @@
     }
   }
 
-  const CSS = `.c-d2{--f:'Barlow Semi Condensed','Barlow',system-ui,sans-serif;--fn:'Barlow Condensed','Barlow',system-ui,sans-serif;position:relative;width:100%;height:100%;box-sizing:border-box;overflow:hidden;font-family:var(--f);color:var(--fg);border-radius:var(--ha-card-border-radius,12px);
+  const CSS = `.c-d2{--f:'Barlow Semi Condensed','Barlow',system-ui,sans-serif;--fn:'Barlow Condensed','Barlow',system-ui,sans-serif;position:relative;width:100%;height:100%;box-sizing:border-box;overflow:hidden;overflow:clip;font-family:var(--f);color:var(--fg);border-radius:var(--ha-card-border-radius,12px);
   background:linear-gradient(112deg,transparent 0 63%,var(--sheen) 63.4%,transparent 84%),linear-gradient(180deg,var(--bg) 0%,var(--bg2) 100%);box-shadow:inset 0 0 0 1px var(--rim);-webkit-font-smoothing:antialiased}
 .c-d2 *{box-sizing:border-box}
 .c-d2 button{font:inherit;color:inherit;background:none;border:0;padding:0;margin:0;cursor:pointer;-webkit-tap-highlight-color:transparent}
@@ -1935,7 +2000,7 @@
 @media (prefers-reduced-motion:reduce){.jo-skel,.jo-skel i,.jo-skel b{animation:none}}
 @container (max-width:400px){.c-d2.d2-standard .d2-idle .d2-name{font-size:19px;line-height:24px}}
 @container (max-width:340px){.c-d2.d2-standard .d2-idle .d2-name{font-size:18px;line-height:24px}}
-ha-card{height:100%;overflow:hidden;background:none;border:none;box-shadow:none;border-radius:var(--ha-card-border-radius,12px);padding:0}
+ha-card{height:100%;overflow:hidden;overflow:clip;background:none;border:none;box-shadow:none;border-radius:var(--ha-card-border-radius,12px);padding:0}
 .c-d2 .d2-win img{display:block;width:100%;height:100%;object-fit:contain}
 .c-d2 [data-act="more"]{cursor:pointer}
 .c-d2 .d2-other[data-act]{cursor:pointer}
