@@ -44,7 +44,7 @@
  */
 (() => {
   "use strict";
-  const VERSION = "0.5.5";
+  const VERSION = "0.5.10";
   const DOMAIN = "june_oven";
   const TAG = "july-oven-card";
   if (customElements.get(TAG)) return;
@@ -132,8 +132,9 @@
     proof: '<path class="solid" d="M14 30v-2.5c0-5.8 4.5-10 10-10s10 4.2 10 10v2.5z"/>' + g("M10 37h28"),
     warm: [14, 24, 34].map((x) => `<circle class="fill" cx="${x}" cy="24" r="4"/>`).join(""),
     dehydrate: '<circle class="fill" cx="24" cy="24" r="7.5"/>' + [0, 45, 90, 135, 180, 225, 270, 315].map((a) => `<path class="thin" transform="rotate(${a} 24 24)" d="M24 8.5v3.5"/>`).join(""),
-    grill: '<path class="thin" d="M14 10l20 28M20 10l20 28M26 10l20 28"/>',
-    pizzaiolo: '<path class="thin" d="M12 14l24 20M12 14v20M36 14v20"/>',
+    // Grill: the oven's diagonal grill marks. Pizza: a slice (the lead preferred it to the oven's peel).
+    grill: g("M11 19l8-8M11 29l18-18M11 38.5L38.5 11M20 38.5l18.5-18.5M30 38.5l8.5-8.5"),
+    pizzaiolo: '<path class="thin" d="M10.5 15.5Q24 7 37.5 15.5L24 40Z"/><path class="thin" d="M13.5 20.5Q24 14 34.5 20.5"/><circle class="fill" cx="20.5" cy="25.5" r="2.4"/><circle class="fill" cx="27.5" cy="27" r="2.4"/><circle class="fill" cx="24" cy="33" r="2"/>',
     camera: '<path class="thin" d="M9 16.5h6.5l3-4h11l3 4H39a2.5 2.5 0 0 1 2.5 2.5v15a2.5 2.5 0 0 1-2.5 2.5H9A2.5 2.5 0 0 1 6.5 34V19A2.5 2.5 0 0 1 9 16.5z"/><circle class="thin" cx="24" cy="26.5" r="6.5"/>',
     history: '<path class="thin" d="M12.2 17.5A13 13 0 1 1 11 26"/><path class="thin" d="M11.5 11v6.8h6.8"/><path d="M24 17v7.5l5 3"/>',
     settings: '<circle cx="24" cy="24" r="9" class="thin"/><circle cx="24" cy="24" r="3.5" class="thin"/>' + [0, 45, 90, 135, 180, 225, 270, 315].map((a) => `<path transform="rotate(${a} 24 24)" d="M24 11.5v3.5"/>`).join("")
@@ -172,7 +173,7 @@
   const clamp01 = (v) => Math.max(0, Math.min(1, v));
   const deg = (h) => String(h).replace(/°/g, '<span class="d2-deg">°</span>');
   const titleCase = (s) => (s ? s.replace(/_/g, " ").replace(/^./, (c) => c.toUpperCase()) : "");
-  const fmtTimer = (m) => (m >= 60 ? `${Math.floor(m / 60)}h${m % 60 ? ` ${m % 60}m` : ""}` : `${m}m`);
+  const fmtTimer = (m) => (m >= 60 ? `${Math.floor(m / 60)} h${m % 60 ? ` ${m % 60} min` : ""}` : `${m} min`);
   function duration(sec) {
     const s = Math.max(0, Math.round(sec)), h = Math.floor(s / 3600), m = Math.floor((s % 3600) / 60), r = s % 60;
     return h ? `${h}:${String(m).padStart(2, "0")}:${String(r).padStart(2, "0")}` : `${m}:${String(r).padStart(2, "0")}`;
@@ -492,22 +493,45 @@
   const snap = (r, v) => Math.max(r.min, Math.min(r.max, Math.round(v / r.step) * r.step));
   const fill = (r) => ((r.temp - r.min) / Math.max(1, r.max - r.min)).toFixed(4);
 
+  // Every review has the same shape: the mode's tile beside one large control (temperature, toast
+  // level, timer, grill heat, or the temperature the oven sets), a slider or a line under it, then the
+  // note and the buttons.
   function review(r, name, unit, now, multi) {
     const left = Math.max(0, r.until - now);
+    const step = (act, what, dis, ic) => `<button class="d2-round" data-act="${act}" aria-label="${what}"${dis ? " disabled" : ""}>${ic}</button>`;
+    const at = `${r.temp} ${unit}`;
+    let ctl, under;
+    if (r.mode === "toast") {
+      ctl = `<div class="d2-sh-temp">${step("toast-dec", "Lower the toast level", r.level <= 1, I.minus)}
+          <span class="d2-sh-v"><b class="d2-sh-big d2-sh-lv">${r.level}</b><span>level</span></span>
+          ${step("toast-inc", "Raise the toast level", r.level >= 9, I.plus)}</div>`;
+      under = `<div class="d2-sh-slide"><input class="d2-range d2-level-range" type="range" min="1" max="9" step="1" value="${r.level}" style="--p:${((r.level - 1) / 8).toFixed(4)}" aria-label="Toast level, 1 to 9">
+        <div class="d2-sh-ends" aria-hidden="true"><span>1 · Light</span><span>Cooks at ${at}</span><span>9 · Dark</span></div></div>`;
+    } else if (r.mode === "reheat") {
+      const t = r.timer || 60;
+      ctl = `<div class="d2-sh-temp">${step("tm-dec", "Shorten the timer", t <= 1, I.minus)}
+          <label class="d2-sh-v"><input class="d2-sh-in d2-timer-in" type="text" inputmode="numeric" maxlength="3" autocomplete="off" value="${t}" aria-label="Timer in minutes: type a number from 1 to 600"><span>min</span></label>
+          ${step("tm-inc", "Lengthen the timer", t >= 600, I.plus)}</div>`;
+      under = `<div class="d2-sh-slide"><input class="d2-range d2-timer-range" type="range" min="1" max="600" step="1" value="${t}" style="--p:${((t - 1) / 599).toFixed(4)}" aria-label="Timer in minutes">
+        <div class="d2-sh-ends" aria-hidden="true"><span>1 min</span><span class="d2-timer-lv">${fmtTimer(t)} at ${at}</span><span>10 h</span></div></div>`;
+    } else if (r.mode === "grill") {
+      ctl = `<div class="d2-sh-temp"><div class="d2-seg d2-sh-seg" role="radiogroup" aria-label="Grill heat">${[2, 1, 0].map((v) => `<button role="radio" aria-checked="${r.grill === v}" data-act="grill-heat" data-v="${v}">${GRILL_LABEL[v]}</button>`).join("")}</div></div>`;
+      under = `<div class="d2-sh-slide d2-sh-line">Grills at ${at}</div>`;
+    } else if (r.fixed) {
+      ctl = `<div class="d2-sh-temp"><span class="d2-sh-v"><b class="d2-sh-big">${r.temp}</b><span>${esc(unit)}</span></span></div>`;
+      under = `<div class="d2-sh-slide d2-sh-line">The oven sets this temperature</div>`;
+    } else {
+      ctl = `<div class="d2-sh-temp">${step("rv-dec", "Lower the temperature", r.temp <= r.min, I.minus)}
+          <label class="d2-sh-v"><input class="d2-sh-in d2-temp-in" type="text" inputmode="numeric" maxlength="3" autocomplete="off" value="${r.temp}" aria-label="Temperature in ${esc(unit)}: type a number from ${r.min} to ${r.max}"><span>${esc(unit)}</span></label>
+          ${step("rv-inc", "Raise the temperature", r.temp >= r.max, I.plus)}</div>`;
+      under = `<div class="d2-sh-slide"><input class="d2-range d2-temp-range" type="range" min="${r.min}" max="${r.max}" step="${r.step}" value="${r.temp}" style="--p:${fill(r)}" aria-label="Temperature in ${esc(unit)}">
+        <div class="d2-sh-ends" aria-hidden="true"><span>${r.min}°</span><span>${r.max}°</span></div></div>`;
+    }
     return `<div class="d2-sheet" role="dialog" aria-modal="true" aria-label="Review before starting">
       <div class="d2-sh-head"><div><div class="d2-sh-t">${esc(MODE_LABEL[r.mode])} · ${esc(name)}</div><div class="d2-sh-s">Step 2 of 2 · Review</div></div>
         <button class="d2-icbtn" data-act="sheet-close" aria-label="Cancel">${I.close}</button></div>
-      <div class="d2-sh-row"><span class="d2-face d2-sh-face">${glyph(r.mode)}</span>
-        ${r.fixed ? `<div class="d2-sh-fixed">${FIXED_LABEL[r.mode] || `Cooks at ${r.temp}${esc(unit)}`}</div>` : `<div class="d2-sh-temp"><button class="d2-round" data-act="rv-dec" aria-label="Lower the temperature"${r.temp <= r.min ? " disabled" : ""}>${I.minus}</button>
-          <label class="d2-sh-v"><input class="d2-sh-in" type="text" inputmode="numeric" maxlength="3" autocomplete="off" value="${r.temp}" aria-label="Temperature in ${esc(unit)}: type a number from ${r.min} to ${r.max}"><span>${esc(unit)}</span></label>
-          <button class="d2-round" data-act="rv-inc" aria-label="Raise the temperature"${r.temp >= r.max ? " disabled" : ""}>${I.plus}</button></div>`}</div>
-      ${r.fixed ? "" : `<div class="d2-sh-slide"><input class="d2-range" type="range" min="${r.min}" max="${r.max}" step="${r.step}" value="${r.temp}" style="--p:${fill(r)}" aria-label="Temperature in ${esc(unit)}">
-        <div class="d2-sh-ends" aria-hidden="true"><span>${r.min}°</span><span>${r.max}°</span></div></div>`}
-      ${r.mode === "toast" ? `<div class="d2-sh-toast"><span class="d2-sh-l">Level</span><button class="d2-round" data-act="toast-dec" aria-label="Lower the toast level"${r.level <= 1 ? " disabled" : ""}>${I.minus}</button><b class="d2-sh-lv">${r.level}</b><button class="d2-round" data-act="toast-inc" aria-label="Raise the toast level"${r.level >= 9 ? " disabled" : ""}>${I.plus}</button></div>` : ""}
-      ${r.mode === "grill" ? `<div class="d2-sh-toast"><span class="d2-sh-l">Heat</span>${[0, 1, 2].map((v) => `<button class="d2-round d2-grill" data-act="grill-heat" data-v="${v}" aria-pressed="${r.grill === v}" aria-label="${GRILL_LABEL[v]} grill heat">${GRILL_LABEL[v]}</button>`).join("")}</div>` : ""}
-      ${r.mode === "reheat" ? `<div class="d2-sh-toast d2-sh-timer"><span class="d2-sh-l">Timer</span>
-        <input class="d2-range d2-timer-range" type="range" min="1" max="600" step="1" value="${r.timer || 60}" style="--p:${((r.timer || 60) - 1) / 599}" aria-label="Timer in minutes">
-        <span class="d2-timer-row"><b class="d2-sh-lv d2-timer-lv">${fmtTimer(r.timer || 60)}</b><input class="d2-timer-in" type="text" inputmode="numeric" maxlength="4" autocomplete="off" value="${r.timer || 60}" aria-label="Timer in minutes, type an exact number"><span class="d2-timer-u">min</span></span></div>` : ""}
+      <div class="d2-sh-row"><span class="d2-face d2-sh-face">${glyph(r.mode)}</span>${ctl}</div>
+      ${under}
       <div class="d2-sh-note">Make sure the oven is empty and the door is closed. Nothing heats until you press Start. This closes in <b class="d2-sh-left">${duration(left / 1000)}</b>.</div>
       <div class="d2-sh-acts"><button class="d2-ghost" data-act="sheet-close">Not now</button>
         <button class="d2-go" data-act="rv-start"${r.busy ? " disabled" : ""}>${r.busy ? "Starting…" : multi ? `Start preheating ${esc(name)}` : "Start preheating"}</button></div>
@@ -1667,6 +1691,10 @@
       if (act === "rv-dec" || act === "rv-inc") return this._setTemp(this._sheet && this._sheet.temp + (act === "rv-inc" ? 1 : -1) * this._sheet.step);
       if (act === "toast-dec" || act === "toast-inc") return this._toastLevel(act === "toast-inc" ? 1 : -1);
       if (act === "grill-heat") return this._grillHeat(+el.dataset.v);
+      if (act === "tm-dec" || act === "tm-inc") {
+        const t = (this._sheet && this._sheet.timer) || 60;
+        return this._timerSet(act === "tm-inc" ? (t < 5 ? 5 : t + 5) : Math.max(1, t - 5));
+      }
       if (act === "timer-set") return this._timerSet(+el.dataset.min);
       if (act === "rv-start") return this._start();
     }
@@ -1691,11 +1719,12 @@
         const t = e.target.value.replace(/\D/g, "").slice(0, 4);
         if (t !== e.target.value) e.target.value = t;
         const v = parseInt(t, 10);
-        if (Number.isFinite(v) && v >= 1 && v <= 600) this._timerSet(v);
+        if (Number.isFinite(v) && v >= 1 && v <= 600) this._timerSet(v, true);
         return;
       }
-      if (e.target.matches(".d2-range")) return this._setTemp(+e.target.value);
-      if (e.target.matches(".d2-sh-in")) {
+      if (e.target.matches(".d2-level-range")) return this._toastLevel(+e.target.value - (r.level || 5));
+      if (e.target.matches(".d2-temp-range")) return this._setTemp(+e.target.value);
+      if (e.target.matches(".d2-temp-in")) {
         // Digits only while typing; the slider follows any value in range, the number snaps on Enter or leaving.
         const t = e.target.value.replace(/\D/g, "").slice(0, 3);
         if (t !== e.target.value) e.target.value = t;
@@ -1712,7 +1741,7 @@
         delete this._hist[oven];
         return this._prefsChanged();
       }
-      if (e.target.matches(".d2-sh-in")) this._commitTyped(e.target);
+      if (e.target.matches(".d2-temp-in")) this._commitTyped(e.target);
       if (e.target.matches(".d2-timer-in")) {
         const v = parseInt(e.target.value, 10);
         if (Number.isFinite(v) && v >= 1 && v <= 600) this._timerSet(v);
@@ -1743,7 +1772,7 @@
     _handleKey(e) {
       if (!this._sheet) return;
       const t = e.composedPath()[0];
-      if (t && t.matches && t.matches(".d2-sh-in") && this._overEl.contains(t)) {
+      if (t && t.matches && t.matches(".d2-temp-in") && this._overEl.contains(t)) {
         if (e.key === "Enter") { this._commitTyped(t); t.blur(); }
         if (e.key === "Escape") { t.value = this._sheet.temp; t.blur(); }
         return;
@@ -1820,7 +1849,9 @@
       } else {
         const mt = MODE_TEMP[mode];
         if (mt) { r.min = mt.min; r.max = mt.max; }
-        r.temp = snap(r, c && Number.isFinite(+c.attributes.temperature) && c.attributes.temperature !== null ? +c.attributes.temperature : (mt ? mt.def : 350));
+        // The oven's last target, when it fits this mode's range; otherwise the mode's usual temperature.
+        const last = c && c.attributes.temperature !== null && Number.isFinite(+c.attributes.temperature) ? +c.attributes.temperature : null;
+        r.temp = snap(r, last !== null && last >= r.min && last <= r.max ? last : (mt ? mt.def : 350));
       }
       if (mode === "toast") {
         const ids = ovenEntities(this._hass, oven);
@@ -1852,7 +1883,7 @@
       const r = this._sheet;
       if (!r || r.kind !== "review" || !Number.isFinite(v)) return;
       r.temp = snap(r, v);
-      const range = this._overEl.querySelector(".d2-range"), input = this._overEl.querySelector(".d2-sh-in");
+      const range = this._overEl.querySelector(".d2-temp-range"), input = this._overEl.querySelector(".d2-temp-in");
       if (range) { range.value = r.temp; range.style.setProperty("--p", fill(r)); }
       if (input && !typing) input.value = r.temp;
       // Only the temperature's − / +: the toast level has its own.
@@ -1865,16 +1896,17 @@
       input.value = this._sheet ? this._sheet.temp : input.value;
     }
 
-    _timerSet(min) {
+    _timerSet(min, typing) {
       const r = this._sheet;
       if (!r || r.kind !== "review") return;
       r.timer = Math.min(600, Math.max(1, Math.round(min)));
       const range = this._overEl.querySelector(".d2-timer-range");
       if (range) { range.value = r.timer; range.style.setProperty("--p", (r.timer - 1) / 599); }
       const lv = this._overEl.querySelector(".d2-timer-lv");
-      if (lv) lv.textContent = fmtTimer(r.timer);
+      if (lv) lv.textContent = `${fmtTimer(r.timer)} at ${r.temp} ${this._model(this._conf(r.oven), Date.now()).unit}`;
       const inp = this._overEl.querySelector(".d2-timer-in");
-      if (inp) inp.value = r.timer;
+      if (inp && !typing) inp.value = r.timer;
+      this._overEl.querySelectorAll('.d2-round[data-act^="tm-"]').forEach((b) => { b.disabled = b.dataset.act === "tm-dec" ? r.timer <= 1 : r.timer >= 600; });
     }
 
     async _grillHeat(v) {
@@ -1894,15 +1926,24 @@
       const ids = ovenEntities(this._hass, r.oven);
       if (!ids.toastLevel) return;
       r.level = Math.min(9, Math.max(1, (r.level || 5) + d));
-      this._renderOver();
-      await this._call("number", "set_value", { value: r.level }, ids.toastLevel);
+      // In place, so dragging the slider is never interrupted; the oven's setting follows once it settles.
+      const o = this._overEl, lv = o.querySelector(".d2-sh-lv"), range = o.querySelector(".d2-level-range");
+      if (lv) lv.textContent = r.level;
+      if (range) { range.value = r.level; range.style.setProperty("--p", ((r.level - 1) / 8).toFixed(4)); }
+      o.querySelectorAll('.d2-round[data-act^="toast-"]').forEach((b) => { b.disabled = b.dataset.act === "toast-dec" ? r.level <= 1 : r.level >= 9; });
+      clearTimeout(this._levelTimer);
+      const level = r.level;
+      this._levelSend = () => { clearTimeout(this._levelTimer); this._levelSend = null; return this._call("number", "set_value", { value: level }, ids.toastLevel); };
+      this._levelTimer = setTimeout(this._levelSend, 250);
     }
 
     async _start() {
       const r = this._sheet;
       if (!r || r.kind !== "review" || r.busy) return;
-      const input = this._overEl.querySelector(".d2-sh-in");
+      const input = this._overEl.querySelector(".d2-temp-in");
       if (input) this._commitTyped(input);
+      // A toast level picked a moment ago reaches the oven before the start.
+      if (this._levelSend) await this._levelSend();
       r.busy = true;
       this._renderOver();
       const c = this._hass.states[r.oven];
@@ -1919,8 +1960,8 @@
     }
   }
 
-  const CSS = `.c-d2{--f:'Barlow Semi Condensed','Barlow',system-ui,sans-serif;--fn:'Barlow Condensed','Barlow',system-ui,sans-serif;position:relative;width:100%;height:100%;box-sizing:border-box;overflow:hidden;overflow:clip;font-family:var(--f);color:var(--fg);border-radius:var(--ha-card-border-radius,12px);
-  background:linear-gradient(112deg,transparent 0 63%,var(--sheen) 63.4%,transparent 84%),linear-gradient(180deg,var(--bg) 0%,var(--bg2) 100%);box-shadow:inset 0 0 0 1px var(--rim);-webkit-font-smoothing:antialiased}
+  const CSS = `.c-d2{--sheen-a:118deg;--f:'Barlow Semi Condensed','Barlow',system-ui,sans-serif;--fn:'Barlow Condensed','Barlow',system-ui,sans-serif;position:relative;width:100%;height:100%;box-sizing:border-box;overflow:hidden;overflow:clip;font-family:var(--f);color:var(--fg);border-radius:var(--ha-card-border-radius,12px);
+  background:linear-gradient(var(--sheen-a),transparent 0 63%,var(--sheen) 63.4%,transparent 84%),linear-gradient(180deg,var(--bg) 0%,var(--bg2) 100%);box-shadow:inset 0 0 0 1px var(--rim);-webkit-font-smoothing:antialiased}
 .c-d2 *{box-sizing:border-box}
 .c-d2 button{font:inherit;color:inherit;background:none;border:0;padding:0;margin:0;cursor:pointer;-webkit-tap-highlight-color:transparent}
 .c-d2 button:focus-visible,.c-d2 [tabindex]:focus-visible{outline:2px solid var(--focus);outline-offset:2px}
@@ -2106,7 +2147,7 @@
 .c-d2 .d2-tile{display:flex;flex-direction:column;align-items:center;gap:7px;min-width:0}
 .c-d2 .d2-face{position:relative;display:block;width:var(--tile);aspect-ratio:1;border-radius:22%;overflow:hidden;
   background:radial-gradient(120% 75% at 50% 100%,var(--tGlow),transparent 62%),linear-gradient(180deg,var(--tA),var(--tB));box-shadow:inset 0 0 0 1px var(--tRim),inset 0 1px 0 var(--tSheen)}
-.c-d2 .d2-face::after{content:"";position:absolute;inset:0;background:linear-gradient(118deg,transparent 0 56%,var(--tSheen) 56.5%,transparent 78%);opacity:.7;pointer-events:none}
+.c-d2 .d2-face::after{content:"";position:absolute;inset:0;background:linear-gradient(var(--sheen-a),transparent 0 56%,var(--tSheen) 56.5%,transparent 78%);opacity:.7;pointer-events:none}
 .c-d2 .d2-glyph{position:absolute;left:16%;top:16%;width:68%;height:68%;fill:none;stroke:var(--glyph);stroke-width:4;stroke-linecap:round;stroke-linejoin:round;filter:drop-shadow(0 0 2px var(--gglow)) drop-shadow(0 0 7px var(--gglow))}
 .c-d2 .d2-glyph .fill{fill:var(--glyph);stroke:none}
 .c-d2 .d2-glyph .solid{fill:var(--glyph)}
@@ -2213,20 +2254,24 @@ ha-card{height:100%;overflow:hidden;overflow:clip;background:none;border:none;bo
 .c-d2 .d2-sh-t{font:600 20px/26px var(--f);color:var(--fg)}
 .c-d2 .d2-sh-s{font:500 12px/16px var(--f);letter-spacing:.06em;text-transform:uppercase;color:var(--fg2)}
 .c-d2 .d2-sh-row{display:flex;align-items:center;gap:min(16px,4cqw)}
-.c-d2 .d2-sh-face{--tile:clamp(40px,17cqw,64px);flex:none}
+.c-d2 .d2-sh-face{--tile:clamp(44px,17cqw,72px);flex:none}
 .c-d2 .d2-sh-temp{flex:1;min-width:0;display:flex;align-items:center;justify-content:center;gap:min(14px,2.5cqw)}
 /* On a narrow card the − / + buttons and the number shrink so the row always fits. */
 .c-d2 .d2-sh-temp .d2-round{width:clamp(32px,13cqw,48px);height:clamp(32px,13cqw,48px)}
 .c-d2 .d2-sh-temp .d2-round .d2-ic{width:clamp(16px,5.5cqw,20px);height:clamp(16px,5.5cqw,20px)}
 .c-d2 .d2-sh-v{font:400 16px/1 var(--f);color:var(--fg2);white-space:nowrap}
-.c-d2 .d2-sh-v b{font-family:var(--fn);font-weight:300;font-size:46px;color:var(--fg);font-variant-numeric:tabular-nums}
+.c-d2 .d2-sh-v b{min-width:1.1em;font-family:var(--fn);font-weight:300;font-size:min(46px,13.5cqw);line-height:1;color:var(--fg);text-align:center;font-variant-numeric:tabular-nums}
 .c-d2 .d2-sh-note{font:400 14px/19px var(--f);color:var(--fg2)}
 .c-d2 .d2-sh-acts{display:flex;gap:10px;margin-top:auto}
 .c-d2 .d2-go{flex:1;min-width:0;height:52px;padding:0 10px;border-radius:14px;background:linear-gradient(90deg,#f6a53a,#ea5a17);color:#1a0a02;font:600 min(17px,6.2cqw)/1.1 var(--f)}
 .c-d2 .d2-go[disabled]{opacity:.7;cursor:progress}
 .c-d2.d2-wall .d2-sh-t{font-size:28px;line-height:34px}
 .c-d2.d2-wall .d2-sh-note{font-size:19px;line-height:26px}
-.c-d2.d2-wall .d2-sh-v b{font-size:72px}
+.c-d2.d2-wall .d2-sh-v b{font-size:min(72px,13.5cqw)}
+.c-d2.d2-wall .d2-sh-face{--tile:96px}
+.c-d2.d2-wall .d2-sh-line{font-size:18px}
+.c-d2.d2-wall .d2-seg.d2-sh-seg{width:min(100%,520px)}
+.c-d2.d2-wall .d2-seg.d2-sh-seg button{min-height:64px;font-size:22px}
 .c-d2.d2-wall .d2-go{height:64px;font-size:22px}
 /* ---- The oven button: icon (the oven's lamp) and a name that tucks into it ---- */
 .c-d2 .d2-ovb{display:flex;align-items:center;justify-self:start;align-self:start;max-width:100%;min-width:0;min-height:44px;margin:-8px 0 -8px calc(-6px - .175em);padding:0 6px;border-radius:12px;text-align:left;transition:background-color .2s}
@@ -2273,17 +2318,12 @@ ha-card{height:100%;overflow:hidden;overflow:clip;background:none;border:none;bo
 .c-d2 .d2-range::-webkit-slider-thumb{-webkit-appearance:none;width:26px;height:26px;margin-top:-10px;border-radius:50%;background:#fff;box-shadow:0 0 0 3px var(--ember),0 2px 6px rgba(0,0,0,.35)}
 .c-d2 .d2-range::-moz-range-thumb{width:22px;height:22px;border:0;border-radius:50%;background:#fff;box-shadow:0 0 0 3px var(--ember),0 2px 6px rgba(0,0,0,.35)}
 .c-d2 .d2-range:focus-visible{outline:2px solid var(--focus);outline-offset:2px;border-radius:6px}
-.c-d2 .d2-sh-ends{display:flex;justify-content:space-between;font:400 12px/14px var(--f);color:var(--fg2)}
-.c-d2 .d2-sh-fixed{display:flex;align-items:center;justify-content:center;gap:6px;min-height:44px;font:500 17px/1 var(--fn);font-variant-numeric:tabular-nums;color:var(--fg)}
-.c-d2 .d2-sh-toast{display:flex;align-items:center;justify-content:center;gap:12px;margin-top:4px}
-.c-d2 .d2-sh-timer{flex-direction:column;align-items:stretch;gap:2px;padding:0 10px}
-.c-d2 .d2-sh-timer .d2-timer-range{width:100%;height:30px;margin:0}
-.c-d2 .d2-timer-row{display:flex;align-items:center;justify-content:center;gap:8px}
-.c-d2 .d2-timer-in{width:4ch;padding:0 0 2px;border:0;border-bottom:2px dashed var(--chipb);background:none;font:500 17px/1 var(--fn);color:var(--fg);text-align:center;outline:none}
-.c-d2 .d2-timer-in:focus{border-bottom:2px solid var(--ember)}
-.c-d2 .d2-timer-u{font:400 13px/1 var(--f);color:var(--fg2)}
-.c-d2 .d2-sh-toast .d2-sh-l{font:500 12px/14px var(--f);letter-spacing:.06em;text-transform:uppercase;color:var(--fg2)}
-.c-d2 .d2-sh-lv{min-width:24px;text-align:center;font:500 20px/1 var(--fn);font-variant-numeric:tabular-nums;color:var(--fg)}
+.c-d2 .d2-sh-ends{display:flex;justify-content:space-between;gap:8px;font:400 12px/14px var(--f);color:var(--fg2);white-space:nowrap}
+.c-d2 .d2-sh-ends span:nth-child(2):not(:last-child){color:var(--fg);text-align:center}
+/* No slider: one line in its place, so every review keeps the same rhythm. */
+.c-d2 .d2-sh-line{display:flex;align-items:center;justify-content:center;min-height:46px;font:400 15px/19px var(--f);color:var(--fg2);text-align:center}
+.c-d2 .d2-sh-seg{width:min(100%,360px)}
+.c-d2 .d2-seg.d2-sh-seg button{min-height:48px;font-size:min(17px,5cqw)}
 .c-d2.d2-wall .d2-sh-ends{font-size:16px;line-height:20px}
 /* Settings */
 .c-d2 .d2-set{gap:6px;padding-bottom:0}
