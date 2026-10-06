@@ -173,7 +173,8 @@
   const clamp01 = (v) => Math.max(0, Math.min(1, v));
   const deg = (h) => String(h).replace(/°/g, '<span class="d2-deg">°</span>');
   const titleCase = (s) => (s ? s.replace(/_/g, " ").replace(/^./, (c) => c.toUpperCase()) : "");
-  const fmtTimer = (m) => (m >= 60 ? `${Math.floor(m / 60)} h${m % 60 ? ` ${m % 60} min` : ""}` : `${m} min`);
+  // The reheat timer reads as minutes up to an hour, then as hours and minutes ("1 hr 30 min").
+  const timerParts = (t) => (t >= 60 ? [Math.floor(t / 60), t % 60] : [0, t]);
   function duration(sec) {
     const s = Math.max(0, Math.round(sec)), h = Math.floor(s / 3600), m = Math.floor((s % 3600) / 60), r = s % 60;
     return h ? `${h}:${String(m).padStart(2, "0")}:${String(r).padStart(2, "0")}` : `${m}:${String(r).padStart(2, "0")}`;
@@ -510,10 +511,11 @@
     } else if (r.mode === "reheat") {
       const t = r.timer || 60;
       ctl = `<div class="d2-sh-temp">${step("tm-dec", "Shorten the timer", t <= 1, I.minus)}
-          <label class="d2-sh-v"><input class="d2-sh-in d2-timer-in" type="text" inputmode="numeric" maxlength="3" autocomplete="off" value="${t}" aria-label="Timer in minutes: type a number from 1 to 600"><span>min</span></label>
+          <div class="d2-sh-v d2-timer-v${t >= 60 ? " has-h" : ""}"><label class="d2-tm-h"><input class="d2-sh-in d2-timer-h${timerParts(t)[0] >= 10 ? " is-wide" : ""}" type="text" inputmode="numeric" maxlength="2" autocomplete="off" value="${timerParts(t)[0]}" aria-label="Timer hours"><span>hr</span></label>
+            <label><input class="d2-sh-in d2-timer-in" type="text" inputmode="numeric" maxlength="3" autocomplete="off" value="${timerParts(t)[1]}" aria-label="Timer minutes"><span>min</span></label></div>
           ${step("tm-inc", "Lengthen the timer", t >= 600, I.plus)}</div>`;
       under = `<div class="d2-sh-slide"><input class="d2-range d2-timer-range" type="range" min="1" max="600" step="1" value="${t}" style="--p:${((t - 1) / 599).toFixed(4)}" aria-label="Timer in minutes">
-        <div class="d2-sh-ends d2-sh-ends3" aria-hidden="true"><span>1 min</span><span class="d2-timer-lv">${fmtTimer(t)} at ${at}</span><span>10 h</span></div></div>`;
+        <div class="d2-sh-ends d2-sh-ends3" aria-hidden="true"><span>1 min</span><span>Reheats at ${at}</span><span>10 hr</span></div></div>`;
     } else if (r.mode === "grill") {
       ctl = `<div class="d2-sh-temp"><div class="d2-seg d2-sh-seg" role="radiogroup" aria-label="Grill heat">${[2, 1, 0].map((v) => `<button role="radio" aria-checked="${r.grill === v}" data-act="grill-heat" data-v="${v}">${GRILL_LABEL[v]}</button>`).join("")}</div></div>`;
       under = `<div class="d2-sh-slide d2-sh-line">Grills at ${at}</div>`;
@@ -1715,11 +1717,12 @@
       }
       if (!r || r.kind !== "review") return;
       if (e.target.matches(".d2-timer-range")) return this._timerSet(+e.target.value);
-      if (e.target.matches(".d2-timer-in")) {
-        const t = e.target.value.replace(/\D/g, "").slice(0, 4);
+      if (e.target.matches(".d2-timer-in, .d2-timer-h")) {
+        const t = e.target.value.replace(/\D/g, "");
         if (t !== e.target.value) e.target.value = t;
-        const v = parseInt(t, 10);
-        if (Number.isFinite(v) && v >= 1 && v <= 600) this._timerSet(v, true);
+        if (e.target.matches(".d2-timer-h")) e.target.classList.toggle("is-wide", t.length > 1);
+        const v = this._timerTyped();
+        if (v >= 1 && v <= 600) this._timerSet(v, e.target);
         return;
       }
       if (e.target.matches(".d2-level-range")) return this._toastLevel(+e.target.value - (r.level || 5));
@@ -1742,10 +1745,9 @@
         return this._prefsChanged();
       }
       if (e.target.matches(".d2-temp-in")) this._commitTyped(e.target);
-      if (e.target.matches(".d2-timer-in")) {
-        const v = parseInt(e.target.value, 10);
-        if (Number.isFinite(v) && v >= 1 && v <= 600) this._timerSet(v);
-        else e.target.value = this._sheet && this._sheet.timer ? this._sheet.timer : 60;
+      if (e.target.matches(".d2-timer-in, .d2-timer-h")) {
+        const v = this._timerTyped();
+        this._timerSet(v >= 1 && v <= 600 ? v : (this._sheet && this._sheet.timer) || 60);
         return;
       }
       if (e.target.matches(".d2-mdi")) {
@@ -1779,7 +1781,7 @@
       }
       if (t && t.matches && t.matches(".d2-mdi") && e.key === "Enter") return t.blur();
       if (t && t.matches && t.matches(".d2-foodin") && e.key === "Enter") return t.blur();
-      if (t && t.matches && t.matches(".d2-timer-in") && e.key === "Enter") return t.blur();
+      if (t && t.matches && t.matches(".d2-timer-in, .d2-timer-h") && e.key === "Enter") return t.blur();
       if (e.key === "Escape") { this._sheet.byKey = this.shadowRoot.activeElement !== null; this._closeSheet(); }
     }
 
@@ -1896,16 +1898,30 @@
       input.value = this._sheet ? this._sheet.temp : input.value;
     }
 
+    // Minutes from the timer fields: hours (when shown) and minutes; an empty field counts as 0.
+    _timerTyped() {
+      const o = this._overEl, v = o && o.querySelector(".d2-timer-v");
+      if (!v) return NaN;
+      const n = (sel) => parseInt(o.querySelector(sel).value, 10) || 0;
+      return (v.classList.contains("has-h") ? n(".d2-timer-h") * 60 : 0) + n(".d2-timer-in");
+    }
+
+    // typing: the field being typed in. It and the hours/minutes split stay as they are until the
+    // field is left, so "90" typed into minutes becomes "1 hr 30 min" only then.
     _timerSet(min, typing) {
       const r = this._sheet;
       if (!r || r.kind !== "review") return;
       r.timer = Math.min(600, Math.max(1, Math.round(min)));
       const range = this._overEl.querySelector(".d2-timer-range");
       if (range) { range.value = r.timer; range.style.setProperty("--p", (r.timer - 1) / 599); }
-      const lv = this._overEl.querySelector(".d2-timer-lv");
-      if (lv) lv.textContent = `${fmtTimer(r.timer)} at ${r.temp} ${this._model(this._conf(r.oven), Date.now()).unit}`;
-      const inp = this._overEl.querySelector(".d2-timer-in");
-      if (inp && !typing) inp.value = r.timer;
+      const v = this._overEl.querySelector(".d2-timer-v");
+      if (v && !typing) {
+        const [h, m] = timerParts(r.timer);
+        v.classList.toggle("has-h", r.timer >= 60);
+        v.querySelector(".d2-timer-h").value = h;
+        v.querySelector(".d2-timer-h").classList.toggle("is-wide", h >= 10);
+        v.querySelector(".d2-timer-in").value = m;
+      }
       this._overEl.querySelectorAll('.d2-round[data-act^="tm-"]').forEach((b) => { b.disabled = b.dataset.act === "tm-dec" ? r.timer <= 1 : r.timer >= 600; });
     }
 
@@ -2309,6 +2325,15 @@ ha-card{height:100%;overflow:hidden;overflow:clip;background:none;border:none;bo
 .c-d2 .d2-sheet:not(.d2-set)>*{flex:none}
 /* Review: number you can type in, slider, − and + */
 .c-d2 .d2-sh-v{display:flex;align-items:baseline;gap:2px;cursor:text}
+.c-d2 .d2-timer-v{gap:min(10px,2cqw)}
+.c-d2 .d2-timer-v>label{display:flex;align-items:baseline;gap:2px}
+.c-d2 .d2-timer-v:not(.has-h)>.d2-tm-h{display:none}
+/* Hours and minutes: smaller digits and tighter fields so the pair fits where one number did. */
+.c-d2 .d2-timer-v.has-h .d2-sh-in{font-size:min(46px,9.5cqw);width:1.2em}
+.c-d2.d2-wall .d2-timer-v.has-h .d2-sh-in{font-size:min(72px,9.5cqw)}
+.c-d2 .d2-timer-v.has-h .d2-timer-h{width:.7em}
+.c-d2 .d2-timer-v.has-h .d2-timer-h.is-wide{width:1.2em}
+.c-d2 .d2-timer-v.has-h span{font-size:min(16px,4.5cqw)}
 .c-d2 .d2-sh-in{width:1.75em;padding:0 0 2px;border:0;border-bottom:2px dashed var(--chipb);border-radius:0;background:none;font-family:var(--fn);font-weight:300;font-size:min(46px,13.5cqw);line-height:1;color:var(--fg);text-align:center;font-variant-numeric:tabular-nums;outline:none;caret-color:var(--ember)}
 .c-d2 .d2-sh-in:hover{border-bottom-color:var(--fg2)}
 .c-d2 .d2-sh-in:focus{border-bottom:2px solid var(--ember)}
