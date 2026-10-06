@@ -426,7 +426,10 @@ What the card does:
 - **Temperature graph (wall tablet):** while the oven heats, a graph under the
   camera shows the oven temperature and, with the probe in, the food
   temperature since the cook began (at most the last hour), with the target as
-  a dashed line. It stays up on the Done screen until the food is out. It
+  a dashed line. Degrees run up the left side, with the target in bold, and
+  minutes since the start of the cook along the bottom; the scale never spans
+  less than 10 °F, so a steady oven draws a steady line. It fills the space
+  under the camera, and the cook history's graphs use the same axes. It stays up on the Done screen until the food is out. It
   reads Home Assistant's history, so it needs the recorder. Tap it for the
   full history. The food line can come from another thermometer, such as a
   Combustion probe: pick its sensor under **Settings › Food probe**.

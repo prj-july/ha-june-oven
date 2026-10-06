@@ -44,7 +44,7 @@
  */
 (() => {
   "use strict";
-  const VERSION = "0.5.2";
+  const VERSION = "0.5.4";
   const DOMAIN = "june_oven";
   const TAG = "july-oven-card";
   if (customElements.get(TAG)) return;
@@ -396,10 +396,53 @@
     </div>`;
   }
 
+  // Graph axes. Temperatures run in round steps over a range widened to whole steps and never
+  // narrower than 10 °F (6 °C), so a steady oven draws a steady line; time is minutes since the
+  // cook began. The target is marked on the temperature axis.
+  function tempAxis(vals, unit) {
+    let lo = Math.min(...vals), hi = Math.max(...vals);
+    const least = unit === "°C" ? 6 : 10;
+    if (hi - lo < least) { const c = (hi + lo) / 2; lo = c - least / 2; hi = c + least / 2; }
+    const pad = (hi - lo) * 0.06;
+    lo -= pad; hi += pad;
+    const step = [1, 2, 5, 10, 20, 25, 50, 100, 200, 250].find((st) => (hi - lo) / st <= 5) || 500;
+    lo = Math.floor(lo / step) * step; hi = Math.ceil(hi / step) * step;
+    const ticks = [];
+    for (let v = lo; v <= hi + 1e-6; v += step) ticks.push(v);
+    return { lo, hi, ticks };
+  }
+  function timeTicks(a, b) {
+    const step = [1, 2, 5, 10, 15, 20, 30, 60, 120].find((st) => (b - a) / st <= 4) || 240;
+    const out = [];
+    for (let v = Math.ceil(a / step - 1e-6) * step; v <= b + 1e-6; v += step) out.push(v);
+    return out;
+  }
+  const minLabel = (v, last) => (v >= 60 ? `${Math.floor(v / 60)} h${v % 60 ? ` ${v % 60}` : ""}` : `${v}${last ? " min" : ""}`);
+  // vals: every temperature drawn; span: [minutes at the left edge, at the right edge]; draw(y, W, H)
+  // returns the lines, with y() turning a temperature into the plot's height.
+  function chart(vals, unit, tgt, span, draw) {
+    const W = 300, H = 100, { lo, hi, ticks } = tempAxis(vals, unit);
+    const y = (v) => (H - ((v - lo) / (hi - lo)) * H).toFixed(1);
+    const top = (v) => ((hi - v) / (hi - lo)) * 100;
+    const grid = ticks.map((v) => `<line class="sp-grid" x1="0" x2="${W}" y1="${y(v)}" y2="${y(v)}" vector-effect="non-scaling-stroke"/>`).join("");
+    // A tick the target label would cover gives way to it; a short graph labels every other tick.
+    const near = (v) => tgt !== null && Math.abs(top(v) - top(tgt)) < 14;
+    const ys = ticks.map((v, i) => [v, i]).filter(([v]) => !near(v)).map(([v, i]) => `<span class="${i % 2 ? "is-odd" : ""}${i && i < ticks.length - 1 ? " is-mid" : ""}" style="top:${top(v).toFixed(2)}%">${v}°</span>`).join("") +
+      (tgt !== null ? `<span class="is-tgt" style="top:${top(tgt).toFixed(2)}%">${tgt}°</span>` : "");
+    const widest = [...ticks, tgt].filter((v) => v !== null).reduce((a, v) => (String(v).length > String(a).length ? v : a), 0);
+    const xt = timeTicks(span[0], span[1]);
+    const xs = xt.map((v, i) => {
+      const left = ((v - span[0]) / Math.max(1e-6, span[1] - span[0])) * 100;
+      return `<span class="${left < 8 ? "is-start" : left > 92 ? "is-end" : ""}" style="left:${left.toFixed(2)}%">${minLabel(v, i === xt.length - 1)}</span>`;
+    }).join("");
+    return `<div class="d2-plot" aria-hidden="true"><div class="d2-py"><i>${widest}°</i>${ys}</div><svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="none" focusable="false">${grid}${draw(y, W, H)}</svg><div class="d2-px">${xs}</div></div>`;
+  }
+  const tgtKey = (tgt) => (tgt !== null ? `<span class="d2-sp-key k-tgt"><i></i>Target ${tgt}°</span>` : "");
+
   // Wall layout: oven (and food) temperature since the cook began, at most the last hour. Tapping it
   // opens Home Assistant's history for the oven.
   function spark(m, h, now) {
-    const W = 300, H = 60, t0 = h.start, t1 = Math.max(now, t0 + 60000);
+    const t0 = h.start, t1 = Math.max(now, t0 + 60000);
     const cut = (pts) => {
       const i = pts.findIndex(([t]) => t >= t0);
       if (i < 0) return pts.length ? [[t0, pts[pts.length - 1][1]]] : [];
@@ -411,19 +454,18 @@
     const label = `Oven${food.length ? " and food" : ""} temperature over the last ${mins} min. Open the history`;
     const vals = [...cav, ...food].map(([, v]) => v);
     if (m.tgt !== null) vals.push(m.tgt);
-    let plot = "";
-    if (cav.length || food.length) {
-      let lo = Math.min(...vals), hi = Math.max(...vals);
-      const pad = Math.max(8, (hi - lo) * 0.08);
-      lo -= pad; hi += pad;
-      const x = (t) => (((t - t0) / (t1 - t0)) * W).toFixed(1), y = (v) => (H - ((v - lo) / (hi - lo)) * H).toFixed(1);
+    const has = cav.length || food.length;
+    // Minutes count from the start of the cook, when the card knows it.
+    const origin = Number.isFinite(m.since) && m.since <= t0 ? m.since : t0;
+    const plot = has ? chart(vals, m.unit, m.tgt, [(t0 - origin) / 60000, (t1 - origin) / 60000], (y, W) => {
+      const x = (t) => (((t - t0) / (t1 - t0)) * W).toFixed(1);
       // Each line runs on to now at its last reading.
       const line = (pts, cls) => (pts.length ? `<polyline class="${cls}" points="${[...pts, [t1, pts[pts.length - 1][1]]].map(([t, v]) => `${x(t)},${y(v)}`).join(" ")}" vector-effect="non-scaling-stroke"/>` : "");
       const target = m.tgt !== null ? `<line class="sp-tgt" x1="0" x2="${W}" y1="${y(m.tgt)}" y2="${y(m.tgt)}" vector-effect="non-scaling-stroke"/>` : "";
-      plot = `${target}${line(food, "sp-food")}${line(cav, "sp-oven")}`;
-    }
+      return `${target}${line(food, "sp-food")}${line(cav, "sp-oven")}`;
+    }) : `<div class="d2-plot is-empty" aria-hidden="true"></div>`;
     const keys = `<span class="d2-sp-key k-oven"><i></i>Oven</span>${food.length ? `<span class="d2-sp-key k-food"><i></i>Food</span>` : ""}`;
-    return `<button class="d2-spark" data-act="more" data-oven="${esc(m.ids.climate)}" aria-label="${label}"><svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="none" aria-hidden="true" focusable="false">${plot}</svg><span class="d2-sp-cap">${keys}<span class="d2-sp-span">${cav.length || food.length ? `${mins} min` : "Collecting…"}</span></span></button>`;
+    return `<button class="d2-spark" data-act="more" data-oven="${esc(m.ids.climate)}" aria-label="${label}">${plot}<span class="d2-sp-cap">${keys}<span class="d2-sp-span">${has ? tgtKey(m.tgt) : "Collecting…"}</span></span></button>`;
   }
 
   function compact(m, o = {}, busy) {
@@ -564,7 +606,7 @@
 
   // The whole cook: oven (and food) temperature from start to end, with the last target.
   function cookGraph(r, unit, ext) {
-    const W = 300, H = 90, t1 = Math.max(60, r.duration_s || 0);
+    const t1 = Math.max(60, r.duration_s || 0);
     const cav = [], food = [];
     for (const [t, c, f] of r.samples || []) {
       const a = toUnit(c, unit), b = toUnit(f, unit);
@@ -577,15 +619,14 @@
     const vals = [...cav, ...foodPts].map(([, v]) => v);
     if (!vals.length) return `<div class="d2-hd-nog">No temperature readings were saved for this cook.</div>`;
     if (tgt !== null) vals.push(tgt);
-    let lo = Math.min(...vals), hi = Math.max(...vals);
-    const pad = Math.max(8, (hi - lo) * 0.08);
-    lo -= pad; hi += pad;
-    const x = (t) => ((Math.min(t1, Math.max(0, t)) / t1) * W).toFixed(1), y = (v) => (H - ((v - lo) / (hi - lo)) * H).toFixed(1);
-    const line = (pts, cls) => (pts.length ? `<polyline class="${cls}" points="${pts.map(([t, v]) => `${x(t)},${y(v)}`).join(" ")}" vector-effect="non-scaling-stroke"/>` : "");
-    const target = tgt !== null ? `<line class="sp-tgt" x1="0" x2="${W}" y1="${y(tgt)}" y2="${y(tgt)}" vector-effect="non-scaling-stroke"/>` : "";
-    const keys = `<span class="d2-sp-key k-oven"><i></i>Oven</span>${foodPts.length ? `<span class="d2-sp-key k-food"><i></i>Food</span>` : ""}${tgt !== null ? `<span class="d2-sp-key k-tgt"><i></i>Target ${tgt}°</span>` : ""}`;
-    return `<div class="d2-hd-graph" role="img" aria-label="Oven${foodPts.length ? " and food" : ""} temperature during the cook"><svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="none" aria-hidden="true" focusable="false">${target}${line(foodPts, "sp-food")}${line(cav, "sp-oven")}</svg>
-      <div class="d2-hd-axis" aria-hidden="true"><span>0</span><span>${esc(cookMins(t1))}</span></div><div class="d2-sp-cap">${keys}</div></div>`;
+    const plot = chart(vals, unit, tgt, [0, t1 / 60], (y, W) => {
+      const x = (t) => ((Math.min(t1, Math.max(0, t)) / t1) * W).toFixed(1);
+      const line = (pts, cls) => (pts.length ? `<polyline class="${cls}" points="${pts.map(([t, v]) => `${x(t)},${y(v)}`).join(" ")}" vector-effect="non-scaling-stroke"/>` : "");
+      const target = tgt !== null ? `<line class="sp-tgt" x1="0" x2="${W}" y1="${y(tgt)}" y2="${y(tgt)}" vector-effect="non-scaling-stroke"/>` : "";
+      return `${target}${line(foodPts, "sp-food")}${line(cav, "sp-oven")}`;
+    });
+    const keys = `<span class="d2-sp-key k-oven"><i></i>Oven</span>${foodPts.length ? `<span class="d2-sp-key k-food"><i></i>Food</span>` : ""}${tgtKey(tgt)}`;
+    return `<div class="d2-hd-graph" role="img" aria-label="Oven${foodPts.length ? " and food" : ""} temperature during the ${esc(cookMins(t1))} cook">${plot}<div class="d2-sp-cap">${keys}</div></div>`;
   }
 
   function cookRow(r, unit, lang, pic) {
@@ -1937,10 +1978,22 @@
 .c-d2 .d2-ghost{display:inline-flex;align-items:center;justify-content:center;height:48px;padding:0 16px;border-radius:12px;box-shadow:inset 0 0 0 1px var(--chipb);font:500 15px/1 var(--f);color:var(--fg);white-space:nowrap;flex:none}
 /* wall layer: sparkline */
 .c-d2 .d2-spark{display:flex;flex-direction:column;flex:1 1 auto;min-height:0;max-height:84px;margin-top:16px;text-align:left;width:100%}
-.c-d2 .d2-spark svg{flex:1 1 auto;min-height:18px;width:100%;overflow:visible}
 .c-d2 .d2-spark polyline{fill:none;stroke:var(--ember);stroke-width:2.5;stroke-linejoin:round;filter:drop-shadow(0 0 3px var(--glow))}
 .c-d2 .d2-spark polyline.sp-food{stroke:var(--food);filter:none}
-.c-d2 .d2-spark .sp-tgt{stroke:var(--line);stroke-width:1;stroke-dasharray:4 4}
+.c-d2 .d2-spark .sp-tgt{stroke:var(--fg2);stroke-width:1;stroke-dasharray:4 4;opacity:.7}
+.c-d2 .d2-plot{flex:1 1 auto;min-height:0;container:d2plot/size;display:grid;grid-template-columns:auto minmax(0,1fr);grid-template-rows:minmax(0,1fr) auto;column-gap:8px;padding-top:7px;font:400 12px/14px var(--f);color:var(--fg2);font-variant-numeric:tabular-nums;white-space:nowrap}
+.c-d2 .d2-py{position:relative;grid-row:1;grid-column:1;text-align:right}
+.c-d2 .d2-py i{display:block;height:0;overflow:hidden;visibility:hidden;font-style:normal}
+.c-d2 .d2-py span{position:absolute;right:0;transform:translateY(-50%)}
+.c-d2 .d2-py span.is-tgt{color:var(--fg);font-weight:600}
+@container d2plot (max-height:120px){.c-d2 .d2-py span.is-odd{display:none}}
+@container d2plot (max-height:76px){.c-d2 .d2-py span.is-mid{display:none}}
+.c-d2 .d2-plot svg{grid-row:1;grid-column:2;display:block;width:100%;height:100%;min-height:24px;overflow:visible}
+.c-d2 .d2-plot .sp-grid{stroke:var(--line);stroke-width:1}
+.c-d2 .d2-px{grid-row:2;grid-column:2;position:relative;height:14px;margin-top:5px}
+.c-d2 .d2-px span{position:absolute;top:0;transform:translateX(-50%)}
+.c-d2 .d2-px span.is-start{transform:none}
+.c-d2 .d2-px span.is-end{transform:translateX(-100%)}
 .c-d2 .d2-sp-cap{display:flex;align-items:center;gap:14px;margin-top:6px;font:400 15px/18px var(--f);color:var(--fg2);white-space:nowrap}
 .c-d2 .d2-sp-key{display:inline-flex;align-items:center;gap:6px}
 .c-d2 .d2-sp-key i{width:12px;height:3px;border-radius:2px;background:var(--ember)}
@@ -1962,9 +2015,12 @@
 .c-d2.d2-wall .d2-chips{gap:10px}
 .c-d2.d2-wall .d2-chip{height:44px;min-width:84px;border-radius:12px;font-size:22px}
 .c-d2.d2-wall .d2-chip::before{inset:-8px 0}
-.c-d2.d2-wall .d2-spcol{grid-column:2;grid-row:6;align-self:end;min-width:0}
-.c-d2.d2-wall .d2-spcol .d2-spark{margin:0;height:96px;max-height:none}
+/* Under the camera to the bottom edge: the camera's top margin, its 4:3 height and a gap, then the graph fills the rest. */
+.c-d2.d2-wall .d2-spcol{grid-column:2;grid-row:3/7;min-width:0;min-height:0;display:flex;flex-direction:column;padding-top:calc(var(--hs) * .047 + var(--camw) * .75 + 22px)}
+.c-d2.d2-wall .d2-spcol .d2-spark{margin:0;flex:1 1 auto;min-height:0;max-height:320px}
 .c-d2.d2-wall .d2-sp-cap{margin-top:4px}
+.c-d2.d2-wall .d2-plot{font-size:14px;line-height:16px;padding-top:8px}
+.c-d2.d2-wall .d2-px{height:16px}
 .c-d2.d2-wall .d2-min{font-size:18px;margin-left:4px}
 .c-d2.d2-wall .d2-cam.is-off{font-size:16px;gap:8px}
 .c-d2.d2-wall .d2-cam.is-off .d2-ic{width:30px;height:30px}
@@ -2270,11 +2326,10 @@ ha-card{height:100%;overflow:hidden;overflow:clip;background:none;border:none;bo
 .c-d2 .d2-hd{display:flex;flex-direction:column;gap:14px;padding-top:2px}
 .c-d2 .d2-hd-pic{border-radius:12px;overflow:hidden;background:var(--win);aspect-ratio:4/3;max-height:min(300px,42cqh);box-shadow:inset 0 0 0 1px var(--rim)}
 .c-d2 .d2-hd-pic img{width:100%;height:100%;object-fit:cover;display:block}
-.c-d2 .d2-hd-graph svg{display:block;width:100%;height:96px;overflow:visible}
+.c-d2 .d2-hd-graph .d2-plot{height:132px}
 .c-d2 .d2-hd-graph polyline{fill:none;stroke:var(--ember);stroke-width:2.5;stroke-linejoin:round;filter:drop-shadow(0 0 3px var(--glow))}
 .c-d2 .d2-hd-graph polyline.sp-food{stroke:var(--food);filter:none}
 .c-d2 .d2-hd-graph .sp-tgt{stroke:var(--fg2);stroke-width:1;stroke-dasharray:4 4;opacity:.7}
-.c-d2 .d2-hd-axis{display:flex;justify-content:space-between;margin-top:4px;font:400 12px/14px var(--f);color:var(--fg2)}
 .c-d2 .d2-sp-key.k-tgt i{height:0;background:none;border-top:1px dashed var(--fg2)}
 .c-d2 .d2-hd-graph .d2-sp-cap{flex-wrap:wrap;row-gap:4px;font-size:13px}
 .c-d2 .d2-hd-graph.is-loading{height:122px}
@@ -2292,7 +2347,7 @@ ha-card{height:100%;overflow:hidden;overflow:clip;background:none;border:none;bo
 .c-d2.d2-wall .d2-hr-s{font-size:16px;line-height:21px}
 .c-d2.d2-wall .d2-hr-o{font-size:13px;padding:6px 9px}
 .c-d2.d2-wall .d2-hist-msg,.c-d2.d2-wall .d2-hd-nog{font-size:16px;line-height:22px}
-.c-d2.d2-wall .d2-hd-graph svg{height:140px}
+.c-d2.d2-wall .d2-hd-graph .d2-plot{height:180px}
 .c-d2.d2-wall .d2-hd.has-pic{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);grid-auto-flow:row dense;column-gap:24px;row-gap:14px;align-items:start}
 .c-d2.d2-wall .d2-hd.has-pic>*{grid-column:2}
 .c-d2.d2-wall .d2-hd.has-pic>.d2-hd-pic{grid-column:1;grid-row:1 / span 3;max-height:none}
