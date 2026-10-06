@@ -126,16 +126,15 @@
   const GLYPH = {
     bake: g("M10 37h28"), broil: g("M10 11h28"), roast: g("M10 11h28M10 37h28"),
     toast: g("M10 11h7M20.5 11h7M31 11h7M10 37h7M20.5 37h7M31 37h7"),
-    // The oven's four-blade fan.
-    airfry: '<g class="d2-fan">' + [45, 135, 225, 315].map((a) => `<path class="fill" transform="rotate(${a} 24 24)" d="M24 24c-4.9-2.9-7.6-8.4-6-13.8 1.4-4.5 8.2-5.4 11-1.2 3 4.6.8 11-5 15z"/>`).join("") + '<circle class="fill" cx="24" cy="24" r="3.2"/></g>',
-    // The oven's own Reheat, Keep warm, Dehydrate and Proof (a ball of dough) tiles.
+    airfry: '<circle cx="24" cy="24" r="12.5" class="thin"/><g class="d2-fan">' + [0, 120, 240].map((a) => `<path class="fill" transform="rotate(${a} 24 24)" d="M24 24c-1.5-5.5 1-9.5 5-9.2 2.6.3 2.8 4.4-5 9.2z"/>`).join("") + "</g>",
+    // The oven's own Reheat, Keep warm and Dehydrate tiles; Proof is dough rising over the bottom element.
     reheat: g([14, 24, 34].map((x) => `M${x} 11.5c2.6 2.8 2.6 5.7 0 8.5s-2.6 5.7 0 8.5 2.6 5.7 0 8.5`).join("")),
-    proof: '<circle class="fill" cx="24" cy="24" r="12"/>',
+    proof: '<path class="solid" d="M14 30v-2.5c0-5.8 4.5-10 10-10s10 4.2 10 10v2.5z"/>' + g("M10 37h28"),
     warm: [14, 24, 34].map((x) => `<circle class="fill" cx="${x}" cy="24" r="4"/>`).join(""),
     dehydrate: '<circle class="fill" cx="24" cy="24" r="7.5"/>' + [0, 45, 90, 135, 180, 225, 270, 315].map((a) => `<path class="thin" transform="rotate(${a} 24 24)" d="M24 8.5v3.5"/>`).join(""),
-    // Grill: the oven's diagonal grill marks. Pizza: the oven's pizza peel.
+    // Grill: the oven's diagonal grill marks. Pizza: a slice (the lead preferred it to the oven's peel).
     grill: g("M11 19l8-8M11 29l18-18M11 38.5L38.5 11M20 38.5l18.5-18.5M30 38.5l8.5-8.5"),
-    pizzaiolo: '<path class="solid" d="M18 10h12c4.4 0 8 3.6 8 8v2.5c0 4.4-3.6 8-8 8h-4v9.5h-4v-9.5h-4c-4.4 0-8-3.6-8-8V18c0-4.4 3.6-8 8-8z"/>',
+    pizzaiolo: '<path class="thin" d="M10.5 15.5Q24 7 37.5 15.5L24 40Z"/><path class="thin" d="M13.5 20.5Q24 14 34.5 20.5"/><circle class="fill" cx="20.5" cy="25.5" r="2.4"/><circle class="fill" cx="27.5" cy="27" r="2.4"/><circle class="fill" cx="24" cy="33" r="2"/>',
     camera: '<path class="thin" d="M9 16.5h6.5l3-4h11l3 4H39a2.5 2.5 0 0 1 2.5 2.5v15a2.5 2.5 0 0 1-2.5 2.5H9A2.5 2.5 0 0 1 6.5 34V19A2.5 2.5 0 0 1 9 16.5z"/><circle class="thin" cx="24" cy="26.5" r="6.5"/>',
     history: '<path class="thin" d="M12.2 17.5A13 13 0 1 1 11 26"/><path class="thin" d="M11.5 11v6.8h6.8"/><path d="M24 17v7.5l5 3"/>',
     settings: '<circle cx="24" cy="24" r="9" class="thin"/><circle cx="24" cy="24" r="3.5" class="thin"/>' + [0, 45, 90, 135, 180, 225, 270, 315].map((a) => `<path transform="rotate(${a} 24 24)" d="M24 11.5v3.5"/>`).join("")
@@ -1283,7 +1282,7 @@
     }
 
     // ---- the Air fry fan: spins up on hover, then coasts to rest where it started ----
-    // It stops on a whole quarter turn: the four blades look the same at 0°, 90°, 180° and 270°, so the
+    // It stops on a whole third of a turn: the three blades look the same at 0°, 120° and 240°, so the
     // resting fan is drawn exactly as before. State is kept per oven, so a re-render mid-spin carries on.
     _fanHover(e, on) {
       if (e.type !== "pointerover" && e.type !== "pointerout") return;
@@ -1308,8 +1307,8 @@
           f.a = (f.a + f.v * dt) % 360;
         } else {
           if (!f.stop) {
-            // Ease out from the current speed (cubic: starting speed 3D/T) onto the next quarter turn.
-            const target = Math.ceil((f.a + f.v * COAST) / 90 - 1e-6) * 90, D = target - f.a;
+            // Ease out from the current speed (cubic: starting speed 3D/T) onto the next third of a turn.
+            const target = Math.ceil((f.a + f.v * COAST) / 120 - 1e-6) * 120, D = target - f.a;
             f.stop = { a0: f.a, D, T: D < 0.01 ? 0 : Math.min(2, Math.max(0.3, (3 * D) / Math.max(f.v, 1))), s: 0 };
           }
           const st = f.stop;
@@ -1961,8 +1960,8 @@
     }
   }
 
-  const CSS = `.c-d2{--f:'Barlow Semi Condensed','Barlow',system-ui,sans-serif;--fn:'Barlow Condensed','Barlow',system-ui,sans-serif;position:relative;width:100%;height:100%;box-sizing:border-box;overflow:hidden;overflow:clip;font-family:var(--f);color:var(--fg);border-radius:var(--ha-card-border-radius,12px);
-  background:linear-gradient(112deg,transparent 0 63%,var(--sheen) 63.4%,transparent 84%),linear-gradient(180deg,var(--bg) 0%,var(--bg2) 100%);box-shadow:inset 0 0 0 1px var(--rim);-webkit-font-smoothing:antialiased}
+  const CSS = `.c-d2{--sheen-a:118deg;--f:'Barlow Semi Condensed','Barlow',system-ui,sans-serif;--fn:'Barlow Condensed','Barlow',system-ui,sans-serif;position:relative;width:100%;height:100%;box-sizing:border-box;overflow:hidden;overflow:clip;font-family:var(--f);color:var(--fg);border-radius:var(--ha-card-border-radius,12px);
+  background:linear-gradient(var(--sheen-a),transparent 0 63%,var(--sheen) 63.4%,transparent 84%),linear-gradient(180deg,var(--bg) 0%,var(--bg2) 100%);box-shadow:inset 0 0 0 1px var(--rim);-webkit-font-smoothing:antialiased}
 .c-d2 *{box-sizing:border-box}
 .c-d2 button{font:inherit;color:inherit;background:none;border:0;padding:0;margin:0;cursor:pointer;-webkit-tap-highlight-color:transparent}
 .c-d2 button:focus-visible,.c-d2 [tabindex]:focus-visible{outline:2px solid var(--focus);outline-offset:2px}
@@ -2148,7 +2147,7 @@
 .c-d2 .d2-tile{display:flex;flex-direction:column;align-items:center;gap:7px;min-width:0}
 .c-d2 .d2-face{position:relative;display:block;width:var(--tile);aspect-ratio:1;border-radius:22%;overflow:hidden;
   background:radial-gradient(120% 75% at 50% 100%,var(--tGlow),transparent 62%),linear-gradient(180deg,var(--tA),var(--tB));box-shadow:inset 0 0 0 1px var(--tRim),inset 0 1px 0 var(--tSheen)}
-.c-d2 .d2-face::after{content:"";position:absolute;inset:0;background:linear-gradient(118deg,transparent 0 56%,var(--tSheen) 56.5%,transparent 78%);opacity:.7;pointer-events:none}
+.c-d2 .d2-face::after{content:"";position:absolute;inset:0;background:linear-gradient(var(--sheen-a),transparent 0 56%,var(--tSheen) 56.5%,transparent 78%);opacity:.7;pointer-events:none}
 .c-d2 .d2-glyph{position:absolute;left:16%;top:16%;width:68%;height:68%;fill:none;stroke:var(--glyph);stroke-width:4;stroke-linecap:round;stroke-linejoin:round;filter:drop-shadow(0 0 2px var(--gglow)) drop-shadow(0 0 7px var(--gglow))}
 .c-d2 .d2-glyph .fill{fill:var(--glyph);stroke:none}
 .c-d2 .d2-glyph .solid{fill:var(--glyph)}
