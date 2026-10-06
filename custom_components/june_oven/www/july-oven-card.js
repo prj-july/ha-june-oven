@@ -44,7 +44,7 @@
  */
 (() => {
   "use strict";
-  const VERSION = "0.5.10";
+  const VERSION = "0.5.11";
   const DOMAIN = "june_oven";
   const TAG = "july-oven-card";
   if (customElements.get(TAG)) return;
@@ -173,7 +173,8 @@
   const clamp01 = (v) => Math.max(0, Math.min(1, v));
   const deg = (h) => String(h).replace(/°/g, '<span class="d2-deg">°</span>');
   const titleCase = (s) => (s ? s.replace(/_/g, " ").replace(/^./, (c) => c.toUpperCase()) : "");
-  const fmtTimer = (m) => (m >= 60 ? `${Math.floor(m / 60)} h${m % 60 ? ` ${m % 60} min` : ""}` : `${m} min`);
+  // The reheat timer reads as minutes up to an hour, then as hours and minutes ("1 hr 30 min").
+  const timerParts = (t) => (t >= 60 ? [Math.floor(t / 60), t % 60] : [0, t]);
   function duration(sec) {
     const s = Math.max(0, Math.round(sec)), h = Math.floor(s / 3600), m = Math.floor((s % 3600) / 60), r = s % 60;
     return h ? `${h}:${String(m).padStart(2, "0")}:${String(r).padStart(2, "0")}` : `${m}:${String(r).padStart(2, "0")}`;
@@ -493,9 +494,9 @@
   const snap = (r, v) => Math.max(r.min, Math.min(r.max, Math.round(v / r.step) * r.step));
   const fill = (r) => ((r.temp - r.min) / Math.max(1, r.max - r.min)).toFixed(4);
 
-  // Every review has the same shape: the mode's tile beside one large control (temperature, toast
-  // level, timer, grill heat, or the temperature the oven sets), a slider or a line under it, then the
-  // note and the buttons.
+  // Every review has the same shape: the mode's tile at the left with one large control (temperature,
+  // toast level, timer, grill heat, or the temperature the oven sets) on the sheet's centre line, a
+  // slider or a line under it on that same line, then the note and the buttons.
   function review(r, name, unit, now, multi) {
     const left = Math.max(0, r.until - now);
     const step = (act, what, dis, ic) => `<button class="d2-round" data-act="${act}" aria-label="${what}"${dis ? " disabled" : ""}>${ic}</button>`;
@@ -503,17 +504,18 @@
     let ctl, under;
     if (r.mode === "toast") {
       ctl = `<div class="d2-sh-temp">${step("toast-dec", "Lower the toast level", r.level <= 1, I.minus)}
-          <span class="d2-sh-v"><b class="d2-sh-big d2-sh-lv">${r.level}</b><span>level</span></span>
+          <span class="d2-sh-v" aria-label="Toast level"><b class="d2-sh-big d2-sh-lv">${r.level}</b></span>
           ${step("toast-inc", "Raise the toast level", r.level >= 9, I.plus)}</div>`;
       under = `<div class="d2-sh-slide"><input class="d2-range d2-level-range" type="range" min="1" max="9" step="1" value="${r.level}" style="--p:${((r.level - 1) / 8).toFixed(4)}" aria-label="Toast level, 1 to 9">
-        <div class="d2-sh-ends" aria-hidden="true"><span>1 · Light</span><span>Cooks at ${at}</span><span>9 · Dark</span></div></div>`;
+        <div class="d2-sh-ends" aria-hidden="true"><span>1 · Light</span><span>9 · Dark</span></div></div>`;
     } else if (r.mode === "reheat") {
       const t = r.timer || 60;
       ctl = `<div class="d2-sh-temp">${step("tm-dec", "Shorten the timer", t <= 1, I.minus)}
-          <label class="d2-sh-v"><input class="d2-sh-in d2-timer-in" type="text" inputmode="numeric" maxlength="3" autocomplete="off" value="${t}" aria-label="Timer in minutes: type a number from 1 to 600"><span>min</span></label>
+          <div class="d2-sh-v d2-timer-v${t >= 60 ? " has-h" : ""}"><label class="d2-tm-h"><input class="d2-sh-in d2-timer-h${timerParts(t)[0] >= 10 ? " is-wide" : ""}" type="text" inputmode="numeric" maxlength="2" autocomplete="off" value="${timerParts(t)[0]}" aria-label="Timer hours"><span>hr</span></label>
+            <label><input class="d2-sh-in d2-timer-in" type="text" inputmode="numeric" maxlength="3" autocomplete="off" value="${timerParts(t)[1]}" aria-label="Timer minutes"><span>min</span></label></div>
           ${step("tm-inc", "Lengthen the timer", t >= 600, I.plus)}</div>`;
       under = `<div class="d2-sh-slide"><input class="d2-range d2-timer-range" type="range" min="1" max="600" step="1" value="${t}" style="--p:${((t - 1) / 599).toFixed(4)}" aria-label="Timer in minutes">
-        <div class="d2-sh-ends" aria-hidden="true"><span>1 min</span><span class="d2-timer-lv">${fmtTimer(t)} at ${at}</span><span>10 h</span></div></div>`;
+        <div class="d2-sh-ends d2-sh-ends3" aria-hidden="true"><span>1 min</span><span>Reheats at ${at}</span><span>10 hr</span></div></div>`;
     } else if (r.mode === "grill") {
       ctl = `<div class="d2-sh-temp"><div class="d2-seg d2-sh-seg" role="radiogroup" aria-label="Grill heat">${[2, 1, 0].map((v) => `<button role="radio" aria-checked="${r.grill === v}" data-act="grill-heat" data-v="${v}">${GRILL_LABEL[v]}</button>`).join("")}</div></div>`;
       under = `<div class="d2-sh-slide d2-sh-line">Grills at ${at}</div>`;
@@ -532,7 +534,7 @@
         <button class="d2-icbtn" data-act="sheet-close" aria-label="Cancel">${I.close}</button></div>
       <div class="d2-sh-row"><span class="d2-face d2-sh-face">${glyph(r.mode)}</span>${ctl}</div>
       ${under}
-      <div class="d2-sh-note">Make sure the oven is empty and the door is closed. Nothing heats until you press Start. This closes in <b class="d2-sh-left">${duration(left / 1000)}</b>.</div>
+      <div class="d2-sh-note d2-sh-mid">Make sure the oven is empty and the door is closed. Nothing heats until you press Start. This closes in <b class="d2-sh-left">${duration(left / 1000)}</b>.</div>
       <div class="d2-sh-acts"><button class="d2-ghost" data-act="sheet-close">Not now</button>
         <button class="d2-go" data-act="rv-start"${r.busy ? " disabled" : ""}>${r.busy ? "Starting…" : multi ? `Start preheating ${esc(name)}` : "Start preheating"}</button></div>
     </div>`;
@@ -1715,11 +1717,12 @@
       }
       if (!r || r.kind !== "review") return;
       if (e.target.matches(".d2-timer-range")) return this._timerSet(+e.target.value);
-      if (e.target.matches(".d2-timer-in")) {
-        const t = e.target.value.replace(/\D/g, "").slice(0, 4);
+      if (e.target.matches(".d2-timer-in, .d2-timer-h")) {
+        const t = e.target.value.replace(/\D/g, "");
         if (t !== e.target.value) e.target.value = t;
-        const v = parseInt(t, 10);
-        if (Number.isFinite(v) && v >= 1 && v <= 600) this._timerSet(v, true);
+        if (e.target.matches(".d2-timer-h")) e.target.classList.toggle("is-wide", t.length > 1);
+        const v = this._timerTyped();
+        if (v >= 1 && v <= 600) this._timerSet(v, e.target);
         return;
       }
       if (e.target.matches(".d2-level-range")) return this._toastLevel(+e.target.value - (r.level || 5));
@@ -1742,10 +1745,9 @@
         return this._prefsChanged();
       }
       if (e.target.matches(".d2-temp-in")) this._commitTyped(e.target);
-      if (e.target.matches(".d2-timer-in")) {
-        const v = parseInt(e.target.value, 10);
-        if (Number.isFinite(v) && v >= 1 && v <= 600) this._timerSet(v);
-        else e.target.value = this._sheet && this._sheet.timer ? this._sheet.timer : 60;
+      if (e.target.matches(".d2-timer-in, .d2-timer-h")) {
+        const v = this._timerTyped();
+        this._timerSet(v >= 1 && v <= 600 ? v : (this._sheet && this._sheet.timer) || 60);
         return;
       }
       if (e.target.matches(".d2-mdi")) {
@@ -1779,7 +1781,7 @@
       }
       if (t && t.matches && t.matches(".d2-mdi") && e.key === "Enter") return t.blur();
       if (t && t.matches && t.matches(".d2-foodin") && e.key === "Enter") return t.blur();
-      if (t && t.matches && t.matches(".d2-timer-in") && e.key === "Enter") return t.blur();
+      if (t && t.matches && t.matches(".d2-timer-in, .d2-timer-h") && e.key === "Enter") return t.blur();
       if (e.key === "Escape") { this._sheet.byKey = this.shadowRoot.activeElement !== null; this._closeSheet(); }
     }
 
@@ -1896,16 +1898,30 @@
       input.value = this._sheet ? this._sheet.temp : input.value;
     }
 
+    // Minutes from the timer fields: hours (when shown) and minutes; an empty field counts as 0.
+    _timerTyped() {
+      const o = this._overEl, v = o && o.querySelector(".d2-timer-v");
+      if (!v) return NaN;
+      const n = (sel) => parseInt(o.querySelector(sel).value, 10) || 0;
+      return (v.classList.contains("has-h") ? n(".d2-timer-h") * 60 : 0) + n(".d2-timer-in");
+    }
+
+    // typing: the field being typed in. It and the hours/minutes split stay as they are until the
+    // field is left, so "90" typed into minutes becomes "1 hr 30 min" only then.
     _timerSet(min, typing) {
       const r = this._sheet;
       if (!r || r.kind !== "review") return;
       r.timer = Math.min(600, Math.max(1, Math.round(min)));
       const range = this._overEl.querySelector(".d2-timer-range");
       if (range) { range.value = r.timer; range.style.setProperty("--p", (r.timer - 1) / 599); }
-      const lv = this._overEl.querySelector(".d2-timer-lv");
-      if (lv) lv.textContent = `${fmtTimer(r.timer)} at ${r.temp} ${this._model(this._conf(r.oven), Date.now()).unit}`;
-      const inp = this._overEl.querySelector(".d2-timer-in");
-      if (inp && !typing) inp.value = r.timer;
+      const v = this._overEl.querySelector(".d2-timer-v");
+      if (v && !typing) {
+        const [h, m] = timerParts(r.timer);
+        v.classList.toggle("has-h", r.timer >= 60);
+        v.querySelector(".d2-timer-h").value = h;
+        v.querySelector(".d2-timer-h").classList.toggle("is-wide", h >= 10);
+        v.querySelector(".d2-timer-in").value = m;
+      }
       this._overEl.querySelectorAll('.d2-round[data-act^="tm-"]').forEach((b) => { b.disabled = b.dataset.act === "tm-dec" ? r.timer <= 1 : r.timer >= 600; });
     }
 
@@ -2253,9 +2269,12 @@ ha-card{height:100%;overflow:hidden;overflow:clip;background:none;border:none;bo
 .c-d2 .d2-sh-head{display:flex;align-items:center;justify-content:space-between;gap:8px}
 .c-d2 .d2-sh-t{font:600 20px/26px var(--f);color:var(--fg)}
 .c-d2 .d2-sh-s{font:500 12px/16px var(--f);letter-spacing:.06em;text-transform:uppercase;color:var(--fg2)}
-.c-d2 .d2-sh-row{display:flex;align-items:center;gap:min(16px,4cqw)}
-.c-d2 .d2-sh-face{--tile:clamp(44px,17cqw,72px);flex:none}
-.c-d2 .d2-sh-temp{flex:1;min-width:0;display:flex;align-items:center;justify-content:center;gap:min(14px,2.5cqw)}
+/* Review: the tile stays at the left; the control sits on the sheet's centre line, in the middle of
+   two equal columns (on a card too narrow for that, it moves right just enough to clear the tile). */
+.c-d2 .d2-sh-row{--tile:clamp(44px,17cqw,72px);--sg:min(16px,4cqw);display:grid;grid-template-columns:minmax(var(--tile),1fr) minmax(0,auto) minmax(0,1fr);align-items:center;column-gap:var(--sg)}
+.c-d2 .d2-sh-face{--tile:inherit;justify-self:start}
+.c-d2 .d2-sh-mid{text-align:center}
+.c-d2 .d2-sh-temp{min-width:0;display:flex;align-items:center;justify-content:center;gap:min(14px,2.5cqw)}
 /* On a narrow card the − / + buttons and the number shrink so the row always fits. */
 .c-d2 .d2-sh-temp .d2-round{width:clamp(32px,13cqw,48px);height:clamp(32px,13cqw,48px)}
 .c-d2 .d2-sh-temp .d2-round .d2-ic{width:clamp(16px,5.5cqw,20px);height:clamp(16px,5.5cqw,20px)}
@@ -2268,9 +2287,9 @@ ha-card{height:100%;overflow:hidden;overflow:clip;background:none;border:none;bo
 .c-d2.d2-wall .d2-sh-t{font-size:28px;line-height:34px}
 .c-d2.d2-wall .d2-sh-note{font-size:19px;line-height:26px}
 .c-d2.d2-wall .d2-sh-v b{font-size:min(72px,13.5cqw)}
-.c-d2.d2-wall .d2-sh-face{--tile:96px}
+.c-d2.d2-wall .d2-sh-row{--tile:96px}
 .c-d2.d2-wall .d2-sh-line{font-size:18px}
-.c-d2.d2-wall .d2-seg.d2-sh-seg{width:min(100%,520px)}
+.c-d2.d2-wall .d2-seg.d2-sh-seg{width:min(520px,calc(100cqw - 2 * var(--px) - var(--tile) - 2 * var(--sg)),max(200px,calc(100cqw - 2 * var(--px) - 2 * var(--tile) - 2 * var(--sg))))}
 .c-d2.d2-wall .d2-seg.d2-sh-seg button{min-height:64px;font-size:22px}
 .c-d2.d2-wall .d2-go{height:64px;font-size:22px}
 /* ---- The oven button: icon (the oven's lamp) and a name that tucks into it ---- */
@@ -2306,6 +2325,15 @@ ha-card{height:100%;overflow:hidden;overflow:clip;background:none;border:none;bo
 .c-d2 .d2-sheet:not(.d2-set)>*{flex:none}
 /* Review: number you can type in, slider, − and + */
 .c-d2 .d2-sh-v{display:flex;align-items:baseline;gap:2px;cursor:text}
+.c-d2 .d2-timer-v{gap:min(10px,2cqw)}
+.c-d2 .d2-timer-v>label{display:flex;align-items:baseline;gap:2px}
+.c-d2 .d2-timer-v:not(.has-h)>.d2-tm-h{display:none}
+/* Hours and minutes: smaller digits and tighter fields so the pair fits where one number did. */
+.c-d2 .d2-timer-v.has-h .d2-sh-in{font-size:min(46px,9.5cqw);width:1.2em}
+.c-d2.d2-wall .d2-timer-v.has-h .d2-sh-in{font-size:min(72px,9.5cqw)}
+.c-d2 .d2-timer-v.has-h .d2-timer-h{width:.7em}
+.c-d2 .d2-timer-v.has-h .d2-timer-h.is-wide{width:1.2em}
+.c-d2 .d2-timer-v.has-h span{font-size:min(16px,4.5cqw)}
 .c-d2 .d2-sh-in{width:1.75em;padding:0 0 2px;border:0;border-bottom:2px dashed var(--chipb);border-radius:0;background:none;font-family:var(--fn);font-weight:300;font-size:min(46px,13.5cqw);line-height:1;color:var(--fg);text-align:center;font-variant-numeric:tabular-nums;outline:none;caret-color:var(--ember)}
 .c-d2 .d2-sh-in:hover{border-bottom-color:var(--fg2)}
 .c-d2 .d2-sh-in:focus{border-bottom:2px solid var(--ember)}
@@ -2320,9 +2348,13 @@ ha-card{height:100%;overflow:hidden;overflow:clip;background:none;border:none;bo
 .c-d2 .d2-range:focus-visible{outline:2px solid var(--focus);outline-offset:2px;border-radius:6px}
 .c-d2 .d2-sh-ends{display:flex;justify-content:space-between;gap:8px;font:400 12px/14px var(--f);color:var(--fg2);white-space:nowrap}
 .c-d2 .d2-sh-ends span:nth-child(2):not(:last-child){color:var(--fg);text-align:center}
+/* Three labels: equal outer columns keep the middle one on the centre line. */
+.c-d2 .d2-sh-ends3{display:grid;grid-template-columns:1fr auto 1fr}
+.c-d2 .d2-sh-ends3 span:first-child{text-align:left}
+.c-d2 .d2-sh-ends3 span:last-child{text-align:right}
 /* No slider: one line in its place, so every review keeps the same rhythm. */
 .c-d2 .d2-sh-line{display:flex;align-items:center;justify-content:center;min-height:46px;font:400 15px/19px var(--f);color:var(--fg2);text-align:center}
-.c-d2 .d2-sh-seg{width:min(100%,360px)}
+.c-d2 .d2-sh-seg{width:min(360px,calc(100cqw - 2 * var(--px) - var(--tile) - 2 * var(--sg)),max(200px,calc(100cqw - 2 * var(--px) - 2 * var(--tile) - 2 * var(--sg))))}
 .c-d2 .d2-seg.d2-sh-seg button{min-height:48px;font-size:min(17px,5cqw)}
 .c-d2.d2-wall .d2-sh-ends{font-size:16px;line-height:20px}
 /* Settings */
