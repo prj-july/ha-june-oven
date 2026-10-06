@@ -44,7 +44,7 @@
  */
 (() => {
   "use strict";
-  const VERSION = "0.5.10";
+  const VERSION = "0.5.11";
   const DOMAIN = "june_oven";
   const TAG = "july-oven-card";
   if (customElements.get(TAG)) return;
@@ -493,9 +493,9 @@
   const snap = (r, v) => Math.max(r.min, Math.min(r.max, Math.round(v / r.step) * r.step));
   const fill = (r) => ((r.temp - r.min) / Math.max(1, r.max - r.min)).toFixed(4);
 
-  // Every review has the same shape: the mode's tile beside one large control (temperature, toast
-  // level, timer, grill heat, or the temperature the oven sets), a slider or a line under it, then the
-  // note and the buttons.
+  // Every review has the same shape, centred on one axis: the mode's tile, one large control under it
+  // (temperature, toast level, timer, grill heat, or the temperature the oven sets), a slider or a
+  // line, then the note, with the buttons along the bottom.
   function review(r, name, unit, now, multi) {
     const left = Math.max(0, r.until - now);
     const step = (act, what, dis, ic) => `<button class="d2-round" data-act="${act}" aria-label="${what}"${dis ? " disabled" : ""}>${ic}</button>`;
@@ -506,14 +506,14 @@
           <span class="d2-sh-v"><b class="d2-sh-big d2-sh-lv">${r.level}</b><span>level</span></span>
           ${step("toast-inc", "Raise the toast level", r.level >= 9, I.plus)}</div>`;
       under = `<div class="d2-sh-slide"><input class="d2-range d2-level-range" type="range" min="1" max="9" step="1" value="${r.level}" style="--p:${((r.level - 1) / 8).toFixed(4)}" aria-label="Toast level, 1 to 9">
-        <div class="d2-sh-ends" aria-hidden="true"><span>1 · Light</span><span>Cooks at ${at}</span><span>9 · Dark</span></div></div>`;
+        <div class="d2-sh-ends d2-sh-ends3" aria-hidden="true"><span>1 · Light</span><span>Cooks at ${at}</span><span>9 · Dark</span></div></div>`;
     } else if (r.mode === "reheat") {
       const t = r.timer || 60;
       ctl = `<div class="d2-sh-temp">${step("tm-dec", "Shorten the timer", t <= 1, I.minus)}
           <label class="d2-sh-v"><input class="d2-sh-in d2-timer-in" type="text" inputmode="numeric" maxlength="3" autocomplete="off" value="${t}" aria-label="Timer in minutes: type a number from 1 to 600"><span>min</span></label>
           ${step("tm-inc", "Lengthen the timer", t >= 600, I.plus)}</div>`;
       under = `<div class="d2-sh-slide"><input class="d2-range d2-timer-range" type="range" min="1" max="600" step="1" value="${t}" style="--p:${((t - 1) / 599).toFixed(4)}" aria-label="Timer in minutes">
-        <div class="d2-sh-ends" aria-hidden="true"><span>1 min</span><span class="d2-timer-lv">${fmtTimer(t)} at ${at}</span><span>10 h</span></div></div>`;
+        <div class="d2-sh-ends d2-sh-ends3" aria-hidden="true"><span>1 min</span><span class="d2-timer-lv">${fmtTimer(t)} at ${at}</span><span>10 h</span></div></div>`;
     } else if (r.mode === "grill") {
       ctl = `<div class="d2-sh-temp"><div class="d2-seg d2-sh-seg" role="radiogroup" aria-label="Grill heat">${[2, 1, 0].map((v) => `<button role="radio" aria-checked="${r.grill === v}" data-act="grill-heat" data-v="${v}">${GRILL_LABEL[v]}</button>`).join("")}</div></div>`;
       under = `<div class="d2-sh-slide d2-sh-line">Grills at ${at}</div>`;
@@ -530,9 +530,9 @@
     return `<div class="d2-sheet" role="dialog" aria-modal="true" aria-label="Review before starting">
       <div class="d2-sh-head"><div><div class="d2-sh-t">${esc(MODE_LABEL[r.mode])} · ${esc(name)}</div><div class="d2-sh-s">Step 2 of 2 · Review</div></div>
         <button class="d2-icbtn" data-act="sheet-close" aria-label="Cancel">${I.close}</button></div>
-      <div class="d2-sh-row"><span class="d2-face d2-sh-face">${glyph(r.mode)}</span>${ctl}</div>
-      ${under}
-      <div class="d2-sh-note">Make sure the oven is empty and the door is closed. Nothing heats until you press Start. This closes in <b class="d2-sh-left">${duration(left / 1000)}</b>.</div>
+      <div class="d2-sh-body"><span class="d2-face d2-sh-face">${glyph(r.mode)}</span>${ctl}
+        ${under}
+        <div class="d2-sh-note">Make sure the oven is empty and the door is closed. Nothing heats until you press Start. This closes in <b class="d2-sh-left">${duration(left / 1000)}</b>.</div></div>
       <div class="d2-sh-acts"><button class="d2-ghost" data-act="sheet-close">Not now</button>
         <button class="d2-go" data-act="rv-start"${r.busy ? " disabled" : ""}>${r.busy ? "Starting…" : multi ? `Start preheating ${esc(name)}` : "Start preheating"}</button></div>
     </div>`;
@@ -2253,9 +2253,12 @@ ha-card{height:100%;overflow:hidden;overflow:clip;background:none;border:none;bo
 .c-d2 .d2-sh-head{display:flex;align-items:center;justify-content:space-between;gap:8px}
 .c-d2 .d2-sh-t{font:600 20px/26px var(--f);color:var(--fg)}
 .c-d2 .d2-sh-s{font:500 12px/16px var(--f);letter-spacing:.06em;text-transform:uppercase;color:var(--fg2)}
-.c-d2 .d2-sh-row{display:flex;align-items:center;gap:min(16px,4cqw)}
-.c-d2 .d2-sh-face{--tile:clamp(44px,17cqw,72px);flex:none}
-.c-d2 .d2-sh-temp{flex:1;min-width:0;display:flex;align-items:center;justify-content:center;gap:min(14px,2.5cqw)}
+/* Review: one centred column, centred again in the space between the title and the buttons. */
+.c-d2 .d2-sh-body{display:flex;flex-direction:column;align-items:center;gap:10px;width:min(100%,560px);margin:auto;text-align:center}
+.c-d2 .d2-sh-body+.d2-sh-acts{margin-top:0}
+.c-d2 .d2-sh-body>.d2-sh-slide{align-self:stretch}
+.c-d2 .d2-sh-face{--tile:clamp(40px,min(17cqw,14cqh),72px);flex:none}
+.c-d2 .d2-sh-temp{align-self:stretch;display:flex;align-items:center;justify-content:center;gap:min(14px,2.5cqw)}
 /* On a narrow card the − / + buttons and the number shrink so the row always fits. */
 .c-d2 .d2-sh-temp .d2-round{width:clamp(32px,13cqw,48px);height:clamp(32px,13cqw,48px)}
 .c-d2 .d2-sh-temp .d2-round .d2-ic{width:clamp(16px,5.5cqw,20px);height:clamp(16px,5.5cqw,20px)}
@@ -2268,7 +2271,7 @@ ha-card{height:100%;overflow:hidden;overflow:clip;background:none;border:none;bo
 .c-d2.d2-wall .d2-sh-t{font-size:28px;line-height:34px}
 .c-d2.d2-wall .d2-sh-note{font-size:19px;line-height:26px}
 .c-d2.d2-wall .d2-sh-v b{font-size:min(72px,13.5cqw)}
-.c-d2.d2-wall .d2-sh-face{--tile:96px}
+.c-d2.d2-wall .d2-sh-face{--tile:clamp(56px,14cqh,96px)}
 .c-d2.d2-wall .d2-sh-line{font-size:18px}
 .c-d2.d2-wall .d2-seg.d2-sh-seg{width:min(100%,520px)}
 .c-d2.d2-wall .d2-seg.d2-sh-seg button{min-height:64px;font-size:22px}
@@ -2320,6 +2323,10 @@ ha-card{height:100%;overflow:hidden;overflow:clip;background:none;border:none;bo
 .c-d2 .d2-range:focus-visible{outline:2px solid var(--focus);outline-offset:2px;border-radius:6px}
 .c-d2 .d2-sh-ends{display:flex;justify-content:space-between;gap:8px;font:400 12px/14px var(--f);color:var(--fg2);white-space:nowrap}
 .c-d2 .d2-sh-ends span:nth-child(2):not(:last-child){color:var(--fg);text-align:center}
+/* Three labels: equal outer columns keep the middle one on the centre line. */
+.c-d2 .d2-sh-ends3{display:grid;grid-template-columns:1fr auto 1fr}
+.c-d2 .d2-sh-ends3 span:first-child{text-align:left}
+.c-d2 .d2-sh-ends3 span:last-child{text-align:right}
 /* No slider: one line in its place, so every review keeps the same rhythm. */
 .c-d2 .d2-sh-line{display:flex;align-items:center;justify-content:center;min-height:46px;font:400 15px/19px var(--f);color:var(--fg2);text-align:center}
 .c-d2 .d2-sh-seg{width:min(100%,360px)}
