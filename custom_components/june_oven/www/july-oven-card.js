@@ -71,7 +71,9 @@
   };
   // Modes whose cavity temperature is fixed by the oven plan (const.py
   // FIXED_MODE_TEMPS_F); the review shows the value instead of a slider.
-  const FIXED_TEMPS = { broil: 500, toast: 500, reheat: 350, proof: 85, warm: 170, dehydrate: 135 };
+  const FIXED_TEMPS = { broil: 500, toast: 500, reheat: 350, warm: 170 };
+  // Modes with a user temperature on a per-mode range (°F).
+  const MODE_TEMP = { proof: { min: 80, max: 110, def: 85 }, dehydrate: { min: 100, max: 160, def: 135 } };
   const DONE_WINDOW_MS = 30 * 60 * 1000;
   const REVIEW_MS = 5 * 60 * 1000;
   const TUCK_MS = 5000;
@@ -1747,7 +1749,9 @@
         r.fixed = true;
         r.temp = FIXED_TEMPS[mode];
       } else {
-        r.temp = snap(r, c && Number.isFinite(+c.attributes.temperature) && c.attributes.temperature !== null ? +c.attributes.temperature : 350);
+        const mt = MODE_TEMP[mode];
+        if (mt) { r.min = mt.min; r.max = mt.max; }
+        r.temp = snap(r, c && Number.isFinite(+c.attributes.temperature) && c.attributes.temperature !== null ? +c.attributes.temperature : (mt ? mt.def : 350));
       }
       if (mode === "toast") {
         const ids = ovenEntities(this._hass, oven);
