@@ -50,7 +50,7 @@
   if (customElements.get(TAG)) return;
 
   // Cook primitives the integration can start (const.DEFAULT_MODES), in the oven's order.
-  const STARTABLE = [["bake", "Bake"], ["roast", "Roast"], ["broil", "Broil"], ["airfry", "Air fry"], ["toast", "Toast"]];
+  const STARTABLE = [["bake", "Bake"], ["roast", "Roast"], ["broil", "Broil"], ["airfry", "Air fry"], ["toast", "Toast"], ["reheat", "Reheat"], ["proof", "Proof"], ["warm", "Keep warm"], ["dehydrate", "Dehydrate"]];
   const TILES = [...STARTABLE, ["camera", "Camera"], ["history", "History"], ["settings", "Settings"]];
   const UTIL = ["camera", "history", "settings"];
   const ORDERS = [["oven", "Oven's order"], ["used", "Most used first"]];
@@ -69,6 +69,9 @@
     bake: "Bake", roast: "Roast", broil: "Broil", airfry: "Air fry", toast: "Toast", reheat: "Reheat", warm: "Keep warm",
     slow_cook: "Slow cook", dehydrate: "Dehydrate", proof: "Proof", pizzaiolo: "Pizza", sous_vide: "Sous vide", grill: "Grill"
   };
+  // Modes whose cavity temperature is fixed by the oven plan (const.py
+  // FIXED_MODE_TEMPS_F); the review shows the value instead of a slider.
+  const FIXED_TEMPS = { broil: 500, toast: 500, reheat: 350, proof: 85, warm: 170, dehydrate: 135 };
   const DONE_WINDOW_MS = 30 * 60 * 1000;
   const REVIEW_MS = 5 * 60 * 1000;
   const TUCK_MS = 5000;
@@ -82,7 +85,7 @@
   const KEYS = {
     phase: ["sensor", "cook_phase"], progress: ["sensor", "progress"], remaining: ["sensor", "time_remaining"],
     elapsed: ["sensor", "cook_elapsed"], probe: ["sensor", "probe_temperature"], probeTarget: ["sensor", "probe_target"],
-    completed: ["sensor", "last_cook_completed"], connected: ["binary_sensor", "connected"], camera: ["camera", "interior"]
+    completed: ["sensor", "last_cook_completed"], connected: ["binary_sensor", "connected"], camera: ["camera", "interior"], toastLevel: ["number", "toast_level"]
   };
   // Plain words for the oven's refusals (10020 ack statuses carried in the service error).
   const REFUSALS = [
@@ -119,6 +122,10 @@
     bake: g("M10 37h28"), broil: g("M10 11h28"), roast: g("M10 11h28M10 37h28"),
     toast: g("M10 11h7M20.5 11h7M31 11h7M10 37h7M20.5 37h7M31 37h7"),
     airfry: '<circle cx="24" cy="24" r="12.5" class="thin"/><g class="d2-fan">' + [0, 120, 240].map((a) => `<path class="fill" transform="rotate(${a} 24 24)" d="M24 24c-1.5-5.5 1-9.5 5-9.2 2.6.3 2.8 4.4-5 9.2z"/>`).join("") + "</g>",
+    reheat: '<path class="thin" d="M12 18c5 0 5 8 10 8M18 14c5 0 5 8 10 8M24 10c5 0 5 8 10 8"/>',
+    proof: '<path class="thin" d="M12 30a12 12 0 0 1 24 0"/><path class="fill" d="M14 26a3 3 0 0 1 6 0M22 24a3 3 0 0 1 6 0M30 22a3 3 0 0 1 6 0"/>',
+    warm: '<path class="thin" d="M12 16c5 0 5 8 10 8M18 16c5 0 5 8 10 8M24 16c5 0 5 8 10 8"/><circle class="fill" cx="13" cy="35" r="2.4"/><circle class="fill" cx="24" cy="35" r="2.4"/><circle class="fill" cx="35" cy="35" r="2.4"/>',
+    dehydrate: '<circle class="thin" cx="24" cy="24" r="7"/><path class="thin" d="M24 10v-4M24 38v-4M10 24h-4M38 24h-4M14.1 14.1l-2.8-2.8M33.9 33.9l-2.8-2.8M33.9 14.1l-2.8 2.8M14.1 33.9l2.8-2.8"/>',
     camera: '<path class="thin" d="M9 16.5h6.5l3-4h11l3 4H39a2.5 2.5 0 0 1 2.5 2.5v15a2.5 2.5 0 0 1-2.5 2.5H9A2.5 2.5 0 0 1 6.5 34V19A2.5 2.5 0 0 1 9 16.5z"/><circle class="thin" cx="24" cy="26.5" r="6.5"/>',
     history: '<path class="thin" d="M12.2 17.5A13 13 0 1 1 11 26"/><path class="thin" d="M11.5 11v6.8h6.8"/><path d="M24 17v7.5l5 3"/>',
     settings: '<circle cx="24" cy="24" r="9" class="thin"/><circle cx="24" cy="24" r="3.5" class="thin"/>' + [0, 45, 90, 135, 180, 225, 270, 315].map((a) => `<path transform="rotate(${a} 24 24)" d="M24 11.5v3.5"/>`).join("")
@@ -439,11 +446,12 @@
       <div class="d2-sh-head"><div><div class="d2-sh-t">${esc(MODE_LABEL[r.mode])} · ${esc(name)}</div><div class="d2-sh-s">Step 2 of 2 · Review</div></div>
         <button class="d2-icbtn" data-act="sheet-close" aria-label="Cancel">${I.close}</button></div>
       <div class="d2-sh-row"><span class="d2-face d2-sh-face">${glyph(r.mode)}</span>
-        <div class="d2-sh-temp"><button class="d2-round" data-act="rv-dec" aria-label="Lower the temperature"${r.temp <= r.min ? " disabled" : ""}>${I.minus}</button>
+        ${r.fixed ? `<div class="d2-sh-fixed">Cooks at ${r.temp}${esc(unit)}</div>` : `<div class="d2-sh-temp"><button class="d2-round" data-act="rv-dec" aria-label="Lower the temperature"${r.temp <= r.min ? " disabled" : ""}>${I.minus}</button>
           <label class="d2-sh-v"><input class="d2-sh-in" type="text" inputmode="numeric" maxlength="3" autocomplete="off" value="${r.temp}" aria-label="Temperature in ${esc(unit)}: type a number from ${r.min} to ${r.max}"><span>${esc(unit)}</span></label>
-          <button class="d2-round" data-act="rv-inc" aria-label="Raise the temperature"${r.temp >= r.max ? " disabled" : ""}>${I.plus}</button></div></div>
-      <div class="d2-sh-slide"><input class="d2-range" type="range" min="${r.min}" max="${r.max}" step="${r.step}" value="${r.temp}" style="--p:${fill(r)}" aria-label="Temperature in ${esc(unit)}">
-        <div class="d2-sh-ends" aria-hidden="true"><span>${r.min}°</span><span>${r.max}°</span></div></div>
+          <button class="d2-round" data-act="rv-inc" aria-label="Raise the temperature"${r.temp >= r.max ? " disabled" : ""}>${I.plus}</button></div>`}</div>
+      ${r.fixed ? "" : `<div class="d2-sh-slide"><input class="d2-range" type="range" min="${r.min}" max="${r.max}" step="${r.step}" value="${r.temp}" style="--p:${fill(r)}" aria-label="Temperature in ${esc(unit)}">
+        <div class="d2-sh-ends" aria-hidden="true"><span>${r.min}°</span><span>${r.max}°</span></div></div>`}
+      ${r.mode === "toast" ? `<div class="d2-sh-toast"><span class="d2-sh-l">Level</span><button class="d2-round" data-act="toast-dec" aria-label="Lower the toast level"${r.level <= 1 ? " disabled" : ""}>${I.minus}</button><b class="d2-sh-lv">${r.level}</b><button class="d2-round" data-act="toast-inc" aria-label="Raise the toast level"${r.level >= 9 ? " disabled" : ""}>${I.plus}</button></div>` : ""}
       <div class="d2-sh-note">Make sure the oven is empty and the door is closed. Nothing heats until you press Start. This closes in <b class="d2-sh-left">${duration(left / 1000)}</b>.</div>
       <div class="d2-sh-acts"><button class="d2-ghost" data-act="sheet-close">Not now</button>
         <button class="d2-go" data-act="rv-start"${r.busy ? " disabled" : ""}>${r.busy ? "Starting…" : multi ? `Start preheating ${esc(name)}` : "Start preheating"}</button></div>
@@ -1563,6 +1571,7 @@
       }
       if (act === "tile") return this._openReview(oven, el.dataset.mode, byKey);
       if (act === "rv-dec" || act === "rv-inc") return this._setTemp(this._sheet && this._sheet.temp + (act === "rv-inc" ? 1 : -1) * this._sheet.step);
+      if (act === "toast-dec" || act === "toast-inc") return this._toastLevel(act === "toast-inc" ? 1 : -1);
       if (act === "rv-start") return this._start();
     }
 
@@ -1693,8 +1702,18 @@
       const c = this._hass.states[oven];
       const step = (c && +c.attributes.target_temp_step) || 5;
       const min = (c && +c.attributes.min_temp) || 100, max = (c && +c.attributes.max_temp) || 500;
-      const r = { kind: "review", oven, mode, step, min, max, temp: 350, until: Date.now() + REVIEW_MS, byKey };
-      r.temp = snap(r, c && Number.isFinite(+c.attributes.temperature) && c.attributes.temperature !== null ? +c.attributes.temperature : 350);
+      const r = { kind: "review", oven, mode, step, min, max, temp: 350, fixed: false, level: 5, until: Date.now() + REVIEW_MS, byKey };
+      if (mode in FIXED_TEMPS) {
+        r.fixed = true;
+        r.temp = FIXED_TEMPS[mode];
+      } else {
+        r.temp = snap(r, c && Number.isFinite(+c.attributes.temperature) && c.attributes.temperature !== null ? +c.attributes.temperature : 350);
+      }
+      if (mode === "toast") {
+        const ids = ovenEntities(this._hass, oven);
+        const lv = ids.toastLevel && this._hass.states[ids.toastLevel];
+        if (lv && Number.isFinite(+lv.state)) r.level = Math.min(9, Math.max(1, +lv.state));
+      }
       this._openSheet(r);
       this._setTemp(r.temp);
       const tick = () => {
@@ -1723,6 +1742,16 @@
       const v = parseInt(input.value, 10);
       if (Number.isFinite(v)) this._setTemp(v);
       input.value = this._sheet ? this._sheet.temp : input.value;
+    }
+
+    async _toastLevel(d) {
+      const r = this._sheet;
+      if (!r || r.kind !== "review" || r.mode !== "toast") return;
+      const ids = ovenEntities(this._hass, r.oven);
+      if (!ids.toastLevel) return;
+      r.level = Math.min(9, Math.max(1, (r.level || 5) + d));
+      this._renderOver();
+      await this._call("number", "set_value", { value: r.level }, ids.toastLevel);
     }
 
     async _start() {
@@ -2084,6 +2113,10 @@ ha-card{height:100%;overflow:hidden;overflow:clip;background:none;border:none;bo
 .c-d2 .d2-range::-moz-range-thumb{width:22px;height:22px;border:0;border-radius:50%;background:#fff;box-shadow:0 0 0 3px var(--ember),0 2px 6px rgba(0,0,0,.35)}
 .c-d2 .d2-range:focus-visible{outline:2px solid var(--focus);outline-offset:2px;border-radius:6px}
 .c-d2 .d2-sh-ends{display:flex;justify-content:space-between;font:400 12px/14px var(--f);color:var(--fg2)}
+.c-d2 .d2-sh-fixed{display:flex;align-items:center;justify-content:center;gap:6px;min-height:44px;font:500 17px/1 var(--fn);font-variant-numeric:tabular-nums;color:var(--fg)}
+.c-d2 .d2-sh-toast{display:flex;align-items:center;justify-content:center;gap:12px;margin-top:4px}
+.c-d2 .d2-sh-toast .d2-sh-l{font:500 12px/14px var(--f);letter-spacing:.06em;text-transform:uppercase;color:var(--fg2)}
+.c-d2 .d2-sh-lv{min-width:24px;text-align:center;font:500 20px/1 var(--fn);font-variant-numeric:tabular-nums;color:var(--fg)}
 .c-d2.d2-wall .d2-sh-ends{font-size:16px;line-height:20px}
 /* Settings */
 .c-d2 .d2-set{gap:6px;padding-bottom:0}

@@ -14,7 +14,7 @@ from homeassistant.helpers.update_coordinator import (
 )
 
 from .api import JuneClient, JuneError, JuneState
-from .const import DOMAIN, POLL_INTERVAL_SECONDS
+from .const import DEFAULT_TOAST_LEVEL, DOMAIN, POLL_INTERVAL_SECONDS
 
 if TYPE_CHECKING:
     from .history import CookHistory
@@ -36,6 +36,7 @@ class JuneDataUpdateCoordinator(DataUpdateCoordinator[JuneState]):
             update_interval=timedelta(seconds=POLL_INTERVAL_SECONDS),
         )
         self.client = client
+        self.toast_level = DEFAULT_TOAST_LEVEL
         self.history: CookHistory | None = None
         self.client.set_update_callback(self.async_set_updated_data)
 
