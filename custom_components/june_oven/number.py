@@ -18,7 +18,7 @@ async def async_setup_entry(
 ) -> None:
     """Set up the June number entities."""
     coordinator: JuneDataUpdateCoordinator = entry.runtime_data
-    async_add_entities([JuneToastLevel(coordinator)])
+    async_add_entities([JuneToastLevel(coordinator), JuneGrillHeat(coordinator)])
 
 
 class JuneToastLevel(JuneEntity, NumberEntity):
@@ -43,4 +43,28 @@ class JuneToastLevel(JuneEntity, NumberEntity):
     async def async_set_native_value(self, value: float) -> None:
         """Select the toast level used by the next toast start."""
         self.coordinator.toast_level = int(value)
+        self.async_write_ha_state()
+
+class JuneGrillHeat(JuneEntity, NumberEntity):
+    """Grill heat 0/1/2 = high/medium/low; the wire plan_index."""
+
+    _attr_translation_key = "grill_heat"
+    _attr_native_min_value = 0
+    _attr_native_max_value = 2
+    _attr_native_step = 1
+    _attr_mode = NumberMode.BOX
+    _attr_icon = "mdi:grill"
+
+    def __init__(self, coordinator: JuneDataUpdateCoordinator) -> None:
+        """Initialize the grill heat control."""
+        super().__init__(coordinator, "grill_heat")
+
+    @property
+    def native_value(self) -> int:
+        """Return the selected grill heat."""
+        return self.coordinator.grill_heat
+
+    async def async_set_native_value(self, value: float) -> None:
+        """Select the grill heat used by the next grill start."""
+        self.coordinator.grill_heat = int(value)
         self.async_write_ha_state()

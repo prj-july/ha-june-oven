@@ -27,6 +27,7 @@ from .const import (
     DEFAULT_MODES,
     DEFAULT_TEMP_F,
     FIXED_MODE_TEMPS_F,
+    GRILL_HEAT_F,
     MAX_TEMP_F,
     MIN_TEMP_F,
     MODE_TEMP_RANGES_F,
@@ -143,8 +144,14 @@ class JuneOvenClimate(JuneEntity, ClimateEntity):
         mode = self.preset_mode
         if mode not in DEFAULT_MODES:
             mode = self._default_mode
+        plan_index = None
+        if mode == "toast":
+            plan_index = self.coordinator.toast_level - 1
+        elif mode == "grill":
+            plan_index = self.coordinator.grill_heat
         temperature = FIXED_MODE_TEMPS_F.get(mode, self.target_temperature)
-        plan_index = self.coordinator.toast_level - 1 if mode == "toast" else None
+        if mode == "grill":
+            temperature = GRILL_HEAT_F.get(self.coordinator.grill_heat, 450)
         await self._run(
             self.coordinator.client.async_preheat(mode, temperature, plan_index)
         )
