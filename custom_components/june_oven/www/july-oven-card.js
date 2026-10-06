@@ -44,7 +44,7 @@
  */
 (() => {
   "use strict";
-  const VERSION = "0.5.4";
+  const VERSION = "0.5.5";
   const DOMAIN = "june_oven";
   const TAG = "july-oven-card";
   if (customElements.get(TAG)) return;
@@ -1820,7 +1820,8 @@
       const range = this._overEl.querySelector(".d2-range"), input = this._overEl.querySelector(".d2-sh-in");
       if (range) { range.value = r.temp; range.style.setProperty("--p", fill(r)); }
       if (input && !typing) input.value = r.temp;
-      this._overEl.querySelectorAll(".d2-round").forEach((b) => { b.disabled = b.dataset.act === "rv-dec" ? r.temp <= r.min : r.temp >= r.max; });
+      // Only the temperature's − / +: the toast level has its own.
+      this._overEl.querySelectorAll('.d2-round[data-act^="rv-"]').forEach((b) => { b.disabled = b.dataset.act === "rv-dec" ? r.temp <= r.min : r.temp >= r.max; });
     }
 
     _commitTyped(input) {
