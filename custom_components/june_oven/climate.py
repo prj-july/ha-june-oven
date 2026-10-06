@@ -29,6 +29,7 @@ from .const import (
     FIXED_MODE_TEMPS_F,
     MAX_TEMP_F,
     MIN_TEMP_F,
+    MODE_TEMP_RANGES_F,
     normalize_mode,
 )
 from .coordinator import JuneDataUpdateCoordinator
@@ -66,8 +67,6 @@ class JuneOvenClimate(JuneEntity, ClimateEntity):
         | ClimateEntityFeature.TURN_OFF
     )
     _attr_temperature_unit = UnitOfTemperature.FAHRENHEIT
-    _attr_min_temp = MIN_TEMP_F
-    _attr_max_temp = MAX_TEMP_F
     _attr_target_temperature_step = 5
 
     def __init__(
@@ -79,6 +78,18 @@ class JuneOvenClimate(JuneEntity, ClimateEntity):
         values = {**entry.data, **entry.options}
         self._default_mode = normalize_mode(values.get(CONF_DEFAULT_MODE))
         self._default_temp_f = float(values.get(CONF_DEFAULT_TEMP_F, DEFAULT_TEMP_F))
+
+    @property
+    def min_temp(self) -> float:
+        """Lowest valid target for the selected mode."""
+        rng = MODE_TEMP_RANGES_F.get(self.preset_mode)
+        return float(rng[0]) if rng else MIN_TEMP_F
+
+    @property
+    def max_temp(self) -> float:
+        """Highest valid target for the selected mode."""
+        rng = MODE_TEMP_RANGES_F.get(self.preset_mode)
+        return float(rng[1]) if rng else MAX_TEMP_F
 
     @property
     def current_temperature(self) -> float | None:
@@ -148,15 +159,18 @@ class JuneOvenClimate(JuneEntity, ClimateEntity):
         if temperature is None:
             return
         fixed = FIXED_MODE_TEMPS_F.get(self.preset_mode)
+        rng = MODE_TEMP_RANGES_F.get(self.preset_mode)
         if fixed is not None:
             # Fixed-temperature modes ignore the cavity temperature; keep the
             # entity on the plan value instead of a user override.
             value = fixed
         else:
             value = float(temperature)
-            if value < MIN_TEMP_F or value > MAX_TEMP_F:
+            lo = rng[0] if rng else MIN_TEMP_F
+            hi = rng[1] if rng else MAX_TEMP_F
+            if value < lo or value > hi:
                 raise HomeAssistantError(
-                    f"Temperature must be between {MIN_TEMP_F} and {MAX_TEMP_F} °F"
+                    f"Temperature must be between {lo} and {hi} °F"
                 )
         await self._run(
             self.coordinator.client.async_set_target_f(value, self.preset_mode)
@@ -169,6 +183,9 @@ class JuneOvenClimate(JuneEntity, ClimateEntity):
         if preset_mode not in DEFAULT_MODES:
             raise HomeAssistantError(f"Unsupported June cook mode: {preset_mode}")
         temperature = FIXED_MODE_TEMPS_F.get(preset_mode, self.target_temperature)
+        rng = MODE_TEMP_RANGES_F.get(preset_mode)
+        if rng and not (rng[0] <= temperature <= rng[1]):
+            temperature = rng[2]
         await self._run(self.coordinator.client.async_set_mode(preset_mode, temperature))
 
     async def async_add_cook_time(self, minutes: float) -> None:

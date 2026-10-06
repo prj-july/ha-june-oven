@@ -44,9 +44,12 @@ FIXED_MODE_TEMPS_F: Final[dict[str, float]] = {
     "broil": 500,
     "toast": 500,
     "reheat": 350,
-    "proof": 85,
     "warm": 170,
-    "dehydrate": 135,
+}
+# Modes with a user temperature on a per-mode range: (min, max, default) in F.
+MODE_TEMP_RANGES_F: Final[dict[str, tuple[float, float, float]]] = {
+    "proof": (80, 110, 85),
+    "dehydrate": (100, 160, 135),
 }
 DEFAULT_TOAST_LEVEL: Final = 5
 # Earlier releases stored air fry as "air-fry"; the June app sends "airfry".
