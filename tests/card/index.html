@@ -46,6 +46,7 @@ function oven(slug, device, area, s) {
   add(eid("binary_sensor", "connected"), s.offline ? "off" : "on", {}, "connected", { changed: s.offline ? NOW - 3 * 60000 : NOW - 3600000 });
   add(eid("camera", "interior"), "idle", { entity_picture: `still.svg?token=${slug}` }, "interior");
   add(eid("number", "toast_level"), s.toastLevel ?? 5, { min: 1, max: 9, step: 1, mode: "box" }, "toast_level");
+  add(eid("number", "grill_heat"), s.grillHeat ?? 0, { min: 0, max: 2, step: 1, mode: "box" }, "grill_heat");
   return { states, entities, devices: { [device]: { id: device, name: "June Oven", area_id: area } } };
 }
 const SC = {
