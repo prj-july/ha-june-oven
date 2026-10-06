@@ -188,23 +188,16 @@ class ClientReplayTest(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(state.cook_phase, "cooking")
         self.assertEqual(state.cook_elapsed_s, 1.0)
 
-        # The oven refused 11005 at line 352 (plan_id 0) as not-allowed. The
-        # plan id is now echoed; a refusal of a program the integration cannot
-        # restart must not cancel it.
-        self.statuses = ["not-allowed"]
-        with self.assertRaises(api.JuneCommandError):
-            await self.client.async_set_target_f(100, "proof")
+        # Proof is now a startable primitive, so a refused 11005 restarts it
+        # the same way bake restarts: cancel, then a fresh 11002.
+        self.statuses = ["not-allowed", "success", "success"]
+        await self.client.async_set_target_f(100, "proof")
         self.assertEqual(
-            self.sent,
-            [
-                (
-                    api.MC_SET_TEMPERATURE,
-                    {
-                        **frame_at("oven-screen-proof.jsonl", 352)["data"],
-                        "plan_id": 114,
-                    },
-                )
-            ],
+            [code for code, _ in self.sent],
+            [api.MC_SET_TEMPERATURE, api.MC_CANCEL, api.MC_PREHEAT],
+        )
+        self.assertEqual(
+            self.sent[2][1], {"primitive_type": "proof", "temperature_cavity": 37778}
         )
 
         self.replay("oven-screen-proof.jsonl")
@@ -213,7 +206,7 @@ class ClientReplayTest(unittest.IsolatedAsyncioTestCase):
         await self.client.async_set_timer(10)
         await self.client.async_cancel()
         self.assertEqual(
-            self.sent[1:],
+            self.sent[3:],
             [
                 (api.MC_SET_TIMER, {"plan_id": 114, "duration": 600000}),
                 (api.MC_CANCEL, {"plan_id": 114}),
@@ -225,9 +218,10 @@ class ClientReplayTest(unittest.IsolatedAsyncioTestCase):
         )
         self.assertFalse(state.done)
         self.assertEqual(state.plan_id, 0)
-        # The climate entity falls back to its defaults after a program ends.
-        self.assertIsNone(state.cook_mode)
-        self.assertIsNone(state.target_temp_c)
+        # Startable primitives stay selected, with their temperature, for
+        # the next start.
+        self.assertEqual(state.cook_mode, "proof")
+        self.assertAlmostEqual(state.target_temp_c, 26.667)
 
     async def test_add_cook_time_extends_the_time_left(self) -> None:
         state = self.client.state
@@ -296,7 +290,8 @@ class ClientReplayTest(unittest.IsolatedAsyncioTestCase):
         [record] = self.records
         self.assertEqual(record["outcome"], "done")
         self.assertEqual(record["name"], "proof")
-        self.assertTrue(record["program"])
+        # Proof is a startable primitive again, not a program.
+        self.assertFalse(record["program"])
         self.assertEqual(record["plan_id"], 114)
         self.assertFalse(record["joined"])
         self.assertEqual(
@@ -356,7 +351,7 @@ class ClientReplayTest(unittest.IsolatedAsyncioTestCase):
         self.assertFalse(state.online)
         self.assertFalse(state.active)
         self.assertEqual(state.plan_id, 0)
-        self.assertIsNone(state.cook_mode)
+        self.assertEqual(state.cook_mode, "proof")
 
     async def test_recorded_rest_statuses(self) -> None:
         state = self.client.state
@@ -369,7 +364,7 @@ class ClientReplayTest(unittest.IsolatedAsyncioTestCase):
         self.client._apply_status(rest_status("june_local_idle"))
         self.assertEqual(state.connection_state, "online")
         self.assertFalse(state.active)
-        self.assertIsNone(state.cook_mode)
+        self.assertEqual(state.cook_mode, "proof")
 
         self.client._apply_status(rest_status("cloud_active"))
         self.assertEqual(state.connection_state, "online")
