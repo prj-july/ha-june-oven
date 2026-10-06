@@ -44,7 +44,7 @@
  */
 (() => {
   "use strict";
-  const VERSION = "0.5.11";
+  const VERSION = "0.5.12";
   const DOMAIN = "june_oven";
   const TAG = "july-oven-card";
   if (customElements.get(TAG)) return;
@@ -632,7 +632,32 @@
   const HIST_PAGE = 30;
   const toUnit = (c, unit) => (c === null || c === undefined || !Number.isFinite(+c) ? null : Math.round(unit === "°C" ? +c : (+c * 9) / 5 + 32));
   const cookName = (r) => MODE_LABEL[r.name] || titleCase(r.name) || "Cook";
-  const cookMins = (s) => (s >= 3600 ? `${Math.floor(s / 3600)} h ${Math.round((s % 3600) / 60)} min` : `${Math.max(1, Math.round(s / 60))} min`);
+  const cookMins = (s) => (s >= 3600 ? `${Math.floor(s / 3600)} hr ${Math.round((s % 3600) / 60)} min` : `${Math.max(1, Math.round(s / 60))} min`);
+
+  // ---- history export: a spreadsheet of the cooks, or every record in full ----
+  const pad2 = (n) => String(n).padStart(2, "0");
+  const localStamp = (iso) => { if (!iso) return ""; const d = new Date(iso); return `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())} ${pad2(d.getHours())}:${pad2(d.getMinutes())}:${pad2(d.getSeconds())}`; };
+  const csvCell = (v) => { const t = v === null || v === undefined ? "" : String(v); return /[",\n\r]/.test(t) ? `"${t.replace(/"/g, '""')}"` : t; };
+  function historyCsv(records, unit) {
+    const mins = (s) => (s === null || s === undefined ? "" : Math.round(s / 6) / 10);
+    const u = (c) => toUnit(c, unit);
+    const head = ["Started", "Ended", "Cook", "June program", "Result", "Minutes", "Preheat minutes", "Timer minutes", `Target ${unit}`, `Targets ${unit}`, `Hottest ${unit}`, `Food at end ${unit}`, `Food hottest ${unit}`, `Food target ${unit}`, "Picture", "Id"];
+    const rows = records.map((r) => {
+      const p = r.probe || {};
+      return [localStamp(r.started), localStamp(r.ended), cookName(r), r.program ? r.plan_id ?? "" : "", r.outcome === "done" ? "Finished" : "Stopped early",
+        mins(r.duration_s), mins(r.preheat_s), mins(r.timer_s), u(r.target_c), (r.targets_c || []).map(u).filter((v) => v !== null).join(" > "),
+        u(r.peak_c), u(p.final_c), u(p.peak_c), u(p.target_c), r.picture || "", r.id];
+    });
+    // The byte-order mark lets Excel read the ° sign.
+    return "\ufeff" + [head, ...rows].map((row) => row.map(csvCell).join(",")).join("\r\n") + "\r\n";
+  }
+  function saveFile(name, text, type) {
+    const url = URL.createObjectURL(new Blob([text], { type }));
+    const a = document.createElement("a");
+    a.href = url; a.download = name; a.style.display = "none";
+    document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 30000);
+  }
   function cookWhen(iso, lang, withTime = true) {
     const d = new Date(iso), today = new Date();
     const day = (x) => new Date(x.getFullYear(), x.getMonth(), x.getDate()).getTime();
@@ -724,7 +749,10 @@
         ${d.enabled ? "" : `<div class="d2-sh-note">History is off: new cooks aren't saved. Turn it on in this oven's options in Home Assistant.</div>`}
         <div class="d2-set-acts">${confirm
           ? `<button class="d2-ghost" data-act="hist-cancel">Keep</button><button class="d2-ghost is-danger" data-act="hist-clear">Delete all ${d.records.length}</button>`
-          : `<button class="d2-ghost" data-act="hist-clear">Clear history…</button>`}</div>`;
+          : s.confirm === "export"
+          ? `<button class="d2-ghost" data-act="hist-cancel">Cancel</button><button class="d2-ghost" data-act="hist-export" data-fmt="csv"${s.exporting ? " disabled" : ""}>Spreadsheet (CSV)</button><button class="d2-ghost" data-act="hist-export" data-fmt="json"${s.exporting ? " disabled" : ""}>${s.exporting ? "Preparing…" : "Everything (JSON)"}</button>`
+          : `<button class="d2-ghost" data-act="hist-export-ask">Export…</button><button class="d2-ghost" data-act="hist-clear">Clear history…</button>`}</div>
+        ${s.confirm === "export" ? `<div class="d2-sh-note">The spreadsheet has one row per cook. The JSON file has every cook in full, with its temperature curve (°C, seconds from the start). Pictures stay in Media › june_oven.</div>` : ""}`;
     }
     return `<div class="d2-sheet d2-set d2-hsheet" role="dialog" aria-modal="true" aria-label="${esc(m.name)} cook history">${head}<div class="d2-set-list">${body}</div></div>`;
   }
@@ -1266,6 +1294,8 @@
       if (act === "hist-back") { s.open = null; s.confirm = null; s.jump = s.listTop || 0; return this._histRender(); }
       if (act === "hist-more") { s.limit += HIST_PAGE; this._histRender(); return this._signPics(s.oven); }
       if (act === "hist-cancel") { s.confirm = null; return this._histRender(); }
+      if (act === "hist-export-ask") { s.confirm = "export"; s.jump = 1e6; return this._histRender(); }
+      if (act === "hist-export") return this._histExport(el.dataset.fmt);
       if (act === "hist-del" || act === "hist-clear") {
         const id = act === "hist-del" ? el.dataset.id : "all";
         if (s.confirm !== id) { s.confirm = id; return this._histRender(); }
@@ -1280,6 +1310,31 @@
         if (id !== "all") { s.open = null; s.jump = s.listTop || 0; }
         this._toast(id === "all" ? "History cleared" : "Cook deleted");
         return this._histRender();
+      }
+    }
+
+    async _histExport(fmt) {
+      const s = this._sheet, d = this._cooks[s.oven];
+      if (s.exporting) return;
+      const m = this._model(this._conf(s.oven), Date.now());
+      const day = localStamp(new Date().toISOString()).slice(0, 10);
+      const base = `july-oven-history-${String(m.name).toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "") || "oven"}-${day}`;
+      if (fmt === "csv") {
+        saveFile(`${base}.csv`, historyCsv(d.records, m.unit), "text/csv;charset=utf-8");
+        s.confirm = null; this._histRender();
+        return this._toast(`Exported ${d.records.length} cook${d.records.length === 1 ? "" : "s"}`);
+      }
+      // The list leaves out the curves, so each cook is fetched in full.
+      s.exporting = true; this._histRender();
+      try {
+        const full = await Promise.all(d.records.map((r) => this._hass.callWS({ type: "june_oven/cook_history", entity_id: s.oven, record_id: r.id })
+          .then((res) => res.record || r).catch(() => r)));
+        const records = full.map((r) => Object.fromEntries(Object.entries(r).filter(([k]) => k !== "curveLoading")));
+        saveFile(`${base}.json`, JSON.stringify({ oven: m.name, entity_id: s.oven, exported: new Date().toISOString(), units: { temperature: "°C", samples: "[seconds since the start, oven °C, food °C]" }, records }, null, 2), "application/json");
+        this._toast(`Exported ${records.length} cook${records.length === 1 ? "" : "s"}`);
+      } finally {
+        s.exporting = false; s.confirm = null;
+        if (this._sheet === s) this._histRender();
       }
     }
 
