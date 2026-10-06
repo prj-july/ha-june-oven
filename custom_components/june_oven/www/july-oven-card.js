@@ -493,9 +493,9 @@
   const snap = (r, v) => Math.max(r.min, Math.min(r.max, Math.round(v / r.step) * r.step));
   const fill = (r) => ((r.temp - r.min) / Math.max(1, r.max - r.min)).toFixed(4);
 
-  // Every review has the same shape, centred on one axis: the mode's tile, one large control under it
-  // (temperature, toast level, timer, grill heat, or the temperature the oven sets), a slider or a
-  // line, then the note, with the buttons along the bottom.
+  // Every review has the same shape: the mode's tile at the left with one large control (temperature,
+  // toast level, timer, grill heat, or the temperature the oven sets) on the sheet's centre line, a
+  // slider or a line under it on that same line, then the note and the buttons.
   function review(r, name, unit, now, multi) {
     const left = Math.max(0, r.until - now);
     const step = (act, what, dis, ic) => `<button class="d2-round" data-act="${act}" aria-label="${what}"${dis ? " disabled" : ""}>${ic}</button>`;
@@ -530,9 +530,9 @@
     return `<div class="d2-sheet" role="dialog" aria-modal="true" aria-label="Review before starting">
       <div class="d2-sh-head"><div><div class="d2-sh-t">${esc(MODE_LABEL[r.mode])} · ${esc(name)}</div><div class="d2-sh-s">Step 2 of 2 · Review</div></div>
         <button class="d2-icbtn" data-act="sheet-close" aria-label="Cancel">${I.close}</button></div>
-      <div class="d2-sh-body"><span class="d2-face d2-sh-face">${glyph(r.mode)}</span>${ctl}
-        ${under}
-        <div class="d2-sh-note">Make sure the oven is empty and the door is closed. Nothing heats until you press Start. This closes in <b class="d2-sh-left">${duration(left / 1000)}</b>.</div></div>
+      <div class="d2-sh-row"><span class="d2-face d2-sh-face">${glyph(r.mode)}</span>${ctl}</div>
+      ${under}
+      <div class="d2-sh-note d2-sh-mid">Make sure the oven is empty and the door is closed. Nothing heats until you press Start. This closes in <b class="d2-sh-left">${duration(left / 1000)}</b>.</div>
       <div class="d2-sh-acts"><button class="d2-ghost" data-act="sheet-close">Not now</button>
         <button class="d2-go" data-act="rv-start"${r.busy ? " disabled" : ""}>${r.busy ? "Starting…" : multi ? `Start preheating ${esc(name)}` : "Start preheating"}</button></div>
     </div>`;
@@ -2253,12 +2253,12 @@ ha-card{height:100%;overflow:hidden;overflow:clip;background:none;border:none;bo
 .c-d2 .d2-sh-head{display:flex;align-items:center;justify-content:space-between;gap:8px}
 .c-d2 .d2-sh-t{font:600 20px/26px var(--f);color:var(--fg)}
 .c-d2 .d2-sh-s{font:500 12px/16px var(--f);letter-spacing:.06em;text-transform:uppercase;color:var(--fg2)}
-/* Review: one centred column, centred again in the space between the title and the buttons. */
-.c-d2 .d2-sh-body{display:flex;flex-direction:column;align-items:center;gap:10px;width:min(100%,560px);margin:auto;text-align:center}
-.c-d2 .d2-sh-body+.d2-sh-acts{margin-top:0}
-.c-d2 .d2-sh-body>.d2-sh-slide{align-self:stretch}
-.c-d2 .d2-sh-face{--tile:clamp(40px,min(17cqw,14cqh),72px);flex:none}
-.c-d2 .d2-sh-temp{align-self:stretch;display:flex;align-items:center;justify-content:center;gap:min(14px,2.5cqw)}
+/* Review: the tile stays at the left; the control sits on the sheet's centre line, in the middle of
+   two equal columns (on a card too narrow for that, it moves right just enough to clear the tile). */
+.c-d2 .d2-sh-row{--tile:clamp(44px,17cqw,72px);--sg:min(16px,4cqw);display:grid;grid-template-columns:minmax(var(--tile),1fr) minmax(0,auto) minmax(0,1fr);align-items:center;column-gap:var(--sg)}
+.c-d2 .d2-sh-face{--tile:inherit;justify-self:start}
+.c-d2 .d2-sh-mid{text-align:center}
+.c-d2 .d2-sh-temp{min-width:0;display:flex;align-items:center;justify-content:center;gap:min(14px,2.5cqw)}
 /* On a narrow card the − / + buttons and the number shrink so the row always fits. */
 .c-d2 .d2-sh-temp .d2-round{width:clamp(32px,13cqw,48px);height:clamp(32px,13cqw,48px)}
 .c-d2 .d2-sh-temp .d2-round .d2-ic{width:clamp(16px,5.5cqw,20px);height:clamp(16px,5.5cqw,20px)}
@@ -2271,9 +2271,9 @@ ha-card{height:100%;overflow:hidden;overflow:clip;background:none;border:none;bo
 .c-d2.d2-wall .d2-sh-t{font-size:28px;line-height:34px}
 .c-d2.d2-wall .d2-sh-note{font-size:19px;line-height:26px}
 .c-d2.d2-wall .d2-sh-v b{font-size:min(72px,13.5cqw)}
-.c-d2.d2-wall .d2-sh-face{--tile:clamp(56px,14cqh,96px)}
+.c-d2.d2-wall .d2-sh-row{--tile:96px}
 .c-d2.d2-wall .d2-sh-line{font-size:18px}
-.c-d2.d2-wall .d2-seg.d2-sh-seg{width:min(100%,520px)}
+.c-d2.d2-wall .d2-seg.d2-sh-seg{width:min(520px,calc(100cqw - 2 * var(--px) - var(--tile) - 2 * var(--sg)),max(200px,calc(100cqw - 2 * var(--px) - 2 * var(--tile) - 2 * var(--sg))))}
 .c-d2.d2-wall .d2-seg.d2-sh-seg button{min-height:64px;font-size:22px}
 .c-d2.d2-wall .d2-go{height:64px;font-size:22px}
 /* ---- The oven button: icon (the oven's lamp) and a name that tucks into it ---- */
@@ -2329,7 +2329,7 @@ ha-card{height:100%;overflow:hidden;overflow:clip;background:none;border:none;bo
 .c-d2 .d2-sh-ends3 span:last-child{text-align:right}
 /* No slider: one line in its place, so every review keeps the same rhythm. */
 .c-d2 .d2-sh-line{display:flex;align-items:center;justify-content:center;min-height:46px;font:400 15px/19px var(--f);color:var(--fg2);text-align:center}
-.c-d2 .d2-sh-seg{width:min(100%,360px)}
+.c-d2 .d2-sh-seg{width:min(360px,calc(100cqw - 2 * var(--px) - var(--tile) - 2 * var(--sg)),max(200px,calc(100cqw - 2 * var(--px) - 2 * var(--tile) - 2 * var(--sg))))}
 .c-d2 .d2-seg.d2-sh-seg button{min-height:48px;font-size:min(17px,5cqw)}
 .c-d2.d2-wall .d2-sh-ends{font-size:16px;line-height:20px}
 /* Settings */
