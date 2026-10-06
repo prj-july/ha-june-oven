@@ -442,7 +442,7 @@ What the card does:
   with − and +, or by tapping the number and typing it. Nothing heats until
   you press **Start preheating**, and the review closes itself after 5 minutes.
   When the modes fill more than one page, the card glides back to the first
-  page after 30 seconds without a touch.
+  page after 45 seconds without a touch.
   **History** lists the oven's past cooks, newest first, with each one's
   picture, target, time and result. Tap a cook for its picture, its whole
   temperature curve (with the food line from the June probe, or from the

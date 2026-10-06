@@ -58,7 +58,7 @@ POLL_INTERVAL_SECONDS: Final = 60
 
 # The bundled Lovelace card, served by the integration (see www/).
 CARD_URL: Final = "/june_oven/july-oven-card.js"
-CARD_VERSION: Final = "0.5.1"
+CARD_VERSION: Final = "0.5.2"
 
 # Fired with each finished cook's history record (history.py).
 EVENT_COOK_FINISHED: Final = "june_oven_cook_finished"
