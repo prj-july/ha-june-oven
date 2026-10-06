@@ -504,6 +504,7 @@
         <div class="d2-sh-ends" aria-hidden="true"><span>${r.min}°</span><span>${r.max}°</span></div></div>`}
       ${r.mode === "toast" ? `<div class="d2-sh-toast"><span class="d2-sh-l">Level</span><button class="d2-round" data-act="toast-dec" aria-label="Lower the toast level"${r.level <= 1 ? " disabled" : ""}>${I.minus}</button><b class="d2-sh-lv">${r.level}</b><button class="d2-round" data-act="toast-inc" aria-label="Raise the toast level"${r.level >= 9 ? " disabled" : ""}>${I.plus}</button></div>` : ""}
       ${r.mode === "grill" ? `<div class="d2-sh-toast"><span class="d2-sh-l">Heat</span>${[0, 1, 2].map((v) => `<button class="d2-round d2-grill" data-act="grill-heat" data-v="${v}" aria-pressed="${r.grill === v}" aria-label="${GRILL_LABEL[v]} grill heat">${GRILL_LABEL[v]}</button>`).join("")}</div>` : ""}
+      ${r.mode === "reheat" ? `<div class="d2-sh-toast"><span class="d2-sh-l">Timer</span>${[30, 60, 90, 120].map((m) => `<button class="d2-round d2-timer" data-act="timer-set" data-min="${m}" aria-pressed="${r.timer === m}" aria-label="Set the timer to ${m} minutes">${m >= 60 ? m / 60 + "h" : m + "m"}</button>`).join("")}</div>` : ""}
       <div class="d2-sh-note">Make sure the oven is empty and the door is closed. Nothing heats until you press Start. This closes in <b class="d2-sh-left">${duration(left / 1000)}</b>.</div>
       <div class="d2-sh-acts"><button class="d2-ghost" data-act="sheet-close">Not now</button>
         <button class="d2-go" data-act="rv-start"${r.busy ? " disabled" : ""}>${r.busy ? "Starting…" : multi ? `Start preheating ${esc(name)}` : "Start preheating"}</button></div>
@@ -1663,6 +1664,7 @@
       if (act === "rv-dec" || act === "rv-inc") return this._setTemp(this._sheet && this._sheet.temp + (act === "rv-inc" ? 1 : -1) * this._sheet.step);
       if (act === "toast-dec" || act === "toast-inc") return this._toastLevel(act === "toast-inc" ? 1 : -1);
       if (act === "grill-heat") return this._grillHeat(+el.dataset.v);
+      if (act === "timer-set") return this._timerSet(+el.dataset.min);
       if (act === "rv-start") return this._start();
     }
 
@@ -1793,7 +1795,7 @@
       const c = this._hass.states[oven];
       const step = (c && +c.attributes.target_temp_step) || 5;
       const min = (c && +c.attributes.min_temp) || 100, max = (c && +c.attributes.max_temp) || 500;
-      const r = { kind: "review", oven, mode, step, min, max, temp: 350, fixed: false, level: 5, until: Date.now() + REVIEW_MS, byKey };
+      const r = { kind: "review", oven, mode, step, min, max, temp: 350, fixed: false, level: 5, timer: null, until: Date.now() + REVIEW_MS, byKey };
       if (mode in FIXED_TEMPS) {
         r.fixed = true;
         r.temp = FIXED_TEMPS[mode];
@@ -1844,6 +1846,13 @@
       input.value = this._sheet ? this._sheet.temp : input.value;
     }
 
+    _timerSet(min) {
+      const r = this._sheet;
+      if (!r || r.kind !== "review") return;
+      r.timer = r.timer === min ? null : min;
+      this._renderOver();
+    }
+
     async _grillHeat(v) {
       const r = this._sheet;
       if (!r || r.kind !== "review" || r.mode !== "grill") return;
@@ -1879,8 +1888,9 @@
       for (const [service, data] of steps) {
         if (!(await this._call("climate", service, data, r.oven))) { r.busy = false; if (this._sheet === r) this._renderOver(); return; }
       }
+      if (r.timer) await this._call("june_oven", "set_timer", { minutes: r.timer }, r.oven);
       this._countUse(r.oven, r.mode);
-      this._toast(`Preheating to ${r.temp}°`);
+      this._toast(r.timer ? `Started with a ${r.timer} min timer` : `Preheating to ${r.temp}°`);
       if (this._sheet === r) this._closeSheet();
     }
   }
