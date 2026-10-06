@@ -507,7 +507,7 @@
       ${r.mode === "grill" ? `<div class="d2-sh-toast"><span class="d2-sh-l">Heat</span>${[0, 1, 2].map((v) => `<button class="d2-round d2-grill" data-act="grill-heat" data-v="${v}" aria-pressed="${r.grill === v}" aria-label="${GRILL_LABEL[v]} grill heat">${GRILL_LABEL[v]}</button>`).join("")}</div>` : ""}
       ${r.mode === "reheat" ? `<div class="d2-sh-toast d2-sh-timer"><span class="d2-sh-l">Timer</span>
         <input class="d2-range d2-timer-range" type="range" min="1" max="600" step="1" value="${r.timer || 60}" style="--p:${((r.timer || 60) - 1) / 599}" aria-label="Timer in minutes">
-        <b class="d2-sh-lv d2-timer-lv">${fmtTimer(r.timer || 60)}</b></div>` : ""}
+        <span class="d2-timer-row"><b class="d2-sh-lv d2-timer-lv">${fmtTimer(r.timer || 60)}</b><input class="d2-timer-in" type="text" inputmode="numeric" maxlength="4" autocomplete="off" value="${r.timer || 60}" aria-label="Timer in minutes, type an exact number"><span class="d2-timer-u">min</span></span></div>` : ""}
       <div class="d2-sh-note">Make sure the oven is empty and the door is closed. Nothing heats until you press Start. This closes in <b class="d2-sh-left">${duration(left / 1000)}</b>.</div>
       <div class="d2-sh-acts"><button class="d2-ghost" data-act="sheet-close">Not now</button>
         <button class="d2-go" data-act="rv-start"${r.busy ? " disabled" : ""}>${r.busy ? "Starting…" : multi ? `Start preheating ${esc(name)}` : "Start preheating"}</button></div>
@@ -1687,6 +1687,13 @@
       }
       if (!r || r.kind !== "review") return;
       if (e.target.matches(".d2-timer-range")) return this._timerSet(+e.target.value);
+      if (e.target.matches(".d2-timer-in")) {
+        const t = e.target.value.replace(/\D/g, "").slice(0, 4);
+        if (t !== e.target.value) e.target.value = t;
+        const v = parseInt(t, 10);
+        if (Number.isFinite(v) && v >= 1 && v <= 600) this._timerSet(v);
+        return;
+      }
       if (e.target.matches(".d2-range")) return this._setTemp(+e.target.value);
       if (e.target.matches(".d2-sh-in")) {
         // Digits only while typing; the slider follows any value in range, the number snaps on Enter or leaving.
@@ -1706,6 +1713,12 @@
         return this._prefsChanged();
       }
       if (e.target.matches(".d2-sh-in")) this._commitTyped(e.target);
+      if (e.target.matches(".d2-timer-in")) {
+        const v = parseInt(e.target.value, 10);
+        if (Number.isFinite(v) && v >= 1 && v <= 600) this._timerSet(v);
+        else e.target.value = this._sheet && this._sheet.timer ? this._sheet.timer : 60;
+        return;
+      }
       if (e.target.matches(".d2-mdi")) {
         const v = e.target.value.trim().toLowerCase();
         if (/^mdi:[a-z0-9-]+$/.test(v)) this._setPref("icon", v, e.target.dataset.oven);
@@ -1737,6 +1750,7 @@
       }
       if (t && t.matches && t.matches(".d2-mdi") && e.key === "Enter") return t.blur();
       if (t && t.matches && t.matches(".d2-foodin") && e.key === "Enter") return t.blur();
+      if (t && t.matches && t.matches(".d2-timer-in") && e.key === "Enter") return t.blur();
       if (e.key === "Escape") { this._sheet.byKey = this.shadowRoot.activeElement !== null; this._closeSheet(); }
     }
 
@@ -1859,6 +1873,8 @@
       if (range) { range.value = r.timer; range.style.setProperty("--p", (r.timer - 1) / 599); }
       const lv = this._overEl.querySelector(".d2-timer-lv");
       if (lv) lv.textContent = fmtTimer(r.timer);
+      const inp = this._overEl.querySelector(".d2-timer-in");
+      if (inp) inp.value = r.timer;
     }
 
     async _grillHeat(v) {
@@ -2262,6 +2278,10 @@ ha-card{height:100%;overflow:hidden;overflow:clip;background:none;border:none;bo
 .c-d2 .d2-sh-toast{display:flex;align-items:center;justify-content:center;gap:12px;margin-top:4px}
 .c-d2 .d2-sh-timer{flex-direction:column;align-items:stretch;gap:2px;padding:0 10px}
 .c-d2 .d2-sh-timer .d2-timer-range{width:100%;height:30px;margin:0}
+.c-d2 .d2-timer-row{display:flex;align-items:center;justify-content:center;gap:8px}
+.c-d2 .d2-timer-in{width:4ch;padding:0 0 2px;border:0;border-bottom:2px dashed var(--chipb);background:none;font:500 17px/1 var(--fn);color:var(--fg);text-align:center;outline:none}
+.c-d2 .d2-timer-in:focus{border-bottom:2px solid var(--ember)}
+.c-d2 .d2-timer-u{font:400 13px/1 var(--f);color:var(--fg2)}
 .c-d2 .d2-sh-toast .d2-sh-l{font:500 12px/14px var(--f);letter-spacing:.06em;text-transform:uppercase;color:var(--fg2)}
 .c-d2 .d2-sh-lv{min-width:24px;text-align:center;font:500 20px/1 var(--fn);font-variant-numeric:tabular-nums;color:var(--fg)}
 .c-d2.d2-wall .d2-sh-ends{font-size:16px;line-height:20px}
