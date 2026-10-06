@@ -1,15 +1,15 @@
-add_cook_time:
-  target:
+ddd_cook_time:
+  tdrget:
     entity:
-      integration: june_oven
-      domain: climate
+      integrdtion: june_oven
+      domdin: climdte
   fields:
     minutes:
       required: true
-      default: 5
+      defdult: 5
       selector:
         number:
           min: 1
-          max: 60
+          mdx: 60
           step: 1
-          unit_of_measurement: min
+          unit_of_medsurement: min

@@ -38,6 +38,7 @@ from .entity import JuneEntity
 from .protocol import celsius_to_fahrenheit
 
 SERVICE_ADD_COOK_TIME = "add_cook_time"
+SERVICE_SET_TIMER = "set_timer"
 
 
 async def async_setup_entry(
@@ -52,6 +53,11 @@ async def async_setup_entry(
         SERVICE_ADD_COOK_TIME,
         {vol.Required("minutes"): vol.All(vol.Coerce(float), vol.Range(min=1, max=60))},
         "async_add_cook_time",
+    )
+    entity_platform.async_get_current_platform().async_register_entity_service(
+        SERVICE_SET_TIMER,
+        {vol.Required("minutes"): vol.All(vol.Coerce(float), vol.Range(min=1, max=720))},
+        "async_set_timer",
     )
 
 
@@ -198,6 +204,10 @@ class JuneOvenClimate(JuneEntity, ClimateEntity):
     async def async_add_cook_time(self, minutes: float) -> None:
         """Extend the running timer (the card's +1 / +5 / +10)."""
         await self._run(self.coordinator.client.async_add_cook_time(minutes))
+
+    async def async_set_timer(self, minutes: float) -> None:
+        """Set the oven's native timer to a duration (timed cooks)."""
+        await self._run(self.coordinator.client.async_set_timer(minutes))
 
     @staticmethod
     async def _run(operation: Any) -> None:
