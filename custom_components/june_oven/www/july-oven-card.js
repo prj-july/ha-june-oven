@@ -44,7 +44,7 @@
  */
 (() => {
   "use strict";
-  const VERSION = "0.5.0";
+  const VERSION = "0.5.2";
   const DOMAIN = "june_oven";
   const TAG = "july-oven-card";
   if (customElements.get(TAG)) return;
@@ -75,6 +75,9 @@
   const DONE_WINDOW_MS = 30 * 60 * 1000;
   const REVIEW_MS = 5 * 60 * 1000;
   const TUCK_MS = 5000;
+  // Left alone this long on a later page of cook modes, the home screen glides back to the first page.
+  const PAGE_HOME_MS = 45000;
+  const PAGE_HOME_GLIDE_MS = 700;
   const FPS_OPTIONS = [1, 5, 10, 15];
   const THEMES = [["auto", "Match Home Assistant"], ["light", "Light"], ["dark", "Dark"]];
   const CLOCKS = [["auto", "Automatic"], ["12", "12-hour"], ["24", "24-hour"]];
@@ -119,10 +122,11 @@
     bake: g("M10 37h28"), broil: g("M10 11h28"), roast: g("M10 11h28M10 37h28"),
     toast: g("M10 11h7M20.5 11h7M31 11h7M10 37h7M20.5 37h7M31 37h7"),
     airfry: '<circle cx="24" cy="24" r="12.5" class="thin"/><g class="d2-fan">' + [0, 120, 240].map((a) => `<path class="fill" transform="rotate(${a} 24 24)" d="M24 24c-1.5-5.5 1-9.5 5-9.2 2.6.3 2.8 4.4-5 9.2z"/>`).join("") + "</g>",
-    reheat: '<path class="thin" d="M12 18c5 0 5 8 10 8M18 14c5 0 5 8 10 8M24 10c5 0 5 8 10 8"/>',
-    proof: '<path class="thin" d="M12 30a12 12 0 0 1 24 0"/><path class="fill" d="M14 26a3 3 0 0 1 6 0M22 24a3 3 0 0 1 6 0M30 22a3 3 0 0 1 6 0"/>',
-    warm: '<path class="thin" d="M12 16c5 0 5 8 10 8M18 16c5 0 5 8 10 8M24 16c5 0 5 8 10 8"/><circle class="fill" cx="13" cy="35" r="2.4"/><circle class="fill" cx="24" cy="35" r="2.4"/><circle class="fill" cx="35" cy="35" r="2.4"/>',
-    dehydrate: '<circle class="thin" cx="24" cy="24" r="7"/><path class="thin" d="M24 10v-4M24 38v-4M10 24h-4M38 24h-4M14.1 14.1l-2.8-2.8M33.9 33.9l-2.8-2.8M33.9 14.1l-2.8 2.8M14.1 33.9l2.8-2.8"/>',
+    // The oven's own Reheat, Keep warm and Dehydrate tiles; Proof is dough rising over the bottom element.
+    reheat: g([14, 24, 34].map((x) => `M${x} 11.5c2.6 2.8 2.6 5.7 0 8.5s-2.6 5.7 0 8.5 2.6 5.7 0 8.5`).join("")),
+    proof: '<path class="solid" d="M14 30v-2.5c0-5.8 4.5-10 10-10s10 4.2 10 10v2.5z"/>' + g("M10 37h28"),
+    warm: [14, 24, 34].map((x) => `<circle class="fill" cx="${x}" cy="24" r="4"/>`).join(""),
+    dehydrate: '<circle class="fill" cx="24" cy="24" r="7.5"/>' + [0, 45, 90, 135, 180, 225, 270, 315].map((a) => `<path class="thin" transform="rotate(${a} 24 24)" d="M24 8.5v3.5"/>`).join(""),
     camera: '<path class="thin" d="M9 16.5h6.5l3-4h11l3 4H39a2.5 2.5 0 0 1 2.5 2.5v15a2.5 2.5 0 0 1-2.5 2.5H9A2.5 2.5 0 0 1 6.5 34V19A2.5 2.5 0 0 1 9 16.5z"/><circle class="thin" cx="24" cy="26.5" r="6.5"/>',
     history: '<path class="thin" d="M12.2 17.5A13 13 0 1 1 11 26"/><path class="thin" d="M11.5 11v6.8h6.8"/><path d="M24 17v7.5l5 3"/>',
     settings: '<circle cx="24" cy="24" r="9" class="thin"/><circle cx="24" cy="24" r="3.5" class="thin"/>' + [0, 45, 90, 135, 180, 225, 270, 315].map((a) => `<path transform="rotate(${a} 24 24)" d="M24 11.5v3.5"/>`).join("")
@@ -808,6 +812,17 @@
       this.shadowRoot.addEventListener("click", this._onClick = (e) => this._handleClick(e));
       this.shadowRoot.addEventListener("input", this._onInput = (e) => this._handleInput(e));
       this.shadowRoot.addEventListener("change", this._onChange = (e) => this._handleChange(e));
+      // Only the pager, sheets and lists scroll. When a short card's contents are taller than the card,
+      // focus (a tap, Tab) could scroll a clipped box such as the card itself, and nothing could scroll
+      // it back: put any clipped box back the moment it moves. Scroll events don't bubble, so capture.
+      this.shadowRoot.addEventListener("scroll", this._onScroll = (e) => this._unscroll(e.target), true);
+      // Any touch, key, wheel or focus counts as use; idle time brings the mode pages back to the first.
+      // A pointer moving over the card counts too, but only a touch, key or wheel stops a glide.
+      this._onActive = () => this._armPageHome();
+      this._onMove = () => { if (!this._homeAnim) this._armPageHome(); };
+      for (const t of ["pointerdown", "keydown", "wheel", "focusin"]) this.shadowRoot.addEventListener(t, this._onActive, { capture: true, passive: true });
+      this.shadowRoot.addEventListener("pointermove", this._onMove, { capture: true, passive: true });
+      this._armPageHome();
       // On the window, so Escape closes a sheet even when nothing in the card has focus.
       window.addEventListener("keydown", this._onKey = (e) => this._handleKey(e));
       window.addEventListener("resize", this._onResize = () => this._measure());
@@ -834,6 +849,11 @@
       if (this._onClick) this.shadowRoot.removeEventListener("click", this._onClick);
       if (this._onInput) this.shadowRoot.removeEventListener("input", this._onInput);
       if (this._onChange) this.shadowRoot.removeEventListener("change", this._onChange);
+      if (this._onScroll) this.shadowRoot.removeEventListener("scroll", this._onScroll, true);
+      if (this._onActive) for (const t of ["pointerdown", "keydown", "wheel", "focusin"]) this.shadowRoot.removeEventListener(t, this._onActive, { capture: true });
+      if (this._onMove) this.shadowRoot.removeEventListener("pointermove", this._onMove, { capture: true });
+      clearTimeout(this._homeTimer);
+      if (this._homeAnim) cancelAnimationFrame(this._homeAnim);
       if (this._onKey) window.removeEventListener("keydown", this._onKey);
       if (this._onResize) window.removeEventListener("resize", this._onResize);
       if (this._onOver) { this.shadowRoot.removeEventListener("pointerover", this._onOver); this.shadowRoot.removeEventListener("focusin", this._onOver); }
@@ -872,6 +892,81 @@
         this._html = "";
         this._render();
       }
+    }
+
+    // ---- back to the first page of cook modes after a while ----
+    _armPageHome() {
+      clearTimeout(this._homeTimer);
+      // A touch during the glide stops it where it is; the pager then snaps as usual.
+      if (this._homeAnim) {
+        cancelAnimationFrame(this._homeAnim);
+        this._homeAnim = 0;
+        const p = this.shadowRoot.querySelector(".d2-pager");
+        if (p) p.style.scrollSnapType = "";
+      }
+      this._homeTimer = setTimeout(() => this._pageHome(), PAGE_HOME_MS);
+    }
+
+    _pageHome() {
+      if (!this._page) return;
+      if (this._sheet) return this._armPageHome();
+      const pager = this.shadowRoot.querySelector(".d2-pager");
+      // Cooking, or another layout: the home screen opens on the first page next time.
+      if (!pager || !pager.scrollLeft) { this._page = 0; if (pager) this._markPage(0); return; }
+      const from = pager.scrollLeft, t0 = performance.now();
+      const still = window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+      const step = (t) => {
+        // Re-renders replace the pager, so look it up each frame.
+        const p = this.shadowRoot.querySelector(".d2-pager");
+        if (!p) { this._homeAnim = 0; this._page = 0; return; }
+        const k = still ? 1 : Math.min(1, (t - t0) / PAGE_HOME_GLIDE_MS);
+        const e = k < 0.5 ? 4 * k * k * k : 1 - Math.pow(-2 * k + 2, 3) / 2;
+        p.style.scrollSnapType = "none";
+        p.scrollLeft = from * (1 - e);
+        if (k < 1) { this._homeAnim = requestAnimationFrame(step); return; }
+        p.style.scrollSnapType = "";
+        this._homeAnim = 0;
+        this._page = 0;
+        this._markPage(0);
+      };
+      this._homeAnim = requestAnimationFrame(step);
+    }
+
+    _markPage(i) {
+      this.shadowRoot.querySelectorAll(".d2-dot").forEach((d, j) => (j === i ? d.setAttribute("aria-current", "true") : d.removeAttribute("aria-current")));
+    }
+
+    // Swap in the new card around the pager that is already showing: each of the pager's ancestors
+    // takes the new attributes and the new siblings; the pager itself is never removed.
+    _graft(frag, fresh, pager) {
+      const chain = (el, top) => { const out = []; for (let n = el; n && n !== top; n = n.parentNode) out.push(n); return out; };
+      const a = chain(fresh, frag), b = chain(pager, this._root);
+      if (a.length !== b.length || b[b.length - 1].parentNode !== this._root) return false;
+      for (let i = 1; i < a.length; i++) if (a[i].tagName !== b[i].tagName) return false;
+      const level = (from, to, keepFrom, keepTo) => {
+        const before = [], after = [];
+        let seen = false;
+        for (const c of [...from.childNodes]) if (c === keepFrom) seen = true; else (seen ? after : before).push(c);
+        for (const c of [...to.childNodes]) if (c !== keepTo) c.remove();
+        keepTo.before(...before);
+        keepTo.after(...after);
+      };
+      for (let i = a.length - 1; i >= 1; i--) {
+        const n = a[i], o = b[i];
+        for (const at of [...o.attributes]) if (!n.hasAttribute(at.name)) o.removeAttribute(at.name);
+        for (const at of [...n.attributes]) if (o.getAttribute(at.name) !== at.value) o.setAttribute(at.name, at.value);
+      }
+      level(frag, this._root, a[a.length - 1], b[b.length - 1]);
+      for (let i = a.length - 1; i >= 1; i--) level(a[i], b[i], a[i - 1], b[i - 1]);
+      return true;
+    }
+
+    _unscroll(el) {
+      if (!el || el.nodeType !== 1 || (!el.scrollTop && !el.scrollLeft)) return;
+      const cs = getComputedStyle(el);
+      const fixed = (v) => v === "hidden" || v === "clip";
+      if (fixed(cs.overflowY) && el.scrollTop) el.scrollTop = 0;
+      if (fixed(cs.overflowX) && el.scrollLeft) el.scrollLeft = 0;
     }
 
     // Other ovens' Stop buttons match the top Stop, whose width follows the main camera.
@@ -940,15 +1035,25 @@
       const pager = this.shadowRoot.querySelector(".d2-pager");
       const scroll = pager ? pager.scrollLeft : 0;
       this._html = html;
-      this._root.innerHTML = html;
-      this._syncRows();
-      const newPager = this.shadowRoot.querySelector(".d2-pager");
-      if (newPager) {
-        newPager.scrollLeft = scroll || this._page * newPager.clientWidth;
-        newPager.addEventListener("scroll", () => {
-          const i = Math.round(newPager.scrollLeft / Math.max(1, newPager.clientWidth));
-          if (i !== this._page) { this._page = i; this.shadowRoot.querySelectorAll(".d2-dot").forEach((d, j) => (j === i ? d.setAttribute("aria-current", "true") : d.removeAttribute("aria-current"))); }
-        }, { passive: true });
+      const tpl = document.createElement("template");
+      tpl.innerHTML = html;
+      const fresh = tpl.content.querySelector(".d2-pager");
+      // The clock and temperatures re-render the card often. An unchanged page of mode tiles stays
+      // the same element, so its page, a swipe in progress and its momentum are never interrupted.
+      if (pager && fresh && this._pagerHTML === fresh.outerHTML && this._graft(tpl.content, fresh, pager)) {
+        this._syncRows();
+      } else {
+        this._root.replaceChildren(tpl.content);
+        this._syncRows();
+        const newPager = this.shadowRoot.querySelector(".d2-pager");
+        this._pagerHTML = newPager ? newPager.outerHTML : "";
+        if (newPager) {
+          newPager.scrollLeft = scroll || this._page * newPager.clientWidth;
+          newPager.addEventListener("scroll", () => {
+            const i = Math.round(newPager.scrollLeft / Math.max(1, newPager.clientWidth));
+            if (i !== this._page) { this._page = i; this._markPage(i); }
+          }, { passive: true });
+        }
       }
       this._placeCameras(models);
       if (this._nameOn) this._marquee(0);
@@ -1709,7 +1814,7 @@
     }
   }
 
-  const CSS = `.c-d2{--f:'Barlow Semi Condensed','Barlow',system-ui,sans-serif;--fn:'Barlow Condensed','Barlow',system-ui,sans-serif;position:relative;width:100%;height:100%;box-sizing:border-box;overflow:hidden;font-family:var(--f);color:var(--fg);border-radius:var(--ha-card-border-radius,12px);
+  const CSS = `.c-d2{--f:'Barlow Semi Condensed','Barlow',system-ui,sans-serif;--fn:'Barlow Condensed','Barlow',system-ui,sans-serif;position:relative;width:100%;height:100%;box-sizing:border-box;overflow:hidden;overflow:clip;font-family:var(--f);color:var(--fg);border-radius:var(--ha-card-border-radius,12px);
   background:linear-gradient(112deg,transparent 0 63%,var(--sheen) 63.4%,transparent 84%),linear-gradient(180deg,var(--bg) 0%,var(--bg2) 100%);box-shadow:inset 0 0 0 1px var(--rim);-webkit-font-smoothing:antialiased}
 .c-d2 *{box-sizing:border-box}
 .c-d2 button{font:inherit;color:inherit;background:none;border:0;padding:0;margin:0;cursor:pointer;-webkit-tap-highlight-color:transparent}
@@ -1884,6 +1989,7 @@
 .c-d2 .d2-face::after{content:"";position:absolute;inset:0;background:linear-gradient(118deg,transparent 0 56%,var(--tSheen) 56.5%,transparent 78%);opacity:.7;pointer-events:none}
 .c-d2 .d2-glyph{position:absolute;left:16%;top:16%;width:68%;height:68%;fill:none;stroke:var(--glyph);stroke-width:4;stroke-linecap:round;stroke-linejoin:round;filter:drop-shadow(0 0 2px var(--gglow)) drop-shadow(0 0 7px var(--gglow))}
 .c-d2 .d2-glyph .fill{fill:var(--glyph);stroke:none}
+.c-d2 .d2-glyph .solid{fill:var(--glyph)}
 .c-d2 .d2-glyph .thin{stroke-width:3}
 .c-d2 .d2-glyph .d2-fan{transform-box:view-box;transform-origin:24px 24px}
 /* Hover glow fades in and out rather than switching. */
@@ -1964,7 +2070,7 @@
 @media (prefers-reduced-motion:reduce){.jo-skel,.jo-skel i,.jo-skel b{animation:none}}
 @container (max-width:400px){.c-d2.d2-standard .d2-idle .d2-name{font-size:19px;line-height:24px}}
 @container (max-width:340px){.c-d2.d2-standard .d2-idle .d2-name{font-size:18px;line-height:24px}}
-ha-card{height:100%;overflow:hidden;background:none;border:none;box-shadow:none;border-radius:var(--ha-card-border-radius,12px);padding:0}
+ha-card{height:100%;overflow:hidden;overflow:clip;background:none;border:none;box-shadow:none;border-radius:var(--ha-card-border-radius,12px);padding:0}
 .c-d2 .d2-win img{display:block;width:100%;height:100%;object-fit:contain}
 .c-d2 [data-act="more"]{cursor:pointer}
 .c-d2 .d2-other[data-act]{cursor:pointer}
