@@ -172,6 +172,7 @@
   const clamp01 = (v) => Math.max(0, Math.min(1, v));
   const deg = (h) => String(h).replace(/°/g, '<span class="d2-deg">°</span>');
   const titleCase = (s) => (s ? s.replace(/_/g, " ").replace(/^./, (c) => c.toUpperCase()) : "");
+  const fmtTimer = (m) => (m >= 60 ? `${Math.floor(m / 60)}h${m % 60 ? ` ${m % 60}m` : ""}` : `${m}m`);
   function duration(sec) {
     const s = Math.max(0, Math.round(sec)), h = Math.floor(s / 3600), m = Math.floor((s % 3600) / 60), r = s % 60;
     return h ? `${h}:${String(m).padStart(2, "0")}:${String(r).padStart(2, "0")}` : `${m}:${String(r).padStart(2, "0")}`;
@@ -504,7 +505,9 @@
         <div class="d2-sh-ends" aria-hidden="true"><span>${r.min}°</span><span>${r.max}°</span></div></div>`}
       ${r.mode === "toast" ? `<div class="d2-sh-toast"><span class="d2-sh-l">Level</span><button class="d2-round" data-act="toast-dec" aria-label="Lower the toast level"${r.level <= 1 ? " disabled" : ""}>${I.minus}</button><b class="d2-sh-lv">${r.level}</b><button class="d2-round" data-act="toast-inc" aria-label="Raise the toast level"${r.level >= 9 ? " disabled" : ""}>${I.plus}</button></div>` : ""}
       ${r.mode === "grill" ? `<div class="d2-sh-toast"><span class="d2-sh-l">Heat</span>${[0, 1, 2].map((v) => `<button class="d2-round d2-grill" data-act="grill-heat" data-v="${v}" aria-pressed="${r.grill === v}" aria-label="${GRILL_LABEL[v]} grill heat">${GRILL_LABEL[v]}</button>`).join("")}</div>` : ""}
-      ${r.mode === "reheat" ? `<div class="d2-sh-toast"><span class="d2-sh-l">Timer</span>${[30, 60, 90, 120].map((m) => `<button class="d2-round d2-timer" data-act="timer-set" data-min="${m}" aria-pressed="${r.timer === m}" aria-label="Set the timer to ${m} minutes">${m >= 60 ? m / 60 + "h" : m + "m"}</button>`).join("")}</div>` : ""}
+      ${r.mode === "reheat" ? `<div class="d2-sh-toast d2-sh-timer"><span class="d2-sh-l">Timer</span>
+        <input class="d2-range d2-timer-range" type="range" min="1" max="600" step="1" value="${r.timer || 60}" style="--p:${((r.timer || 60) - 1) / 599}" aria-label="Timer in minutes">
+        <b class="d2-sh-lv d2-timer-lv">${fmtTimer(r.timer || 60)}</b></div>` : ""}
       <div class="d2-sh-note">Make sure the oven is empty and the door is closed. Nothing heats until you press Start. This closes in <b class="d2-sh-left">${duration(left / 1000)}</b>.</div>
       <div class="d2-sh-acts"><button class="d2-ghost" data-act="sheet-close">Not now</button>
         <button class="d2-go" data-act="rv-start"${r.busy ? " disabled" : ""}>${r.busy ? "Starting…" : multi ? `Start preheating ${esc(name)}` : "Start preheating"}</button></div>
@@ -1683,6 +1686,7 @@
         return this._render();
       }
       if (!r || r.kind !== "review") return;
+      if (e.target.matches(".d2-timer-range")) return this._timerSet(+e.target.value);
       if (e.target.matches(".d2-range")) return this._setTemp(+e.target.value);
       if (e.target.matches(".d2-sh-in")) {
         // Digits only while typing; the slider follows any value in range, the number snaps on Enter or leaving.
@@ -1815,6 +1819,7 @@
         r.grill = gh && Number.isFinite(+gh.state) ? Math.min(2, Math.max(0, +gh.state)) : 0;
         r.temp = GRILL_TEMP[r.grill];
       }
+      if (mode === "reheat") r.timer = 60;
       this._openSheet(r);
       this._setTemp(r.temp);
       const tick = () => {
@@ -1849,8 +1854,11 @@
     _timerSet(min) {
       const r = this._sheet;
       if (!r || r.kind !== "review") return;
-      r.timer = r.timer === min ? null : min;
-      this._renderOver();
+      r.timer = Math.min(600, Math.max(1, Math.round(min)));
+      const range = this._overEl.querySelector(".d2-timer-range");
+      if (range) { range.value = r.timer; range.style.setProperty("--p", (r.timer - 1) / 599); }
+      const lv = this._overEl.querySelector(".d2-timer-lv");
+      if (lv) lv.textContent = fmtTimer(r.timer);
     }
 
     async _grillHeat(v) {
@@ -2252,6 +2260,8 @@ ha-card{height:100%;overflow:hidden;overflow:clip;background:none;border:none;bo
 .c-d2 .d2-sh-ends{display:flex;justify-content:space-between;font:400 12px/14px var(--f);color:var(--fg2)}
 .c-d2 .d2-sh-fixed{display:flex;align-items:center;justify-content:center;gap:6px;min-height:44px;font:500 17px/1 var(--fn);font-variant-numeric:tabular-nums;color:var(--fg)}
 .c-d2 .d2-sh-toast{display:flex;align-items:center;justify-content:center;gap:12px;margin-top:4px}
+.c-d2 .d2-sh-timer{flex-direction:column;align-items:stretch;gap:2px;padding:0 10px}
+.c-d2 .d2-sh-timer .d2-timer-range{width:100%;height:30px;margin:0}
 .c-d2 .d2-sh-toast .d2-sh-l{font:500 12px/14px var(--f);letter-spacing:.06em;text-transform:uppercase;color:var(--fg2)}
 .c-d2 .d2-sh-lv{min-width:24px;text-align:center;font:500 20px/1 var(--fn);font-variant-numeric:tabular-nums;color:var(--fg)}
 .c-d2.d2-wall .d2-sh-ends{font-size:16px;line-height:20px}
