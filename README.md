@@ -38,8 +38,7 @@ credentials required.
 - [Diagnostics, privacy, and security](#diagnostics-privacy-and-security)
 - [Removing the integration](#removing-the-integration)
 - [Development and contributing](#development-and-contributing)
-- [Support the project](#support-the-project)
-- [Provenance and license](#provenance-and-license)
+- [Credits and license](#credits-and-license)
 
 ## Features
 
@@ -666,14 +665,21 @@ redacted diagnostics. This project is maintained independently; do not report
 integration bugs to HACS, Home Assistant, June, or the upstream Homebridge
 project.
 
-## Support the project
+## Credits and license
 
-If this integration is useful to you, you can support its continued
-development and maintenance:
+This integration is a fork of JC Lima's
+[`ha-june-oven`](https://github.com/jclima/ha-june-oven), the first Home
+Assistant port of the June protocol. His pairing, message signing, WebSocket
+client, and entities are still the core of this integration.
 
-<a href="https://buymeacoffee.com/jclima"><img src="https://cdn.buymeacoffee.com/buttons/v2/default-yellow.png" alt="Buy Me a Coffee" width="217"></a>
+Project July added the local path: pairing with and controlling an oven through
+the [Project July](https://project-july.org) local server, certificate trust,
+cook phases, time left and probe targets, tests replayed from recorded oven
+frames, and the July Oven dashboard card.
 
-## Provenance and license
+If the original integration helped you, you can thank JC Lima directly:
+
+<a href="https://buymeacoffee.com/jclima"><img src="https://cdn.buymeacoffee.com/buttons/v2/default-yellow.png" alt="Buy Me a Coffee for JC Lima" width="217"></a>
 
 The protocol work is derived from Keith Herrington's MIT-licensed
 [`homebridge-june-oven`](https://github.com/keithah/homebridge-june-oven) and

@@ -6,6 +6,11 @@ of this implementation are derived from Keith Herrington's MIT-licensed
 project, inspected at commit
 [`b68b7a7`](https://github.com/keithah/homebridge-june-oven/commit/b68b7a7a08affbad45485eed2ada4cc1a1524a69).
 
+This repository is a fork of JC Lima's MIT-licensed
+[`ha-june-oven`](https://github.com/jclima/ha-june-oven), which ported that
+protocol to Home Assistant. Project July maintains this fork and added the
+Project July local-server path and the July Oven dashboard card.
+
 This repository is an independent Home Assistant port. It is not affiliated
 with, maintained by, or endorsed by June Life, Weber, Home Assistant, or the
 upstream Homebridge project.
