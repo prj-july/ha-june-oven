@@ -15,6 +15,13 @@ This is the [Project July](https://project-july.org) edition of the
 integration, maintained by Project July. To put `june-local` on your oven, see
 the [Project July setup guide](https://project-july.org/setup/).
 
+<p align="center">
+  <a href="https://project-july.org/card/#start"><img src="https://project-july.org/card/img/review.gif" width="640" alt="Animation of the July Oven dashboard card: tapping Bake opens the review at 350 °F; the slider is dragged to 425, then the number is tapped and 400 typed in; Start preheating is pressed and the card switches to Preheating, with the temperature climbing."></a>
+</p>
+<p align="center">
+  <sub>The <b>July Oven</b> dashboard card comes with the integration. <a href="https://project-july.org/card/">See every screen</a> · <a href="https://project-july.org/clients#home-assistant">Other ways to control your oven</a></sub>
+</p>
+
 [![Open your Home Assistant instance and add this repository to HACS](https://my.home-assistant.io/badges/hacs_repository.svg)](https://my.home-assistant.io/redirect/hacs_repository/?owner=prj-july&repository=ha-june-oven&category=integration)
 
 > [!WARNING]
@@ -29,6 +36,7 @@ the [Project July setup guide](https://project-july.org/setup/).
 
 ## Contents
 
+- [What you get](#what-you-get)
 - [Features](#features)
 - [Requirements and limitations](#requirements-and-limitations)
 - [Installation](#installation)
@@ -44,6 +52,39 @@ the [Project July setup guide](https://project-july.org/setup/).
 - [Development and contributing](#development-and-contributing)
 - [About Project July](#about-project-july)
 - [Credits and license](#credits-and-license)
+
+## What you get
+
+A June oven device in Home Assistant, with a climate entity, sensors and the
+interior camera, and a dashboard card drawn like the oven's own glass screen.
+The pictures below are the card; the
+[card guide on project-july.org](https://project-july.org/card/) walks
+through every screen.
+
+<table>
+<tr>
+<td width="50%" valign="top"><a href="https://project-july.org/card/#home"><img src="https://project-july.org/card/img/home.png" alt="The card's home screen while the oven is off: the Kitchen oven's icon and name, the time 6:30, and tiles for Bake, Roast, Broil, Air fry, Toast, Grill, Pizza and Reheat."></a><br><b>Home screen.</b> The oven's clock and cook modes. Tap a mode, set the temperature, start preheating.</td>
+<td width="50%" valign="top"><a href="https://project-july.org/card/#cook"><img src="https://project-july.org/card/img/cooking.png" alt="The card while cooking: 12:30 left, a progress bar, Done at 6:42 PM, Bake 400 °F with the food at 128°, the live camera picture, +1, +5 and +10 minute buttons, and a red Stop."></a><br><b>While it cooks.</b> Time left, the live camera, add-time buttons and a Stop that's always in the same place.</td>
+</tr>
+<tr>
+<td colspan="2" valign="top"><a href="https://project-july.org/card/#sizes"><img src="https://project-july.org/card/img/wall-probe.png" alt="The wall tablet layout: the food at 131° against a 145° target, Roast at 350 °F for 21 minutes, the live camera, and a graph of the oven and food temperatures since the cook began."></a><br><b>Wall tablet.</b> Big enough to read across the kitchen, with the oven and food-probe temperatures graphed under the camera.</td>
+</tr>
+<tr>
+<td width="50%" valign="top"><a href="https://project-july.org/card/#camera"><img src="https://project-july.org/card/img/camera.gif" alt="Animation: tapping the small camera picture opens the camera window over the whole card with a red LIVE label; tapping × closes it again."></a><br><b>Camera.</b> Tap the picture for a larger window, up to 15 pictures a second.</td>
+<td width="50%" valign="top"><a href="https://project-july.org/card/#history"><img src="https://project-july.org/card/img/history.png" alt="The cook history for the Kitchen oven: six cooks, each with a picture, mode, temperature, time and a Done or Stopped label, with Export and Clear history buttons."></a><br><b>History.</b> Every cook with its last picture, temperature curve and outcome. Export it as a spreadsheet.</td>
+</tr>
+<tr>
+<td width="50%" valign="top"><a href="https://project-july.org/card/#ovens"><img src="https://project-july.org/card/img/multi.png" alt="One card for three ovens: Kitchen cooking in full, Garage preheating to 280° in a row with its own Stop, and Studio off as a small button."></a><br><b>Several ovens.</b> One card for every oven, each with its own icon and its own Stop.</td>
+<td width="50%" valign="top"><a href="https://project-july.org/card/#sizes"><img src="https://project-july.org/card/img/light-home.png" alt="The home screen in the light theme: dark text on a white card, with orange-red cook mode tiles."></a><br><b>Light or dark.</b> The oven's dark glass, a light theme, or follow your Home Assistant theme.</td>
+</tr>
+<tr>
+<td colspan="2" valign="top"><a href="https://project-july.org/card/#sizes"><img src="https://project-july.org/card/img/compact-cooking.png" alt="The compact layout in one row: the camera picture, 12:30, Cooking, Done at 6:42 PM, and Stop."></a><br><b>Compact.</b> One row for a busy dashboard.</td>
+</tr>
+</table>
+
+Home Assistant is one of several ways to use a June oven running Project
+July. The [clients page](https://project-july.org/clients) lists the others,
+including the Project July app for Android and iPhone.
 
 ## Features
 
@@ -190,9 +231,11 @@ companion identity and Home Assistant device.
 [Project July](https://project-july.org) runs `june-local` on the oven itself,
 answering the same REST and WebSocket routes June's cloud used. To install it,
 follow the [setup guide](https://project-july.org/setup/) or the full
-[installer guide](https://project-july.org/installer/). The integration
-derives every URL from the one **Oven address**, in the same way as the
-Project July phone build:
+[installer guide](https://project-july.org/installer/); the
+[clients page](https://project-july.org/clients#home-assistant) compares Home
+Assistant with the other ways to control the oven. The integration derives
+every URL from the one **Oven address**, in the same way as the Project July
+phone build:
 
 | Purpose | URL |
 | --- | --- |
