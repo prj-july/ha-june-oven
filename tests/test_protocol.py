@@ -139,11 +139,18 @@ class EndpointTest(unittest.TestCase):
             "192.168.1.75:8443": "https://192.168.1.75:8443",
             "https://oven.lan": "https://oven.lan",
             "HTTPS://oven.lan:443/": "https://oven.lan",
-            "http://192.168.1.75": "http://192.168.1.75:8080",
-            "http://192.168.1.75:80": "http://192.168.1.75:80",
+            "june.local": "https://june.local",
+            "june3.local": "https://june3.local",
+            "messaging.junelife.com": "https://messaging.junelife.com",
+            "http://192.168.1.75": "http://192.168.1.75",
+            "http://192.168.1.75:80": "http://192.168.1.75",
+            "http://june2.local": "http://june2.local",
+            # The reference server's plain listener; also how entries saved
+            # before port 80 became the default are stored.
+            "http://192.168.1.75:8080": "http://192.168.1.75:8080",
             "fe80::1": "https://[fe80::1]",
             "[fe80::1]:8443": "https://[fe80::1]:8443",
-            "http://[FE80::0001]": "http://[fe80::1]:8080",
+            "http://[FE80::0001]": "http://[fe80::1]",
         }
         for value, expected in cases.items():
             with self.subTest(value=value):
@@ -190,11 +197,12 @@ class EndpointTest(unittest.TestCase):
 
     def test_plain_http_endpoint_uses_plain_websocket(self) -> None:
         endpoints = protocol.build_endpoints("http://192.168.1.75")
-        self.assertEqual(endpoints.api_url, "http://192.168.1.75:8080")
+        self.assertEqual(endpoints.api_url, "http://192.168.1.75")
         self.assertEqual(
             endpoints.ws_url,
-            "ws://192.168.1.75:8080/1/messaging/websocket/companion",
+            "ws://192.168.1.75/1/messaging/websocket/companion",
         )
+        self.assertEqual(endpoints.status_url, "http://192.168.1.75/local/status")
 
     def test_local_media_url_is_rehomed_to_endpoint(self) -> None:
         endpoints = protocol.build_endpoints("192.168.1.75")

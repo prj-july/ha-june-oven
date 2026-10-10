@@ -205,11 +205,12 @@ Pairing creates a private June companion identity for Home Assistant.
 3. Enter:
 
    - **Oven name**: the companion and device name, such as `Kitchen June`.
-   - **Oven address**: the oven's hostname or IP address, such as
-     `192.168.1.75`. Leave empty to use June's cloud. See
+   - **Oven address**: the oven's name, such as `june.local`, or its IP
+     address. Leave empty to use June's cloud. See
      [Project July local server](#project-july-local-server).
    - **Verify TLS certificate** and **CA certificate (PEM)**: how Home
-     Assistant trusts the oven's certificate.
+     Assistant trusts the oven's certificate. Leave them as they are for the
+     standard install.
    - **Default cook mode**: the mode used when turning the climate entity on.
    - **Default temperature**: the initial target, from 100 °F to 500 °F.
 
@@ -248,31 +249,46 @@ Accepted address forms:
 
 | You enter | Home Assistant uses |
 | --- | --- |
+| `june.local` | `https://june.local` |
+| `june2.local`, `june3.local` | `https://june2.local`, `https://june3.local`: more ovens on the standard install |
+| `api.junelife.com`, `messaging.junelife.com` | the same names, when your network's DNS sends them to the oven |
 | `192.168.1.75` | `https://192.168.1.75` |
-| `june-oven.local` | `https://june-oven.local` |
 | `192.168.1.75:8443` | `https://192.168.1.75:8443` |
 | `fe80::1` | `https://[fe80::1]` |
-| `http://192.168.1.75` | `http://192.168.1.75:8080`, the plaintext listener |
+| `http://192.168.1.75` | `http://192.168.1.75`, the oven's plain port 80 |
 
 Before pairing, and whenever the address changes, Home Assistant checks
 `/local/status` and continues only if the server reports `june-local`.
 
 ### Trusting the oven's certificate
 
-`june-local` serves a per-install certificate signed by your own CA, which
-Home Assistant does not trust by default. Choose one option:
+Certificates are optional: any address works over the plain port, and
+commands are signed either way.
 
-1. **Paste the CA (recommended).** Paste the contents of the `ca.crt` produced
-   by `generate_certs.sh` into **CA certificate (PEM)** and keep **Verify TLS
-   certificate** on. Home Assistant then trusts only that CA for the oven. The
-   oven address must match a `DNS:` or `IP:` name in the leaf certificate
-   (`JUNE_HOSTNAME` or `JUNE_IP_SAN` when the certificates were generated).
-2. **Turn off Verify TLS certificate.** The connection stays encrypted and
-   commands stay signed, but anyone on your network could impersonate the
-   oven's server.
-3. **Use the plaintext listener** by entering `http://<oven-ip>`. This avoids
-   certificates entirely and is not encrypted. Pairing stays SRP-protected
-   and commands stay signed.
+- **Standard install: nothing to do.** The installer's default certificate
+  comes from the Project July CA (`*.junelife.com`), which the integration
+  has built in, like the Project July apps. Enter the oven as `june.local`
+  (or `june2.local`, `june3.local`), or as `api.junelife.com` or
+  `messaging.junelife.com` if your DNS sends those to the oven, and keep
+  **Verify TLS certificate** on. The integration trusts this CA only for the
+  oven address you enter, never for June's cloud.
+- **Custom install** (*Install with your own CA*): paste that install's
+  `ca.crt` into **CA certificate (PEM)** and keep **Verify TLS certificate**
+  on. Home Assistant then trusts only that CA for the oven.
+- **Use the plain port** by entering `http://<oven-ip>`. This needs no
+  certificate and is not encrypted. Pairing stays SRP-protected and commands
+  stay signed.
+- **Turn off Verify TLS certificate.** The connection stays encrypted and
+  commands stay signed, but anyone on your network could impersonate the
+  oven's server.
+
+With **Verify TLS certificate** on, the address must be a name in the oven's
+certificate. The standard certificate names `june.local`, `api.junelife.com`
+and `messaging.junelife.com` (or `june2.local`, `june3.local` for further
+ovens), and an IP address only if the installer was given one. An IP address
+that isn't in the certificate fails the check; use the name, or `http://`.
+[Certificates, explained](https://project-july.org/setup/#certificates) on
+project-july.org covers both installs.
 
 ## Configuration
 
@@ -601,17 +617,17 @@ automation:
 
 ### Setup reports a connection or certificate problem
 
-- Open `http://<oven-ip>:8080/local` from a device on the same network. It
+- Open `http://<oven-ip>/local` from a device on the same network. It
   should say `june-local` is running.
 - **Could not connect**: check the address and that Home Assistant can
   reach the oven, for example that it is not on an isolated VLAN or guest
   network.
 - **Not a Project July local server**: something else answered at that
   address. Check for a typo or a changed IP address.
-- **Certificate not trusted**: paste the CA from the same install as the
-  oven's certificate, and enter the address exactly as it appears in the
-  certificate. For example, a certificate generated with only
-  `JUNE_HOSTNAME=oven.local` does not match `192.168.1.75`.
+- **Certificate not trusted**: enter the address as a name in the oven's
+  certificate, such as `june.local` rather than `192.168.1.75`. After a
+  custom install, also paste the CA from that install. Or enter
+  `http://<oven-ip>` to use the plain port.
 
 ### Entities are unavailable
 

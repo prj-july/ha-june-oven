@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import ssl
+from functools import partial
 from typing import Any
 
 import voluptuous as vol
@@ -159,14 +160,19 @@ async def _async_server_settings(
         CONF_VERIFY_SSL: bool(user_input.get(CONF_VERIFY_SSL, True)),
         CONF_CA_CERT: str(user_input.get(CONF_CA_CERT) or "").strip(),
     }
+    endpoints = build_endpoints(endpoint)
     try:
         ssl_option = await hass.async_add_executor_job(
-            create_ssl_option, settings[CONF_VERIFY_SSL], settings[CONF_CA_CERT]
+            partial(
+                create_ssl_option,
+                settings[CONF_VERIFY_SSL],
+                settings[CONF_CA_CERT],
+                local=endpoints.local,
+            )
         )
     except (ssl.SSLError, ValueError) as err:
         raise _ServerSettingsError(CONF_CA_CERT, "invalid_ca_cert") from err
 
-    endpoints = build_endpoints(endpoint)
     if endpoints.local:
         try:
             await async_check_local_server(

@@ -5,6 +5,7 @@ from __future__ import annotations
 import importlib
 import importlib.util
 import json
+import ssl
 import sys
 import types
 import unittest
@@ -495,6 +496,38 @@ class IdleCameraTest(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(
             session.gets, ["https://api.junelife.com/media/prod/images/a.jpg"]
         )
+
+
+class SslOptionTest(unittest.TestCase):
+    """Verify which CAs a server's TLS setting trusts."""
+
+    INSTALLER_SERIAL = "A0A43F697EA12E577AABD4A6CF031221"
+
+    def serials(self, context: ssl.SSLContext) -> set[str]:
+        return {cert["serialNumber"] for cert in context.get_ca_certs()}
+
+    def test_local_server_trusts_installer_ca_and_checks_hostname(self) -> None:
+        context = api.create_ssl_option(True, "", local=True)
+        self.assertIsInstance(context, ssl.SSLContext)
+        self.assertIn(self.INSTALLER_SERIAL, self.serials(context))
+        self.assertTrue(context.check_hostname)
+        self.assertEqual(context.verify_mode, ssl.CERT_REQUIRED)
+
+    def test_cloud_never_trusts_installer_ca(self) -> None:
+        self.assertIs(api.create_ssl_option(True, ""), True)
+        self.assertIs(api.create_ssl_option(True, "", local=False), True)
+
+    def test_pasted_ca_is_the_only_ca(self) -> None:
+        context = api.create_ssl_option(True, api.PROJECT_JULY_CA, local=True)
+        self.assertEqual(self.serials(context), {self.INSTALLER_SERIAL})
+
+    def test_verification_off(self) -> None:
+        self.assertIs(api.create_ssl_option(False, "", local=True), False)
+
+    def test_invalid_pasted_ca_is_rejected(self) -> None:
+        with self.assertRaises((ssl.SSLError, ValueError)):
+            api.create_ssl_option(True, "not a certificate", local=True)
+
 
 if __name__ == "__main__":
     unittest.main()
