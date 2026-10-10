@@ -115,8 +115,36 @@ DAMM: Final = (
 )
 
 # Project July's june-local server serves the same routes over TLS on 443 and
-# over plain HTTP on this port.
-LOCAL_HTTP_PORT: Final = 8080
+# over plain HTTP on port 80. The reference server's plain listener is 8080;
+# enter that port explicitly.
+LOCAL_HTTP_PORT: Final = 80
+
+# The CA behind the Project July installer's default certificates, which name
+# june.local (or june2.local, june3.local), api.junelife.com and
+# messaging.junelife.com. The Project July apps ship the same CA. It is trusted
+# only for a configured local server, never for June's cloud, and a pasted CA
+# certificate replaces it. Backdated to 2000 like the installer's certificates.
+PROJECT_JULY_CA: Final = """\
+-----BEGIN CERTIFICATE-----
+MIIDIDCCAgigAwIBAgIRAKCkP2l+oS5XeqvUps8DEiEwDQYJKoZIhvcNAQELBQAw
+GTEXMBUGA1UEAwwOKi5qdW5lbGlmZS5jb20wHhcNMDAwMTAxMDAwMDAwWhcNNDYw
+OTMwMDA1OTQ2WjAZMRcwFQYDVQQDDA4qLmp1bmVsaWZlLmNvbTCCASIwDQYJKoZI
+hvcNAQEBBQADggEPADCCAQoCggEBALUP6WKpsfcBmDJFCWI2HhAiFAvKcWXugml/
+SkPtz8CzwAAy6bOwZg6tD7sqIH9Zks3QfRlTSSoeqRdHB7XOwAVgM/AsStnCJrYH
+TrxoVnULb7eiMCp6VL+Lj29+gfb3sXFdAiK0CDfM3PxS1TCndv+ERBN9Jn/v61sD
+5OipVziu0XOyGxCObUnJGnSIXUghLGT6cuHYksm1+ePEKN5T2KaGV5ZW/2jeUBV1
+JEYxCoHPMAvmA+GgGg5oG0d36zeeBIXvclKICe2KPxXlu8SrfwT0U+dsxWDo8odX
+YbAnM6ZCy/PHhkrSPgf61QFUMy+JV8uHwdJdFDrIs1SmMqnrYfkCAwEAAaNjMGEw
+DwYDVR0TAQH/BAUwAwEB/zAOBgNVHQ8BAf8EBAMCAQYwHQYDVR0OBBYEFN/RC04w
+R6sxaY04vHNSSeFXz19iMB8GA1UdIwQYMBaAFN/RC04wR6sxaY04vHNSSeFXz19i
+MA0GCSqGSIb3DQEBCwUAA4IBAQCenEeq5pedBPAHkMXouCgLERTkkmWMNg0vDIoh
+5wKMjIvB6+GfnmGAjpYobzhcizZnQyE5xGBPeGd/padE9LAVweWcOjTIv0DMNyIk
+RsdN7xyjGXE7YuiIxYEoPqqNxm5/ftgTW36TBUhw1DC/ZimU97+DyxJnE8/Th4et
+fOpatDS2yPUpLkPf+uC6HG2LGdyxT2eylftznqM6QVWtlu+fbmq2dF7eGb+l2Aly
+i0i8D2HT4cLhJmdug47jF+NbAFKseGD7dxNw8uUXa3wyL+K8ouH+9XcxhP47zPF7
+ftMSu0XeZ0mywTmBKuExctXWymUP2vRQcgRtiKdYs0HTyixs
+-----END CERTIFICATE-----
+"""
 
 _HOSTNAME = re.compile(
     r"(?=.{1,253}$)[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?"
@@ -158,9 +186,9 @@ def normalize_endpoint(value: str) -> str:
     """Normalize a user-entered endpoint to ``scheme://host[:port]``.
 
     Accepts a hostname or an IPv4/IPv6 address, optionally with a port and an
-    ``https://`` or ``http://`` prefix. HTTPS is assumed; plain HTTP defaults to
-    the local server's port-8080 listener. An empty value returns "" and selects
-    June's public cloud. Raises ValueError for anything else.
+    ``https://`` or ``http://`` prefix. HTTPS is assumed; plain HTTP uses the
+    oven's port-80 listener unless a port is given. An empty value returns ""
+    and selects June's public cloud. Raises ValueError for anything else.
     """
     value = value.strip()
     if not value:
@@ -193,9 +221,9 @@ def normalize_endpoint(value: str) -> str:
     else:
         host = f"[{address.compressed}]" if address.version == 6 else str(address)
 
-    if scheme == "http" and port is None:
-        port = LOCAL_HTTP_PORT
-    if scheme == "https" and port == 443:
+    if (scheme == "http" and port == LOCAL_HTTP_PORT) or (
+        scheme == "https" and port == 443
+    ):
         port = None
     return f"{scheme}://{host}" + (f":{port}" if port is not None else "")
 

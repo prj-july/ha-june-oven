@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import logging
 import ssl
+from functools import partial
 from pathlib import Path
 from typing import Any
 
@@ -59,9 +60,12 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     try:
         endpoints = build_endpoints(str(config.get(CONF_ENDPOINT, "")))
         ssl_option = await hass.async_add_executor_job(
-            create_ssl_option,
-            bool(config.get(CONF_VERIFY_SSL, True)),
-            str(config.get(CONF_CA_CERT, "")),
+            partial(
+                create_ssl_option,
+                bool(config.get(CONF_VERIFY_SSL, True)),
+                str(config.get(CONF_CA_CERT, "")),
+                local=endpoints.local,
+            )
         )
     except (ssl.SSLError, ValueError) as err:
         raise ConfigEntryError(f"Invalid server settings: {err}") from err

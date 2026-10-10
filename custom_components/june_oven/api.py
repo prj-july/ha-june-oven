@@ -51,6 +51,7 @@ from .protocol import (
     MC_TELEMETRY,
     MC_TEMPERATURE,
     PHASE_IDLE,
+    PROJECT_JULY_CA,
     CookPlan,
     JuneEndpoints,
     OrderGenerator,
@@ -806,18 +807,26 @@ class JuneClient:
         return None
 
 
-def create_ssl_option(verify_ssl: bool, ca_cert: str = "") -> SSLOption:
+def create_ssl_option(
+    verify_ssl: bool, ca_cert: str = "", *, local: bool = False
+) -> SSLOption:
     """Build the TLS setting for a server.
 
     A pasted CA certificate trusts only that CA, such as a Project July
-    per-install CA. This loads certificates, so call it from an executor.
-    Raises ssl.SSLError or ValueError for an unusable certificate.
+    per-install CA. Without one, a local server is trusted through the system
+    store or the Project July installer's default CA, and June's cloud through
+    the system store only. This loads certificates, so call it from an
+    executor. Raises ssl.SSLError or ValueError for an unusable certificate.
     """
     if not verify_ssl:
         return False
-    if not ca_cert.strip():
+    if ca_cert.strip():
+        return ssl.create_default_context(cadata=ca_cert.strip())
+    if not local:
         return True
-    return ssl.create_default_context(cadata=ca_cert.strip())
+    context = ssl.create_default_context()
+    context.load_verify_locations(cadata=PROJECT_JULY_CA)
+    return context
 
 
 async def async_check_local_server(

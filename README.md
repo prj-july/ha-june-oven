@@ -15,6 +15,13 @@ This is the [Project July](https://project-july.org) edition of the
 integration, maintained by Project July. To put `june-local` on your oven, see
 the [Project July setup guide](https://project-july.org/setup/).
 
+<p align="center">
+  <a href="https://project-july.org/card/#start"><img src="https://project-july.org/card/img/review.gif" width="640" alt="Animation of the July Oven dashboard card: tapping Bake opens the review at 350 °F; the slider is dragged to 425, then the number is tapped and 400 typed in; Start preheating is pressed and the card switches to Preheating, with the temperature climbing."></a>
+</p>
+<p align="center">
+  <sub>The <b>July Oven</b> dashboard card comes with the integration. <a href="https://project-july.org/card/">See every screen</a> · <a href="https://project-july.org/clients#home-assistant">Other ways to control your oven</a></sub>
+</p>
+
 [![Open your Home Assistant instance and add this repository to HACS](https://my.home-assistant.io/badges/hacs_repository.svg)](https://my.home-assistant.io/redirect/hacs_repository/?owner=prj-july&repository=ha-june-oven&category=integration)
 
 > [!WARNING]
@@ -29,6 +36,7 @@ the [Project July setup guide](https://project-july.org/setup/).
 
 ## Contents
 
+- [What you get](#what-you-get)
 - [Features](#features)
 - [Requirements and limitations](#requirements-and-limitations)
 - [Installation](#installation)
@@ -44,6 +52,39 @@ the [Project July setup guide](https://project-july.org/setup/).
 - [Development and contributing](#development-and-contributing)
 - [About Project July](#about-project-july)
 - [Credits and license](#credits-and-license)
+
+## What you get
+
+A June oven device in Home Assistant, with a climate entity, sensors and the
+interior camera, and a dashboard card drawn like the oven's own glass screen.
+The pictures below are the card; the
+[card guide on project-july.org](https://project-july.org/card/) walks
+through every screen.
+
+<table>
+<tr>
+<td width="50%" valign="top"><a href="https://project-july.org/card/#home"><img src="https://project-july.org/card/img/home.png" alt="The card's home screen while the oven is off: the Kitchen oven's icon and name, the time 6:30, and tiles for Bake, Roast, Broil, Air fry, Toast, Grill, Pizza and Reheat."></a><br><b>Home screen.</b> The oven's clock and cook modes. Tap a mode, set the temperature, start preheating.</td>
+<td width="50%" valign="top"><a href="https://project-july.org/card/#cook"><img src="https://project-july.org/card/img/cooking.png" alt="The card while cooking: 12:30 left, a progress bar, Done at 6:42 PM, Bake 400 °F with the food at 128°, the live camera picture, +1, +5 and +10 minute buttons, and a red Stop."></a><br><b>While it cooks.</b> Time left, the live camera, add-time buttons and a Stop that's always in the same place.</td>
+</tr>
+<tr>
+<td colspan="2" valign="top"><a href="https://project-july.org/card/#sizes"><img src="https://project-july.org/card/img/wall-probe.png" alt="The wall tablet layout: the food at 131° against a 145° target, Roast at 350 °F for 21 minutes, the live camera, and a graph of the oven and food temperatures since the cook began."></a><br><b>Wall tablet.</b> Big enough to read across the kitchen, with the oven and food-probe temperatures graphed under the camera.</td>
+</tr>
+<tr>
+<td width="50%" valign="top"><a href="https://project-july.org/card/#camera"><img src="https://project-july.org/card/img/camera.gif" alt="Animation: tapping the small camera picture opens the camera window over the whole card with a red LIVE label; tapping × closes it again."></a><br><b>Camera.</b> Tap the picture for a larger window, up to 15 pictures a second.</td>
+<td width="50%" valign="top"><a href="https://project-july.org/card/#history"><img src="https://project-july.org/card/img/history.png" alt="The cook history for the Kitchen oven: six cooks, each with a picture, mode, temperature, time and a Done or Stopped label, with Export and Clear history buttons."></a><br><b>History.</b> Every cook with its last picture, temperature curve and outcome. Export it as a spreadsheet.</td>
+</tr>
+<tr>
+<td width="50%" valign="top"><a href="https://project-july.org/card/#ovens"><img src="https://project-july.org/card/img/multi.png" alt="One card for three ovens: Kitchen cooking in full, Garage preheating to 280° in a row with its own Stop, and Studio off as a small button."></a><br><b>Several ovens.</b> One card for every oven, each with its own icon and its own Stop.</td>
+<td width="50%" valign="top"><a href="https://project-july.org/card/#sizes"><img src="https://project-july.org/card/img/light-home.png" alt="The home screen in the light theme: dark text on a white card, with orange-red cook mode tiles."></a><br><b>Light or dark.</b> The oven's dark glass, a light theme, or follow your Home Assistant theme.</td>
+</tr>
+<tr>
+<td colspan="2" valign="top"><a href="https://project-july.org/card/#sizes"><img src="https://project-july.org/card/img/compact-cooking.png" alt="The compact layout in one row: the camera picture, 12:30, Cooking, Done at 6:42 PM, and Stop."></a><br><b>Compact.</b> One row for a busy dashboard.</td>
+</tr>
+</table>
+
+Home Assistant is one of several ways to use a June oven running Project
+July. The [clients page](https://project-july.org/clients) lists the others,
+including the Project July app for Android and iPhone.
 
 ## Features
 
@@ -164,11 +205,12 @@ Pairing creates a private June companion identity for Home Assistant.
 3. Enter:
 
    - **Oven name**: the companion and device name, such as `Kitchen June`.
-   - **Oven address**: the oven's hostname or IP address, such as
-     `192.168.1.75`. Leave empty to use June's cloud. See
+   - **Oven address**: the oven's name, such as `june.local`, or its IP
+     address. Leave empty to use June's cloud. See
      [Project July local server](#project-july-local-server).
    - **Verify TLS certificate** and **CA certificate (PEM)**: how Home
-     Assistant trusts the oven's certificate.
+     Assistant trusts the oven's certificate. Leave them as they are for the
+     standard install.
    - **Default cook mode**: the mode used when turning the climate entity on.
    - **Default temperature**: the initial target, from 100 °F to 500 °F.
 
@@ -190,9 +232,11 @@ companion identity and Home Assistant device.
 [Project July](https://project-july.org) runs `june-local` on the oven itself,
 answering the same REST and WebSocket routes June's cloud used. To install it,
 follow the [setup guide](https://project-july.org/setup/) or the full
-[installer guide](https://project-july.org/installer/). The integration
-derives every URL from the one **Oven address**, in the same way as the
-Project July phone build:
+[installer guide](https://project-july.org/installer/); the
+[clients page](https://project-july.org/clients#home-assistant) compares Home
+Assistant with the other ways to control the oven. The integration derives
+every URL from the one **Oven address**, in the same way as the Project July
+phone build:
 
 | Purpose | URL |
 | --- | --- |
@@ -205,31 +249,46 @@ Accepted address forms:
 
 | You enter | Home Assistant uses |
 | --- | --- |
+| `june.local` | `https://june.local` |
+| `june2.local`, `june3.local` | `https://june2.local`, `https://june3.local`: more ovens on the standard install |
+| `api.junelife.com`, `messaging.junelife.com` | the same names, when your network's DNS sends them to the oven |
 | `192.168.1.75` | `https://192.168.1.75` |
-| `june-oven.local` | `https://june-oven.local` |
 | `192.168.1.75:8443` | `https://192.168.1.75:8443` |
 | `fe80::1` | `https://[fe80::1]` |
-| `http://192.168.1.75` | `http://192.168.1.75:8080`, the plaintext listener |
+| `http://192.168.1.75` | `http://192.168.1.75`, the oven's plain port 80 |
 
 Before pairing, and whenever the address changes, Home Assistant checks
 `/local/status` and continues only if the server reports `june-local`.
 
 ### Trusting the oven's certificate
 
-`june-local` serves a per-install certificate signed by your own CA, which
-Home Assistant does not trust by default. Choose one option:
+Certificates are optional: any address works over the plain port, and
+commands are signed either way.
 
-1. **Paste the CA (recommended).** Paste the contents of the `ca.crt` produced
-   by `generate_certs.sh` into **CA certificate (PEM)** and keep **Verify TLS
-   certificate** on. Home Assistant then trusts only that CA for the oven. The
-   oven address must match a `DNS:` or `IP:` name in the leaf certificate
-   (`JUNE_HOSTNAME` or `JUNE_IP_SAN` when the certificates were generated).
-2. **Turn off Verify TLS certificate.** The connection stays encrypted and
-   commands stay signed, but anyone on your network could impersonate the
-   oven's server.
-3. **Use the plaintext listener** by entering `http://<oven-ip>`. This avoids
-   certificates entirely and is not encrypted. Pairing stays SRP-protected
-   and commands stay signed.
+- **Standard install: nothing to do.** The installer's default certificate
+  comes from the Project July CA (`*.junelife.com`), which the integration
+  has built in, like the Project July apps. Enter the oven as `june.local`
+  (or `june2.local`, `june3.local`), or as `api.junelife.com` or
+  `messaging.junelife.com` if your DNS sends those to the oven, and keep
+  **Verify TLS certificate** on. The integration trusts this CA only for the
+  oven address you enter, never for June's cloud.
+- **Custom install** (*Install with your own CA*): paste that install's
+  `ca.crt` into **CA certificate (PEM)** and keep **Verify TLS certificate**
+  on. Home Assistant then trusts only that CA for the oven.
+- **Use the plain port** by entering `http://<oven-ip>`. This needs no
+  certificate and is not encrypted. Pairing stays SRP-protected and commands
+  stay signed.
+- **Turn off Verify TLS certificate.** The connection stays encrypted and
+  commands stay signed, but anyone on your network could impersonate the
+  oven's server.
+
+With **Verify TLS certificate** on, the address must be a name in the oven's
+certificate. The standard certificate names `june.local`, `api.junelife.com`
+and `messaging.junelife.com` (or `june2.local`, `june3.local` for further
+ovens), and an IP address only if the installer was given one. An IP address
+that isn't in the certificate fails the check; use the name, or `http://`.
+[Certificates, explained](https://project-july.org/setup/#certificates) on
+project-july.org covers both installs.
 
 ## Configuration
 
@@ -558,17 +617,17 @@ automation:
 
 ### Setup reports a connection or certificate problem
 
-- Open `http://<oven-ip>:8080/local` from a device on the same network. It
+- Open `http://<oven-ip>/local` from a device on the same network. It
   should say `june-local` is running.
 - **Could not connect**: check the address and that Home Assistant can
   reach the oven, for example that it is not on an isolated VLAN or guest
   network.
 - **Not a Project July local server**: something else answered at that
   address. Check for a typo or a changed IP address.
-- **Certificate not trusted**: paste the CA from the same install as the
-  oven's certificate, and enter the address exactly as it appears in the
-  certificate. For example, a certificate generated with only
-  `JUNE_HOSTNAME=oven.local` does not match `192.168.1.75`.
+- **Certificate not trusted**: enter the address as a name in the oven's
+  certificate, such as `june.local` rather than `192.168.1.75`. After a
+  custom install, also paste the CA from that install. Or enter
+  `http://<oven-ip>` to use the plain port.
 
 ### Entities are unavailable
 
