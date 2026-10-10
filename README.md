@@ -11,6 +11,10 @@ and controlling June ovens. It pairs as a companion with an oven running the
 with no Homebridge, Apple HomeKit, June account login, or extracted app
 credentials required.
 
+This is the [Project July](https://project-july.org) edition of the
+integration, maintained by Project July. To put `june-local` on your oven, see
+the [Project July setup guide](https://project-july.org/setup/).
+
 [![Open your Home Assistant instance and add this repository to HACS](https://my.home-assistant.io/badges/hacs_repository.svg)](https://my.home-assistant.io/redirect/hacs_repository/?owner=prj-july&repository=ha-june-oven&category=integration)
 
 > [!WARNING]
@@ -38,6 +42,7 @@ credentials required.
 - [Diagnostics, privacy, and security](#diagnostics-privacy-and-security)
 - [Removing the integration](#removing-the-integration)
 - [Development and contributing](#development-and-contributing)
+- [About Project July](#about-project-july)
 - [Credits and license](#credits-and-license)
 
 ## Features
@@ -183,9 +188,11 @@ companion identity and Home Assistant device.
 ## Project July local server
 
 [Project July](https://project-july.org) runs `june-local` on the oven itself,
-answering the same REST and WebSocket routes June's cloud used. The
-integration derives every URL from the one **Oven address**, in the same way
-as the Project July phone build:
+answering the same REST and WebSocket routes June's cloud used. To install it,
+follow the [setup guide](https://project-july.org/setup/) or the full
+[installer guide](https://project-july.org/installer/). The integration
+derives every URL from the one **Oven address**, in the same way as the
+Project July phone build:
 
 | Purpose | URL |
 | --- | --- |
@@ -347,7 +354,8 @@ dashboard. There is no resource to add and nothing to install from HACS.
 After updating the integration, reload the browser tab once.
 
 For a walkthrough with pictures and animations of every screen, see the
-[July Oven card guide](docs/card-guide/README.md).
+[July Oven card guide](docs/card-guide/README.md), also on
+[project-july.org/card](https://project-july.org/card/).
 
 Add it from the card picker (search for "July Oven"), or in YAML:
 
@@ -661,25 +669,37 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) before opening a pull request.
 
 For bugs, use the
 [issue tracker](https://github.com/prj-july/ha-june-oven/issues) and attach only
-redacted diagnostics. This project is maintained independently; do not report
+redacted diagnostics. This project is maintained by Project July; do not report
 integration bugs to HACS, Home Assistant, June, or the upstream Homebridge
 project.
+
+## About Project July
+
+[Project July](https://project-july.org) is a community project that keeps
+June ovens working after the June cloud shut down, by running `june-local` on
+the oven itself. This integration is one of its clients:
+
+- [Setup guide](https://project-july.org/setup/) and
+  [installer guide](https://project-july.org/installer/): put `june-local` on
+  your oven.
+- [Ways to control the oven](https://project-july.org/clients): Home
+  Assistant, and the Project July app for
+  [Android](https://project-july.org/android/) and
+  [iPhone](https://project-july.org/ios/).
+- [July Oven card guide](https://project-july.org/card/).
 
 ## Credits and license
 
 This integration is a fork of JC Lima's
 [`ha-june-oven`](https://github.com/jclima/ha-june-oven), the first Home
 Assistant port of the June protocol. His pairing, message signing, WebSocket
-client, and entities are still the core of this integration.
+client, and entities are still the core of this integration. Project July
+maintains this fork going forward.
 
 Project July added the local path: pairing with and controlling an oven through
 the [Project July](https://project-july.org) local server, certificate trust,
 cook phases, time left and probe targets, tests replayed from recorded oven
 frames, and the July Oven dashboard card.
-
-If the original integration helped you, you can thank JC Lima directly:
-
-<a href="https://buymeacoffee.com/jclima"><img src="https://cdn.buymeacoffee.com/buttons/v2/default-yellow.png" alt="Buy Me a Coffee for JC Lima" width="217"></a>
 
 The protocol work is derived from Keith Herrington's MIT-licensed
 [`homebridge-june-oven`](https://github.com/keithah/homebridge-june-oven) and
