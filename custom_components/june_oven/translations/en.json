@@ -168,6 +168,16 @@
           "description": "How many minutes to add."
         }
       }
+    },
+    "set_timer": {
+      "name": "Set timer",
+      "description": "Sets the running cook's timer to a duration.",
+      "fields": {
+        "minutes": {
+          "name": "Minutes",
+          "description": "How long the timer runs, in minutes."
+        }
+      }
     }
   },
   "exceptions": {}

@@ -45,6 +45,7 @@ class JuneToastLevel(JuneEntity, NumberEntity):
         self.coordinator.toast_level = int(value)
         self.async_write_ha_state()
 
+
 class JuneGrillHeat(JuneEntity, NumberEntity):
     """Grill heat 0/1/2 = high/medium/low; the wire plan_index."""
 

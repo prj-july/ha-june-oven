@@ -77,8 +77,12 @@ class CookHistoryTest(unittest.IsolatedAsyncioTestCase):
             hass = HomeAssistant(config_dir)
             hass.config.media_dirs = {"local": str(Path(config_dir) / "media")}
             async_setup_loader(hass)
-            frame.async_setup(hass)
-            # Home Assistant loads these at startup; a bare instance does not.
+            # Home Assistant sets up and loads these at startup; a bare instance
+            # does not. Older versions have no setup step for some of them.
+            if hasattr(frame, "async_setup"):
+                frame.async_setup(hass)
+            if hasattr(dr, "async_setup"):
+                dr.async_setup(hass)
             await dr.async_load(hass)
             await er.async_load(hass)
             hass.config_entries = ConfigEntries(hass, {})

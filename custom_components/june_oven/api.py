@@ -332,7 +332,9 @@ class JuneClient:
                 future.set_result(None)
         self._pending.clear()
 
-    async def async_preheat(self, mode: str, temperature_f: float, plan_index: int | None = None) -> None:
+    async def async_preheat(
+        self, mode: str, temperature_f: float, plan_index: int | None = None
+    ) -> None:
         """Start a cook/preheat and require a success acknowledgement."""
         self._last_cancelled = False
         payload: dict[str, Any] = {
@@ -435,12 +437,16 @@ class JuneClient:
         now = time.monotonic()
         if now - self._last_camera_wake < CAMERA_WAKE_INTERVAL:
             return True
-        url = f"{self.endpoints.api_url}/internal/camera/on?seconds={CAMERA_WAKE_SECONDS}"
+        url = (
+            f"{self.endpoints.api_url}/internal/camera/on?seconds={CAMERA_WAKE_SECONDS}"
+        )
         try:
             async with asyncio.timeout(COMMAND_TIMEOUT):
                 async with self.session.post(url, ssl=self._ssl) as response:
                     if response.status != 200:
-                        _LOGGER.debug("Camera wake failed with HTTP %s", response.status)
+                        _LOGGER.debug(
+                            "Camera wake failed with HTTP %s", response.status
+                        )
                         return False
                     await response.read()
         except (TimeoutError, ClientError) as err:

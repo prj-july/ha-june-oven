@@ -14,7 +14,12 @@ from homeassistant.helpers.update_coordinator import (
 )
 
 from .api import JuneClient, JuneError, JuneState
-from .const import DEFAULT_GRILL_HEAT, DEFAULT_TOAST_LEVEL, DOMAIN, POLL_INTERVAL_SECONDS
+from .const import (
+    DEFAULT_GRILL_HEAT,
+    DEFAULT_TOAST_LEVEL,
+    DOMAIN,
+    POLL_INTERVAL_SECONDS,
+)
 
 if TYPE_CHECKING:
     from .history import CookHistory
