@@ -81,6 +81,10 @@ CAMERA_WAKE_INTERVAL = 15.0
 TRIGGER_PULSE_SECONDS = 30
 TRUSTED_CAMERA_HOSTS = {"api.junelife.com", "june-api.s3.amazonaws.com"}
 
+# How long to wait for the oven to report the plan of a cook that was just
+# started, before sending a timer for it (see JuneClient._await_running_plan).
+PLAN_START_TIMEOUT = 3.0
+
 # aiohttp's per-request ``ssl`` value: True verifies against the system store,
 # False skips verification, and a context trusts a specific CA.
 SSLOption = ssl.SSLContext | bool
@@ -208,6 +212,11 @@ class JuneClient:
         self.token_callback = token_callback
         self.update_callback = update_callback
         self._orders = OrderGenerator()
+        # A timer must name the plan of the running cook.  A start or the end
+        # of a cook clears this, the oven's next plan report sets it, and
+        # _await_running_plan waits for it.
+        self.plan_start_timeout = PLAN_START_TIMEOUT
+        self._plan_current = False
         self._ws: ClientWebSocketResponse | None = None
         self._ws_task: asyncio.Task[None] | None = None
         self._keepalive_task: asyncio.Task[None] | None = None
@@ -344,6 +353,8 @@ class JuneClient:
         if plan_index is not None:
             # Toast level - 1, or grill heat; without it the oven runs its default plan.
             payload["plan_index"] = plan_index
+        # A start replaces any running cook, so its plan id no longer applies.
+        self._plan_current = False
         status = await self._async_send_command(MC_PREHEAT, payload)
         self._require_success(status, "start cook")
         self.state.cook_mode = mode
@@ -367,10 +378,16 @@ class JuneClient:
             self.state.target_temp_c = fahrenheit_to_celsius(temperature_f)
             self._notify()
             return
+        plan_id = await self._await_running_plan()
+        if plan_id is None:
+            raise JuneCommandError(
+                "The oven has not reported the running cook yet; "
+                "the temperature was not changed."
+            )
         status = await self._async_send_command(
             MC_SET_TEMPERATURE,
             {
-                "plan_id": self.state.plan_id,
+                "plan_id": plan_id,
                 "temperature_cavity": fahrenheit_to_millic(temperature_f),
             },
         )
@@ -396,11 +413,38 @@ class JuneClient:
         await asyncio.sleep(0.4)
         await self.async_preheat(mode, temperature_f)
 
+    async def _await_running_plan(self) -> int | None:
+        """Return the plan id of the running cook, waiting out the start.
+
+        The oven acknowledges a start (10020) before it reports the cook's plan
+        (10014/10018).  A timer sent in that window carries the previous plan id
+        or none at all, and the oven then applies it to the wrong plan;
+        cancelling that cook afterwards reboots the oven (seen 2026-10-11:
+        11006 arrived 5 ms after the start ack with plan_id 0 while the running
+        reheat plan was id 2, and the first 11004 rebooted the oven).  The
+        companion app only sets its timer once the cook is running.
+
+        A cook that was already running when HA restarts it (a new mode from
+        the card) stays active throughout, so being active is not enough: the
+        plan has to have been reported since the last start.
+        """
+        deadline = time.monotonic() + self.plan_start_timeout
+        while not (self.state.active and self._plan_current):
+            if time.monotonic() >= deadline:
+                return None
+            await asyncio.sleep(0.05)
+        return self.state.plan_id
+
     async def async_set_timer(self, minutes: float) -> None:
-        """Set the oven's native cook timer."""
+        """Set the oven's native cook timer on the cook that is running."""
+        plan_id = await self._await_running_plan()
+        if plan_id is None:
+            raise JuneCommandError(
+                "The oven has not reported a running cook yet; the timer was not set."
+            )
         status = await self._async_send_command(
             MC_SET_TIMER,
-            {"plan_id": self.state.plan_id, "duration": round(minutes * 60_000)},
+            {"plan_id": plan_id, "duration": round(minutes * 60_000)},
         )
         self._require_success(status, "set timer")
 
@@ -662,6 +706,7 @@ class JuneClient:
         self._recorder.plan(plan.name, plan.plan_id, plan.session_id)
         if plan.plan_id is not None:
             self.state.plan_id = plan.plan_id
+            self._plan_current = True
         if plan.name is not None:
             self.state.cook_mode = plan.name
         if plan.target_millic is not None:
@@ -722,6 +767,7 @@ class JuneClient:
             self.state.ready = False
             self._recorder.start(utcnow())
         elif not active:
+            self._plan_current = False
             self._recorder.idle()
         if was_active and not active:
             record = self._recorder.finish(
