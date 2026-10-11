@@ -57,6 +57,10 @@ MODE_TEMP_RANGES_F: Final[dict[str, tuple[float, float, float]]] = {
     "proof": (80, 110, 85),
     "dehydrate": (100, 160, 135),
 }
+# Modes whose temperature belongs to the plan (fixed, or the grill heat): a
+# refused temperature change is never retried by restarting the cook, which
+# would only reset the toast's timing or drop a reheat's timer.
+NO_RESTART_MODES: Final = frozenset({*FIXED_MODE_TEMPS_F, "grill"})
 DEFAULT_TOAST_LEVEL: Final = 5
 # Earlier releases stored air fry as "air-fry"; the June app sends "airfry".
 LEGACY_MODES: Final[dict[str, str]] = {"air-fry": "airfry"}
@@ -67,7 +71,7 @@ POLL_INTERVAL_SECONDS: Final = 60
 
 # The bundled Lovelace card, served by the integration (see www/).
 CARD_URL: Final = "/june_oven/july-oven-card.js"
-CARD_VERSION: Final = "0.5.16"
+CARD_VERSION: Final = "0.5.17"
 
 # Fired with each finished cook's history record (history.py).
 EVENT_COOK_FINISHED: Final = "june_oven_cook_finished"
