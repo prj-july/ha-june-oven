@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import importlib
 import importlib.util
 import json
@@ -223,6 +224,58 @@ class ClientReplayTest(unittest.IsolatedAsyncioTestCase):
         # the next start.
         self.assertEqual(state.cook_mode, "proof")
         self.assertAlmostEqual(state.target_temp_c, 26.667)
+
+    async def test_timer_waits_for_the_plan_it_belongs_to(self) -> None:
+        """11006 must name the plan of the cook that is running.
+
+        Regression for the 2026-10-11 reboot: the reheat timer went out 5 ms
+        after the start acknowledgement with the previous plan id (0) while the
+        running reheat plan was 2; cancelling that cook rebooted the oven.
+        """
+        self.client.plan_start_timeout = 0.5
+        task = asyncio.create_task(self.client.async_set_timer(60))
+        await asyncio.sleep(0.1)
+        # Nothing goes out until the oven reports the plan of the new cook.
+        self.assertEqual(self.sent, [])
+
+        self.client._handle_message(
+            json.dumps({"message_code": 10018, "data": {"state": "active"}})
+        )
+        self.assertEqual(self.sent, [])
+        self.client._handle_message(
+            json.dumps(
+                {
+                    "message_code": 10014,
+                    "data": {
+                        "food": {
+                            "name": "reheat",
+                            "plan": {
+                                "id": 2,
+                                "steps": [
+                                    {
+                                        "id": 1,
+                                        "cook_mode": "reheat",
+                                        "temperature_cavity": 176667,
+                                    }
+                                ],
+                            },
+                        },
+                        "session_id": "session",
+                        "step_state": {"step_id": 1, "step_index": 0},
+                    },
+                }
+            )
+        )
+        await asyncio.wait_for(task, 2)
+        self.assertEqual(
+            self.sent, [(api.MC_SET_TIMER, {"plan_id": 2, "duration": 3600000})]
+        )
+
+    async def test_timer_without_a_running_cook_is_refused(self) -> None:
+        self.client.plan_start_timeout = 0.2
+        with self.assertRaises(api.JuneCommandError):
+            await self.client.async_set_timer(30)
+        self.assertEqual(self.sent, [])
 
     async def test_add_cook_time_extends_the_time_left(self) -> None:
         state = self.client.state
