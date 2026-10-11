@@ -271,6 +271,42 @@ class ClientReplayTest(unittest.IsolatedAsyncioTestCase):
             self.sent, [(api.MC_SET_TIMER, {"plan_id": 2, "duration": 3600000})]
         )
 
+    async def test_timer_after_a_restart_waits_for_the_new_plan(self) -> None:
+        """A cook HA restarts stays active, but its old plan id is gone."""
+
+        def plan(plan_id: int, mode: str) -> str:
+            step = {"id": 1, "cook_mode": mode, "temperature_cavity": 176667}
+            return json.dumps(
+                {
+                    "message_code": 10014,
+                    "data": {
+                        "food": {
+                            "name": mode,
+                            "plan": {"id": plan_id, "steps": [step]},
+                        },
+                        "session_id": "session",
+                        "step_state": {"step_id": 1, "step_index": 0},
+                    },
+                }
+            )
+
+        self.client._handle_message(
+            json.dumps({"message_code": 10018, "data": {"state": "active"}})
+        )
+        self.client._handle_message(plan(2, "bake"))
+        await self.client.async_preheat("reheat", 350)
+        self.sent.clear()
+
+        self.client.plan_start_timeout = 0.5
+        task = asyncio.create_task(self.client.async_set_timer(60))
+        await asyncio.sleep(0.1)
+        self.assertEqual(self.sent, [])
+        self.client._handle_message(plan(3, "reheat"))
+        await asyncio.wait_for(task, 2)
+        self.assertEqual(
+            self.sent, [(api.MC_SET_TIMER, {"plan_id": 3, "duration": 3600000})]
+        )
+
     async def test_timer_without_a_running_cook_is_refused(self) -> None:
         self.client.plan_start_timeout = 0.2
         with self.assertRaises(api.JuneCommandError):
