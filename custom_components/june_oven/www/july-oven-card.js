@@ -44,7 +44,7 @@
  */
 (() => {
   "use strict";
-  const VERSION = "0.5.14";
+  const VERSION = "0.5.15";
   const DOMAIN = "june_oven";
   const TAG = "july-oven-card";
   if (customElements.get(TAG)) return;
@@ -949,6 +949,7 @@
 
     disconnectedCallback() {
       if (this._ro) this._ro.disconnect();
+      if (this._pagerRO) this._pagerRO.disconnect();
       clearInterval(this._tick);
       clearInterval(this._camTimer);
       clearTimeout(this._reviewTimer);
@@ -1040,6 +1041,32 @@
       this._homeAnim = requestAnimationFrame(step);
     }
 
+    // The dots always show the page the pager is really on. A pager drawn while the card is hidden (a
+    // dashboard view or browser tab not on screen, say during a cook) has no width, so it can't be put
+    // on its page yet: that happens when it gets its size, and the dots follow.
+    _watchPager(pager, px) {
+      if (this._pagerRO) this._pagerRO.disconnect();
+      const place = () => {
+        const w = pager.clientWidth;
+        if (!w || !pager.isConnected) return false;
+        if (!this._homeAnim) pager.scrollLeft = px || this._page * w;
+        px = 0;
+        this._syncPage(pager);
+        return true;
+      };
+      this._pagerRO = new ResizeObserver(() => place());
+      this._pagerRO.observe(pager);
+      place();
+    }
+
+    _syncPage(pager) {
+      const w = pager.clientWidth;
+      if (!w) return;
+      const i = Math.round(pager.scrollLeft / w);
+      if (i !== this._page) this._page = i;
+      this._markPage(i);
+    }
+
     _markPage(i) {
       this.shadowRoot.querySelectorAll(".d2-dot").forEach((d, j) => (j === i ? d.setAttribute("aria-current", "true") : d.removeAttribute("aria-current")));
     }
@@ -1115,9 +1142,9 @@
       const date = new Date(now).toLocaleDateString(lang, { weekday: "long", month: "long", day: "numeric" });
 
       // The name tucks only on the home screen (the mode tiles); in a cook it always shows. Coming back
-      // home shows it again for 5 s.
+      // home shows it again for 5 s, on the first page of cook modes.
       const home = focus.key === "off" && size !== "compact";
-      if (home && this._wasHome === false) this._tuckLater();
+      if (home && this._wasHome === false) { this._tuckLater(); this._page = 0; }
       this._wasHome = home;
       const nb = { tucked: home && this._tucked && this._hideName(), open: !!(this._sheet && this._sheet.kind === "menu") };
       let body;
@@ -1156,11 +1183,8 @@
         const newPager = this.shadowRoot.querySelector(".d2-pager");
         this._pagerHTML = newPager ? newPager.outerHTML : "";
         if (newPager) {
-          newPager.scrollLeft = scroll || this._page * newPager.clientWidth;
-          newPager.addEventListener("scroll", () => {
-            const i = Math.round(newPager.scrollLeft / Math.max(1, newPager.clientWidth));
-            if (i !== this._page) { this._page = i; this._markPage(i); }
-          }, { passive: true });
+          newPager.addEventListener("scroll", () => this._syncPage(newPager), { passive: true });
+          this._watchPager(newPager, scroll);
         }
       }
       this._placeCameras(models);
