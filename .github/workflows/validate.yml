@@ -67,6 +67,23 @@ jobs:
           python-version: ${{ matrix.python }}
       - name: Install Home Assistant
         run: python -m pip install --pre "homeassistant==${{ matrix.homeassistant }}"
+      - name: Install the camera's requirements
+        # Home Assistant installs these when it loads the camera component;
+        # the tests load it without that step. Read from that version's
+        # manifests so the pins match it.
+        run: |
+          python - > "$RUNNER_TEMP/camera-requirements.txt" <<'EOF'
+          import json
+          import pathlib
+
+          import homeassistant.components as components
+
+          root = pathlib.Path(components.__path__[0])
+          for name in ("camera", "stream"):
+              manifest = json.loads((root / name / "manifest.json").read_text())
+              print("\n".join(manifest.get("requirements", [])))
+          EOF
+          python -m pip install -r "$RUNNER_TEMP/camera-requirements.txt"
       - name: Exercise config flow
         run: >-
           python -m unittest discover -s tests
