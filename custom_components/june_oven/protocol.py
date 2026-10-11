@@ -379,7 +379,9 @@ def parse_cook_progress(value: Any) -> CookProgress | None:
         label_type=label_type,
         percent=min(100.0, max(0.0, float(percent))) if percent is not None else None,
         elapsed_ms=int(elapsed) if elapsed is not None else None,
-        remaining_ms=int(remaining) if remaining is not None and remaining >= 0 else None,
+        remaining_ms=int(remaining)
+        if remaining is not None and remaining >= 0
+        else None,
     )
 
 

@@ -5,7 +5,6 @@ from __future__ import annotations
 from typing import Any
 
 import voluptuous as vol
-
 from homeassistant.components.climate import (
     ATTR_TEMPERATURE,
     ClimateEntity,
@@ -56,7 +55,11 @@ async def async_setup_entry(
     )
     entity_platform.async_get_current_platform().async_register_entity_service(
         SERVICE_SET_TIMER,
-        {vol.Required("minutes"): vol.All(vol.Coerce(float), vol.Range(min=1, max=720))},
+        {
+            vol.Required("minutes"): vol.All(
+                vol.Coerce(float), vol.Range(min=1, max=720)
+            )
+        },
         "async_set_timer",
     )
 
@@ -199,7 +202,9 @@ class JuneOvenClimate(JuneEntity, ClimateEntity):
         rng = MODE_TEMP_RANGES_F.get(preset_mode)
         if rng and not (rng[0] <= temperature <= rng[1]):
             temperature = rng[2]
-        await self._run(self.coordinator.client.async_set_mode(preset_mode, temperature))
+        await self._run(
+            self.coordinator.client.async_set_mode(preset_mode, temperature)
+        )
 
     async def async_add_cook_time(self, minutes: float) -> None:
         """Extend the running timer (the card's +1 / +5 / +10)."""

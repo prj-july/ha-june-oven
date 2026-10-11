@@ -232,8 +232,13 @@ class ClientReplayTest(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(self.sent, [])
 
         self.client._apply_telemetry(
-            {"cook_state_data": {"cook_time_elapsed": 60000, "cook_time_remaining": 750000},
-             "eta": {"status": "acquired"}}
+            {
+                "cook_state_data": {
+                    "cook_time_elapsed": 60000,
+                    "cook_time_remaining": 750000,
+                },
+                "eta": {"status": "acquired"},
+            }
         )
         self.assertEqual(state.cook_time_remaining_s, 750.0)
         self.assertEqual(state.eta_status, "acquired")
@@ -420,7 +425,7 @@ class _FakeResponse:
     async def read(self) -> bytes:
         return self._body
 
-    async def __aenter__(self) -> "_FakeResponse":
+    async def __aenter__(self) -> _FakeResponse:
         return self
 
     async def __aexit__(self, *exc: object) -> bool:
