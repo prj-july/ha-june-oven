@@ -655,20 +655,25 @@ class IdleCameraTest(unittest.IsolatedAsyncioTestCase):
         )
         return client, session
 
-    async def test_idle_fetch_wakes_camera_and_uses_still_url(self) -> None:
+    async def test_idle_fetch_does_not_wake_by_default(self) -> None:
         client, session = self.make_client("192.168.1.207")
         image = await client.async_fetch_camera_image()
         self.assertEqual(image, session.image)
+        self.assertEqual(session.posts, [])
+        self.assertEqual(
+            session.gets, ["https://192.168.1.207/media/prod/images/latest.jpg"]
+        )
+        # An explicit view wakes, once inside the wake window.
+        self.assertEqual(
+            await client.async_fetch_camera_image(wake=True), session.image
+        )
         self.assertEqual(
             session.posts, ["https://192.168.1.207/internal/camera/on?seconds=20"]
         )
         self.assertEqual(
-            session.gets, ["https://192.168.1.207/media/prod/images/latest.jpg"]
+            await client.async_fetch_camera_image(wake=True), session.image
         )
-        # Another view inside the wake window must not re-post.
-        self.assertEqual(await client.async_fetch_camera_image(), session.image)
         self.assertEqual(len(session.posts), 1)
-        self.assertEqual(len(session.gets), 2)
 
     async def test_pushed_frame_url_still_wins_when_present(self) -> None:
         client, session = self.make_client("192.168.1.207")
