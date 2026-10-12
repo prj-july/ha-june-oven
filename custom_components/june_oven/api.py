@@ -549,7 +549,7 @@ class JuneClient:
         self._last_camera_wake = now
         return True
 
-    async def async_fetch_camera_image(self, *, wake: bool = True) -> bytes | None:
+    async def async_fetch_camera_image(self, *, wake: bool = False) -> bytes | None:
         """Fetch the most recent trusted camera image."""
         if wake and self.endpoints.local and not self.state.active:
             await self.async_wake_camera()

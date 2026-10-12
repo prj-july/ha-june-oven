@@ -1678,6 +1678,13 @@
       const t0 = Date.now();
       const m = this._model(this._conf(s.oven), t0);
       const st = m.ids.camera && this._hass.states[m.ids.camera];
+      // Passive dashboard fetches never wake the oven (HA rotates the proxy
+      // token every 5 minutes and every visible camera re-fetches on it).
+      // An open camera sheet wakes explicitly, and keeps the window alive.
+      if (m.ids.camera && (!s.waked || Date.now() - s.waked > 15000)) {
+        s.waked = Date.now();
+        this._call("june_oven", "wake_camera", {}, m.ids.camera);
+      }
       const show = (title, text) => {
         const msg = el.querySelector(".d2-cv-msg"), pill = el.querySelector(".d2-cv-pill");
         if (!msg) return;

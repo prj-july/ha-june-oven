@@ -28,3 +28,9 @@ set_timer:
           max: 720
           step: 1
           unit_of_measurement: min
+
+wake_camera:
+  target:
+    entity:
+      integration: june_oven
+      domain: camera

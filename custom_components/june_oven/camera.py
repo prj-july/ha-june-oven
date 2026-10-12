@@ -5,6 +5,7 @@ from __future__ import annotations
 from homeassistant.components.camera import Camera
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
+from homeassistant.helpers import entity_platform
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
 from .coordinator import JuneDataUpdateCoordinator
@@ -19,6 +20,11 @@ async def async_setup_entry(
     """Set up the June interior camera."""
     coordinator: JuneDataUpdateCoordinator = entry.runtime_data
     async_add_entities([JuneOvenCamera(coordinator)])
+    entity_platform.async_get_current_platform().async_register_entity_service(
+        "wake_camera",
+        {},
+        "async_wake_camera",
+    )
 
 
 class JuneOvenCamera(JuneEntity, Camera):
@@ -48,5 +54,9 @@ class JuneOvenCamera(JuneEntity, Camera):
     async def async_camera_image(
         self, width: int | None = None, height: int | None = None
     ) -> bytes | None:
-        """Return the latest oven image."""
+        """Return the latest oven image without waking the camera."""
         return await self.coordinator.client.async_fetch_camera_image()
+
+    async def async_wake_camera(self) -> None:
+        """Wake the interior camera for one viewing window."""
+        await self.coordinator.client.async_wake_camera()
