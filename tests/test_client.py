@@ -85,6 +85,24 @@ class CookRecorderTest(unittest.TestCase):
         self.assertIsNone(recorder.finish(state, start, cancelled=False))
 
 
+def plan_data(plan_id: int, mode: str) -> dict[str, Any]:
+    """A cook plan as 10014 carries it (and 10013 as cook_plan_data)."""
+    step = {"id": 1, "cook_mode": mode, "temperature_cavity": 176667}
+    return {
+        "food": {"name": mode, "plan": {"id": plan_id, "steps": [step]}},
+        "session_id": "session",
+        "step_state": {"step_id": 1, "step_index": 0},
+    }
+
+
+def plan_frame(code: int, plan_id: int, mode: str) -> str:
+    """A 10014 plan report, or 10013 telemetry carrying the plan."""
+    data = plan_data(plan_id, mode)
+    if code == 10013:
+        data = {"sensor_data": {"cavity": 150000}, "cook_plan_data": data}
+    return json.dumps({"message_code": code, "data": data})
+
+
 class ClientReplayTest(unittest.IsolatedAsyncioTestCase):
     """Feed oven frames to JuneClient in receive order."""
 
@@ -190,17 +208,13 @@ class ClientReplayTest(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(state.cook_phase, "cooking")
         self.assertEqual(state.cook_elapsed_s, 1.0)
 
-        # Proof is now a startable primitive, so a refused 11005 restarts it
-        # the same way bake restarts: cancel, then a fresh 11002.
-        self.statuses = ["not-allowed", "success", "success"]
-        await self.client.async_set_target_f(100, "proof")
-        self.assertEqual(
-            [code for code, _ in self.sent],
-            [api.MC_SET_TEMPERATURE, api.MC_CANCEL, api.MC_PREHEAT],
-        )
-        self.assertEqual(
-            self.sent[2][1], {"primitive_type": "proof", "temperature_cavity": 37778}
-        )
+        # Proof is a startable primitive, but this is the oven screen's proof
+        # program (plan 114): a refused 11005 leaves it running rather than
+        # replacing it with a remote proof.
+        self.statuses = ["not-allowed"]
+        with self.assertRaises(api.JuneCommandError):
+            await self.client.async_set_target_f(100, "proof")
+        self.assertEqual([code for code, _ in self.sent], [api.MC_SET_TEMPERATURE])
 
         self.replay("oven-screen-proof.jsonl")
         self.assertEqual(state.cook_elapsed_s, 8.003)
@@ -208,7 +222,7 @@ class ClientReplayTest(unittest.IsolatedAsyncioTestCase):
         await self.client.async_set_timer(10)
         await self.client.async_cancel()
         self.assertEqual(
-            self.sent[3:],
+            self.sent[1:],
             [
                 (api.MC_SET_TIMER, {"plan_id": 114, "duration": 600000}),
                 (api.MC_CANCEL, {"plan_id": 114}),
@@ -306,6 +320,98 @@ class ClientReplayTest(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(
             self.sent, [(api.MC_SET_TIMER, {"plan_id": 3, "duration": 3600000})]
         )
+
+    def running(self, plan_id: int, mode: str) -> None:
+        """The oven reports an active cook of ``mode`` as plan ``plan_id``."""
+        self.client._handle_message(
+            json.dumps({"message_code": 10018, "data": {"state": "active"}})
+        )
+        self.client._handle_message(plan_frame(10014, plan_id, mode))
+
+    async def test_replaced_cooks_reports_are_not_the_new_plan(self) -> None:
+        """While a start waits, the old cook's telemetry and REST don't count.
+
+        The cook a start replaces keeps sending 10013 (with its plan) about
+        every second, and june-local's REST status serves the last plan it
+        knew; either, taken for the new plan, sends the timer to the old one.
+        """
+        self.running(2, "bake")
+        await self.client.async_preheat("reheat", 350)
+        self.sent.clear()
+
+        self.client.plan_start_timeout = 0.5
+        task = asyncio.create_task(self.client.async_set_timer(60))
+        await asyncio.sleep(0.1)
+        self.client._handle_message(plan_frame(10013, 2, "bake"))
+        self.client._apply_status(
+            june_local_status("connected", {"state": "active"}, plan_data(2, "bake"))
+        )
+        await asyncio.sleep(0.1)
+        self.assertEqual(self.sent, [])
+        # The new cook's own telemetry, with a plan other than the replaced one.
+        self.client._handle_message(plan_frame(10013, 3, "reheat"))
+        await asyncio.wait_for(task, 2)
+        self.assertEqual(
+            self.sent, [(api.MC_SET_TIMER, {"plan_id": 3, "duration": 3600000})]
+        )
+
+    async def test_a_refused_start_keeps_the_running_plan(self) -> None:
+        self.running(2, "bake")
+        self.statuses = ["door-open"]
+        with self.assertRaises(api.JuneCommandError):
+            await self.client.async_preheat("roast", 400)
+        self.client.plan_start_timeout = 0.2
+        await self.client.async_set_timer(30)
+        self.assertEqual(
+            self.sent[-1], (api.MC_SET_TIMER, {"plan_id": 2, "duration": 1800000})
+        )
+
+    async def test_stop_right_after_a_start_names_the_new_plan(self) -> None:
+        self.running(2, "bake")
+        await self.client.async_preheat("roast", 400)
+        self.sent.clear()
+        task = asyncio.create_task(self.client.async_cancel())
+        await asyncio.sleep(0.1)
+        self.assertEqual(self.sent, [])
+        self.client._handle_message(plan_frame(10014, 5, "roast"))
+        await asyncio.wait_for(task, 2)
+        self.assertEqual(self.sent, [(api.MC_CANCEL, {"plan_id": 5})])
+
+    async def test_mode_change_keeps_the_plan_index(self) -> None:
+        """A running cook switched to grill restarts at the chosen heat."""
+        self.running(2, "bake")
+        await self.client.async_set_mode("grill", 400, 1)
+        self.assertEqual(
+            self.sent,
+            [
+                (api.MC_CANCEL, {"plan_id": 2}),
+                (
+                    api.MC_PREHEAT,
+                    {
+                        "primitive_type": "grill",
+                        "temperature_cavity": 204444,
+                        "plan_index": 1,
+                    },
+                ),
+            ],
+        )
+
+    async def test_refused_change_never_restarts_a_plan_mode(self) -> None:
+        """Toast's temperature is its plan's: a restart would reset its timing."""
+        self.running(0, "toast")
+        self.statuses = ["not-allowed"]
+        with self.assertRaises(api.JuneCommandError):
+            await self.client.async_set_target_f(450, "toast")
+        self.assertEqual([code for code, _ in self.sent], [api.MC_SET_TEMPERATURE])
+
+    async def test_refused_change_never_restarts_an_oven_screen_program(self) -> None:
+        """Proof from the oven's screen runs as plan 114, not a remote start."""
+        self.replay("oven-screen-proof.jsonl", until=345)
+        self.assertEqual(self.client.state.plan_id, 114)
+        self.statuses = ["not-allowed"]
+        with self.assertRaises(api.JuneCommandError):
+            await self.client.async_set_target_f(95, "proof")
+        self.assertEqual([code for code, _ in self.sent], [api.MC_SET_TEMPERATURE])
 
     async def test_timer_without_a_running_cook_is_refused(self) -> None:
         self.client.plan_start_timeout = 0.2

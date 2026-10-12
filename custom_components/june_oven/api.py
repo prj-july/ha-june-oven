@@ -26,7 +26,7 @@ from aiohttp import (
     WSServerHandshakeError,
 )
 
-from .const import DEFAULT_MODES
+from .const import DEFAULT_MODES, NO_RESTART_MODES
 from .cooklog import CookRecorder, utcnow
 from .protocol import (
     JUNE_APP_VERSION,
@@ -84,6 +84,9 @@ TRUSTED_CAMERA_HOSTS = {"api.junelife.com", "june-api.s3.amazonaws.com"}
 # How long to wait for the oven to report the plan of a cook that was just
 # started, before sending a timer for it (see JuneClient._await_running_plan).
 PLAN_START_TIMEOUT = 3.0
+# How long a start waits for its own plan report before the REST status and
+# the replaced cook's plan count again (see JuneClient._apply_plan).
+PLAN_START_HOLD = 10.0
 
 # aiohttp's per-request ``ssl`` value: True verifies against the system store,
 # False skips verification, and a context trusts a specific CA.
@@ -216,7 +219,15 @@ class JuneClient:
         # of a cook clears this, the oven's next plan report sets it, and
         # _await_running_plan waits for it.
         self.plan_start_timeout = PLAN_START_TIMEOUT
+        self.plan_start_hold = PLAN_START_HOLD
         self._plan_current = False
+        # While a start waits for its plan (until this monotonic time), the
+        # cook it replaces can still report its own; see _apply_plan.
+        self._start_until = 0.0
+        self._replaced_plan: int | None = None
+        # The mode HA started and is running: only such a cook is restarted
+        # when the oven refuses a temperature change.
+        self._started_mode: str | None = None
         self._ws: ClientWebSocketResponse | None = None
         self._ws_task: asyncio.Task[None] | None = None
         self._keepalive_task: asyncio.Task[None] | None = None
@@ -354,9 +365,20 @@ class JuneClient:
             # Toast level - 1, or grill heat; without it the oven runs its default plan.
             payload["plan_index"] = plan_index
         # A start replaces any running cook, so its plan id no longer applies.
+        was_current = self._plan_current
+        self._replaced_plan = (
+            self.state.plan_id if was_current and self.state.active else None
+        )
         self._plan_current = False
+        self._start_until = time.monotonic() + self.plan_start_hold
         status = await self._async_send_command(MC_PREHEAT, payload)
+        if status is not None and status != "success":
+            # Refused outright: whatever was running still is, under its plan.
+            # An unanswered start may still have gone through, so it waits on.
+            self._start_until = 0.0
+            self._plan_current = was_current
         self._require_success(status, "start cook")
+        self._started_mode = mode
         self.state.cook_mode = mode
         self.state.target_temp_c = fahrenheit_to_celsius(temperature_f)
         self.state.done = False
@@ -365,9 +387,14 @@ class JuneClient:
     async def async_cancel(self) -> None:
         """Cancel the active cook."""
         self._last_cancelled = True
-        status = await self._async_send_command(
-            MC_CANCEL, {"plan_id": self.state.plan_id}
-        )
+        plan_id = self.state.plan_id
+        if self._start_pending:
+            # Just after a start, stop the new cook by its own plan once the
+            # oven reports it, rather than by the plan it replaced.
+            running = await self._await_running_plan()
+            if running is not None:
+                plan_id = running
+        status = await self._async_send_command(MC_CANCEL, {"plan_id": plan_id})
         if status not in ("success", "not-allowed"):
             self._last_cancelled = False
             self._require_success(status, "cancel cook")
@@ -395,23 +422,41 @@ class JuneClient:
             self.state.target_temp_c = fahrenheit_to_celsius(temperature_f)
             self._notify()
             return
-        # Restart only after a definite refusal, and only for a primitive the
-        # oven can start again; a timeout may still have applied the change.
-        if status is None or mode not in DEFAULT_MODES:
+        # Restart only after a definite refusal (a timeout may still have
+        # applied the change), and only a cook that a start of this mode can
+        # replace: a remote start (plan 0, or one HA made), not a program from
+        # the oven's screen that shares the mode's name (proof runs as plan
+        # 114), and not a mode whose temperature is the plan's own.
+        restartable = (
+            mode in DEFAULT_MODES
+            and mode not in NO_RESTART_MODES
+            and (plan_id == 0 or self._started_mode == mode)
+        )
+        if status is None or not restartable:
             self._require_success(status, "change the temperature")
         await self.async_cancel()
         await asyncio.sleep(0.4)
         await self.async_preheat(mode, temperature_f)
 
-    async def async_set_mode(self, mode: str, temperature_f: float) -> None:
-        """Select a cook mode, restarting an active cook if needed."""
+    async def async_set_mode(
+        self, mode: str, temperature_f: float, plan_index: int | None = None
+    ) -> None:
+        """Select a cook mode, restarting an active cook if needed.
+
+        ``plan_index`` is the toast level - 1 or the grill heat, as for a start.
+        """
         self.state.cook_mode = mode
         self._notify()
         if not self.state.active:
             return
         await self.async_cancel()
         await asyncio.sleep(0.4)
-        await self.async_preheat(mode, temperature_f)
+        await self.async_preheat(mode, temperature_f, plan_index)
+
+    @property
+    def _start_pending(self) -> bool:
+        """A start is still waiting for the oven to report its plan."""
+        return time.monotonic() < self._start_until
 
     async def _await_running_plan(self) -> int | None:
         """Return the plan id of the running cook, waiting out the start.
@@ -458,10 +503,15 @@ class JuneClient:
         remaining = self.state.cook_time_remaining_s
         if not self.state.active or remaining is None:
             raise JuneCommandError("No timer is running")
+        plan_id = await self._await_running_plan()
+        if plan_id is None:
+            raise JuneCommandError(
+                "The oven has not reported the running cook yet; no time was added."
+            )
         status = await self._async_send_command(
             MC_SET_TIMER,
             {
-                "plan_id": self.state.plan_id,
+                "plan_id": plan_id,
                 "duration": round(remaining * 1000 + minutes * 60_000),
             },
         )
@@ -676,7 +726,7 @@ class JuneClient:
             if candidate:
                 self.state.snapshot_url = candidate
         elif code in (MC_PLAN_STARTED, MC_PLAN, MC_TEMPERATURE):
-            self._apply_plan(parse_cook_plan(data))
+            self._apply_plan(parse_cook_plan(data), started=code == MC_PLAN_STARTED)
         elif code == MC_NOTIFICATION:
             if self._preheat.notification(data):
                 self._start_pulse("ready")
@@ -697,16 +747,29 @@ class JuneClient:
             self.state.connection_state = "online" if status.online else "offline"
         if status.device_state is not None:
             self._apply_active(status.device_state == "active")
-        self._apply_plan(status.cook_plan)
+        self._apply_plan(status.cook_plan, polled=True)
 
-    def _apply_plan(self, plan: CookPlan | None) -> None:
+    def _apply_plan(
+        self, plan: CookPlan | None, *, started: bool = False, polled: bool = False
+    ) -> None:
         # june-local keeps serving the last plan after a cook ends.
         if plan is None or not self.state.active:
+            return
+        if (
+            self._start_pending
+            and not started
+            and (polled or plan.plan_id == self._replaced_plan)
+        ):
+            # A start is waiting for its plan, and this is (or may be) the cook
+            # it replaces: its telemetry comes about every second, and the REST
+            # status serves the last plan it knew.  Taken for the new cook's,
+            # a timer would name the old plan (the v0.5.16 reboot).
             return
         self._recorder.plan(plan.name, plan.plan_id, plan.session_id)
         if plan.plan_id is not None:
             self.state.plan_id = plan.plan_id
             self._plan_current = True
+            self._start_until = 0.0
         if plan.name is not None:
             self.state.cook_mode = plan.name
         if plan.target_millic is not None:
@@ -768,6 +831,7 @@ class JuneClient:
             self._recorder.start(utcnow())
         elif not active:
             self._plan_current = False
+            self._started_mode = None
             self._recorder.idle()
         if was_active and not active:
             record = self._recorder.finish(

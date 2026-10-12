@@ -153,17 +153,29 @@ class JuneOvenClimate(JuneEntity, ClimateEntity):
         mode = self.preset_mode
         if mode not in DEFAULT_MODES:
             mode = self._default_mode
-        plan_index = None
-        if mode == "toast":
-            plan_index = self.coordinator.toast_level - 1
-        elif mode == "grill":
-            plan_index = self.coordinator.grill_heat
-        temperature = FIXED_MODE_TEMPS_F.get(mode, self.target_temperature)
-        if mode == "grill":
-            temperature = GRILL_HEAT_F.get(self.coordinator.grill_heat, 450)
+        temperature, plan_index = self._start_args(mode, self.target_temperature)
         await self._run(
             self.coordinator.client.async_preheat(mode, temperature, plan_index)
         )
+
+    def _start_args(self, mode: str, temperature: float) -> tuple[float, int | None]:
+        """The temperature and plan_index a start of ``mode`` sends.
+
+        Toast and grill pick a plan (level - 1, heat) that runs at its own
+        temperature; the fixed modes run at theirs; the others take
+        ``temperature``, or the mode's usual one when it is out of range.
+        """
+        if mode == "toast":
+            return FIXED_MODE_TEMPS_F[mode], self.coordinator.toast_level - 1
+        if mode == "grill":
+            heat = self.coordinator.grill_heat
+            return GRILL_HEAT_F.get(heat, GRILL_HEAT_F[0]), heat
+        if mode in FIXED_MODE_TEMPS_F:
+            return FIXED_MODE_TEMPS_F[mode], None
+        rng = MODE_TEMP_RANGES_F.get(mode)
+        if rng and not (rng[0] <= temperature <= rng[1]):
+            return rng[2], None
+        return temperature, None
 
     async def async_turn_off(self) -> None:
         """Cancel cooking."""
@@ -174,12 +186,12 @@ class JuneOvenClimate(JuneEntity, ClimateEntity):
         temperature = kwargs.get(ATTR_TEMPERATURE)
         if temperature is None:
             return
-        fixed = FIXED_MODE_TEMPS_F.get(self.preset_mode)
-        rng = MODE_TEMP_RANGES_F.get(self.preset_mode)
-        if fixed is not None:
-            # Fixed-temperature modes ignore the cavity temperature; keep the
+        mode = self.preset_mode
+        rng = MODE_TEMP_RANGES_F.get(mode)
+        if mode in FIXED_MODE_TEMPS_F or mode == "grill":
+            # The plan sets these temperatures (grill's by its heat); keep the
             # entity on the plan value instead of a user override.
-            value = fixed
+            value, _ = self._start_args(mode, float(temperature))
         else:
             value = float(temperature)
             lo = rng[0] if rng else MIN_TEMP_F
@@ -188,9 +200,7 @@ class JuneOvenClimate(JuneEntity, ClimateEntity):
                 raise HomeAssistantError(
                     f"Temperature must be between {lo} and {hi} °F"
                 )
-        await self._run(
-            self.coordinator.client.async_set_target_f(value, self.preset_mode)
-        )
+        await self._run(self.coordinator.client.async_set_target_f(value, mode))
 
     async def async_set_preset_mode(self, preset_mode: str) -> None:
         """Select a June cook primitive."""
@@ -198,12 +208,9 @@ class JuneOvenClimate(JuneEntity, ClimateEntity):
             return
         if preset_mode not in DEFAULT_MODES:
             raise HomeAssistantError(f"Unsupported June cook mode: {preset_mode}")
-        temperature = FIXED_MODE_TEMPS_F.get(preset_mode, self.target_temperature)
-        rng = MODE_TEMP_RANGES_F.get(preset_mode)
-        if rng and not (rng[0] <= temperature <= rng[1]):
-            temperature = rng[2]
+        temperature, plan_index = self._start_args(preset_mode, self.target_temperature)
         await self._run(
-            self.coordinator.client.async_set_mode(preset_mode, temperature)
+            self.coordinator.client.async_set_mode(preset_mode, temperature, plan_index)
         )
 
     async def async_add_cook_time(self, minutes: float) -> None:
