@@ -44,7 +44,7 @@
  */
 (() => {
   "use strict";
-  const VERSION = "0.5.15";
+  const VERSION = "0.5.19";
   const DOMAIN = "june_oven";
   const TAG = "july-oven-card";
   if (customElements.get(TAG)) return;
@@ -464,8 +464,11 @@
     const vals = [...cav, ...food].map(([, v]) => v);
     if (m.tgt !== null) vals.push(m.tgt);
     const has = cav.length || food.length;
-    // Minutes count from the start of the cook, when the card knows it.
-    const origin = Number.isFinite(m.since) && m.since <= t0 ? m.since : t0;
+    // Minutes count from the start of the cook, when the card knows it. The start is worked out from the
+    // oven's elapsed time, which arrives in steps, so it wanders by seconds from one render to the next:
+    // within 90 s of the graph's left edge (the same tolerance as reloading the history) the cook began
+    // there, and the axis starts at exactly 0 instead of 0 coming and going.
+    const origin = Number.isFinite(m.since) && m.since < t0 - 90000 ? m.since : t0;
     const plot = has ? chart(vals, m.unit, m.tgt, [(t0 - origin) / 60000, (t1 - origin) / 60000], (y, W) => {
       const x = (t) => (((t - t0) / (t1 - t0)) * W).toFixed(1);
       // Each line runs on to now at its last reading.
